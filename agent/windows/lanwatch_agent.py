@@ -581,7 +581,7 @@ def _poll_status_queue():
             pass
 
 
-def _open_log():
+def _open_log(icon=None):
     """打开日志文件"""
     try:
         os.startfile(LOG_FILE) if sys.platform == "win32" else None
@@ -589,7 +589,7 @@ def _open_log():
         pass
 
 
-def _show_about():
+def _show_about(icon=None):
     """显示关于对话框"""
     try:
         import tkinter as tk
@@ -607,7 +607,7 @@ def _show_about():
         pass
 
 
-def _exit_app():
+def _exit_app(icon=None):
     """安全退出（通知服务端后退出）"""
     global _tray_icon_ref
     log.info("[托盘] 请求退出")
@@ -917,15 +917,6 @@ def main():
         token    = reg["token"]
         log.info("注册成功，Agent ID: %s", agent_id)
 
-        # 弹出成功窗口（非阻塞）
-        threading.Thread(
-            target=_show_success_window,
-            args=(company_name, agent_id, token),
-            daemon=True
-        ).start()
-
-        import time; sleep(2)
-
         config = {
             "agent_id": agent_id,
             "company_name": company_name,
@@ -935,6 +926,14 @@ def main():
             "targets": [{"name": "网关", "host": "192.168.1.1"}],
         }
         save_config(config)
+
+        # 弹出成功窗口（在主线程，窗口关闭后主程序继续）
+        root = __import__('tkinter').Tk()
+        root.withdraw()
+        root.attributes("-topmost", True)
+        _show_success_window(company_name, agent_id, token)
+        root.attributes("-topmost", False)
+        root.destroy()
     else:
         agent_id = config["agent_id"]
         company_name = config.get("company_name", "")
