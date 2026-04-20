@@ -893,7 +893,7 @@ def _show_success_window(company_name, agent_id, token):
 
     # Token 框
     token_frame = tk.Frame(main, bg=INPUT_BG, relief="solid", bd=1,
-                           highlightbackground=HL)
+                           highlightbackground="#D1D5DB")
     token_frame.pack(fill="x", pady=(10,0))
     tk.Label(token_frame, text="Token（请妥善保存，遗失无法找回）",
              font=("微软雅黑",8), bg=INPUT_BG, fg=TEXT2).pack(
