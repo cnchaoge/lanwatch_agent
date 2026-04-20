@@ -760,77 +760,9 @@ def _show_setup_window(root):
     label_row(form, "网关电话（选填）")
     phone_entry = entry(form); phone_entry.pack(fill="x")
 
-    # 内网网段 + 扫描按钮
-    label_row(form, "内网网段")
-    subnet_row = tk.Frame(form, bg=BG)
-    subnet_row.pack(fill="x", pady=(3,4))
-    subnet_sv = tk.StringVar(value=get_subnet_prefix() or "无法检测")
-    se = tk.Entry(subnet_row, textvariable=subnet_sv, font=("微软雅黑",10),
-                  bg=INPUT_BG, fg=TEXT, state="readonly",
-                  relief="solid", bd=1, highlightthickness=0)
-    se.pack_configure(side="left", fill="x", expand=True, ipady=5)
-    scan_btn = tk.Button(subnet_row, text="扫描网络",
-                         font=("微软雅黑",9,"bold"),
-                         bg=ACCENT, fg="white", relief="flat", pady=0,
-                         padx=8, cursor="hand2")
-    scan_btn.pack_configure(side="right", padx=(6,0))
+    status_lbl = tk.Label(form, text="", font=("微软雅黑", 9), bg=BG, fg=TEXT2, anchor="w")
+    status_lbl.pack(fill="x", pady=(4,0))
 
-    # 扫描结果列表
-    scan_status_sv = tk.StringVar(value="")
-    scan_canvas = None; scan_inner = None; scanyscroll = None
-    found_devices = []
-
-    status_lbl = tk.Label(form, textvariable=scan_status_sv,
-                          font=("微软雅黑",9), bg=BG, fg=TEXT2, anchor="w")
-    status_lbl.pack(fill="x", pady=(0,4))
-
-    def on_scan_click():
-        prefix = get_subnet_prefix()
-        if not prefix or prefix == "无法检测":
-            scan_status_sv.set("无法获取本机网段，请检查网络连接")
-            return
-        scan_btn.config(state="disabled", text="扫描中...")
-        scan_status_sv.set(f"正在扫描 {prefix}.x ...")
-        found_devices.clear()
-
-        def do_scan():
-            import concurrent.futures
-            local_found = []
-            try:
-                with concurrent.futures.ThreadPoolExecutor(max_workers=50) as ex:
-                    futures = {ex.submit(_probe_host, f"{prefix}.{i}"): i
-                               for i in range(1, 255)}
-                    for fut in concurrent.futures.as_completed(futures, timeout=20):
-                        try:
-                            res = fut.result()
-                            if res:
-                                ip, mac, hostname = res
-                                local_found.append((ip, mac, hostname))
-                                win.after(0, lambda d=local_found:
-                                    scan_status_sv.set(
-                                        f"已发现 {len(d)} 台设备，继续扫描..."))
-                        except Exception:
-                            pass
-            except Exception:
-                pass
-            win.after(0, lambda d=local_found: show_results(d))
-
-        def show_results(devs):
-            nonlocal found_devices
-            found_devices = devs
-            scan_btn.config(state="normal", text="重新扫描")
-            cnt = len(devs)
-            scan_status_sv.set(
-                f"发现 {cnt} 台设备" if cnt > 0 else "未发现设备，请确认网络连接")
-            if cnt > 0:
-                # 自动填入网段
-                prefix = get_subnet_prefix()
-                if prefix:
-                    subnet_sv.set(prefix)
-
-        threading.Thread(target=do_scan, daemon=True).start()
-
-    scan_btn.config(command=on_scan_click)
 
     # 按钮行
     btn_frame = tk.Frame(win, bg=BG)
@@ -843,7 +775,7 @@ def _show_setup_window(root):
         company_name = name
         phone        = phone_entry.get().strip()
         location     = addr_entry.get().strip()
-        subnet       = subnet_sv.get() or get_subnet_prefix() or "无法检测"
+        subnet       = get_subnet_prefix() or ""
 
         # 显示进度状态
         for w in btn_frame.winfo_children():
