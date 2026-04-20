@@ -52,10 +52,12 @@ log = logging.getLogger()
 # 全局状态（线程安全）
 # ═══════════════════════════════════════════════════════════════
 _status_queue = queue.Queue()  # 托盘状态更新队列（跨线程通信）
+_action_queue = queue.Queue()  # 跨线程动作队列（卸载等需主线程处理）
 _tray_icon_ref = None
 _winreg = None          # 动态导入，Windows 专用
 _executor = None        # 拓扑扫描线程池
 _status_thread_started = False  # 托盘状态轮询线程只启动一次
+_tk_root = None        # 隐藏的 Tk 主窗口（用于跨线程安全调用）
 consecutive_errors = 0  # 连续上报失败次数
 
 # ═══════════════════════════════════════════════════════════════
@@ -626,6 +628,55 @@ def _poll_status_queue():
             pass
 
 
+def _poll_action_queue():
+    """在 _tk_root 主循环中轮询动作队列，安全处理跨线程 UI 操作"""
+    try:
+        while True:
+            try:
+                op, data = _action_queue.get_nowait()
+            except queue.Empty:
+                break
+            if op == "uninstall":
+                _do_uninstall_confirm()
+    except Exception:
+        pass
+    # 下次检查
+    if _tk_root:
+        _tk_root.after(200, _poll_action_queue)
+
+
+def _do_uninstall_confirm():
+    """显示卸载确认对话框（在主 Tk 线程中调用）"""
+    import tkinter as tk
+    from tkinter import messagebox
+    if not messagebox.askyesno("卸载确认", "确定要卸载 lanwatch 吗？\n\n将删除所有配置并停止监控。"):
+        return
+    log.info("[卸载] 开始卸载...")
+    config = load_config()
+    agent_id = config.get("agent_id") if config else None
+
+    # 1. 删除自启动
+    set_autostart(False)
+    log.info("[卸载] 自启已删除")
+
+    # 2. 删除配置文件
+    try:
+        if os.path.exists(CONFIG_FILE):
+            os.remove(CONFIG_FILE)
+            log.info("[卸载] 配置已删除")
+    except Exception as e:
+        log.error("[卸载] 删除配置失败: %s", e)
+
+    # 3. 后台通知服务端（不阻塞）
+    if agent_id:
+        threading.Thread(target=lambda aid=agent_id: report_uninstall(aid),
+                         daemon=True, name="uninstall-notify").start()
+
+    # 4. 关进程
+    log.info("[卸载] 完成")
+    os._exit(0)
+
+
 def _open_log(icon=None):
     """打开日志文件"""
     try:
@@ -668,39 +719,8 @@ def _exit_app(icon=None):
 
 
 def _on_uninstall():
-    """卸载：确认后后台通知服务端、删配置、关自启、退出"""
-    import tkinter as tk
-    from tkinter import messagebox
-    root = tk.Tk()
-    root.withdraw()
-    if not messagebox.askyesno("卸载确认", "确定要卸载 lanwatch 吗？\n\n将删除所有配置并停止监控。"):
-        root.destroy()
-        return
-    root.destroy()
-    log.info("[卸载] 开始卸载...")
-    config = load_config()
-    agent_id = config.get("agent_id") if config else None
-
-    # 1. 删除自启动
-    set_autostart(False)
-    log.info("[卸载] 自启已删除")
-
-    # 2. 删除配置文件
-    try:
-        if os.path.exists(CONFIG_FILE):
-            os.remove(CONFIG_FILE)
-            log.info("[卸载] 配置已删除")
-    except Exception as e:
-        log.error("[卸载] 删除配置失败: %s", e)
-
-    # 3. 后台通知服务端（不阻塞）
-    if agent_id:
-        threading.Thread(target=lambda aid=agent_id: report_uninstall(aid),
-                         daemon=True, name="uninstall-notify").start()
-
-    # 4. 关进程
-    log.info("[卸载] 完成")
-    os._exit(0)
+    """卸载：放入队列，由主 Tk 线程处理，避免跨线程卡死"""
+    _action_queue.put(("uninstall", None))
 
 
 def _show_settings_window():
@@ -1034,11 +1054,12 @@ def _copy_token(root, token):
 
 
 def main():
-    global _winreg, _tray_icon_ref
+    global _winreg, _tray_icon_ref, _tk_root
 
     import tkinter as tk
-    root = tk.Tk()
-    root.withdraw()  # 隐藏根窗口，只用 Toplevel 对话框
+    _tk_root = tk.Tk()
+    _tk_root.withdraw()  # 隐藏根窗口，用于跨线程安全调用
+    root = _tk_root
 
     log.info("=" * 50)
     log.info("lanwatch_agent v%s 启动", __version__)
@@ -1080,8 +1101,16 @@ def main():
     else:
         tray_icon = _tray_icon_ref
 
-    # 进入监控主循环
-    _run_monitoring(agent_id, company_name)
+    # 启动 action 队列轮询（在 Tk 主线程中）
+    _tk_root.after(500, _poll_action_queue)
+
+    # 监控主循环放在独立线程，避免阻塞 Tk mainloop
+    def run_monitor():
+        _run_monitoring(agent_id, company_name)
+    threading.Thread(target=run_monitor, daemon=True, name="monitor").start()
+
+    # 运行 Tk 主循环，处理 after() 回调和 action 队列
+    _tk_root.mainloop()
     log.info("Agent 已停止")
 
 def _run_monitoring(agent_id, company_name):
