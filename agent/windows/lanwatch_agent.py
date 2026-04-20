@@ -811,48 +811,39 @@ def _show_setup_window(root):
         location     = addr_entry.get().strip()
         subnet       = subnet_sv.get() or get_subnet_prefix() or "无法检测"
 
-        # 关闭窗口 + 退出 mainloop，让 main() 继续
+        # 关闭窗口，wait_window 返回，on_ok 之后的代码在 mainloop 启动后执行
         win.destroy()
-        root.quit()   # 退出守护线程的 mainloop
 
-        # 在 main() 线程继续：注册
-        reg = register_agent(company_name, phone, location)
-        if not reg:
-            _show_error_dialog("注册失败，请检查网络后重试。")
-            return
+        # 注册和服务启动通过 after() 回调完成
+        def _do_registration():
+            reg = register_agent(company_name, phone, location)
+            if not reg:
+                _show_error_dialog("注册失败，请检查网络后重试。")
+                return
+            agent_id = reg["agent_id"]
+            token    = reg["token"]
+            log.info("注册成功，Agent ID: %s", agent_id)
+            cfg = {
+                "agent_id": agent_id, "company_name": company_name,
+                "phone": phone, "location": location,
+                "subnets": [subnet] if subnet and subnet != "无法检测" else [],
+                "targets": [{"name": "网关", "host": "192.168.1.1"}],
+            }
+            save_config(cfg)
+            global _tray_icon_ref
+            _tray_icon_ref = setup_tray(agent_id, company_name)
+            threading.Thread(target=_run_probe_loop, args=(agent_id,),
+                           daemon=True, name="probe").start()
+            threading.Thread(target=_run_topo_loop, args=(agent_id,),
+                           daemon=True, name="topology").start()
+            _show_success_window(root, company_name, agent_id, token)
 
-        agent_id = reg["agent_id"]
-        token    = reg["token"]
-        log.info("注册成功，Agent ID: %s", agent_id)
-
-        cfg = {
-            "agent_id": agent_id, "company_name": company_name,
-            "phone": phone, "location": location,
-            "subnets": [subnet] if subnet and subnet != "无法检测" else [],
-            "targets": [{"name": "网关", "host": "192.168.1.1"}],
-        }
-        save_config(cfg)
-
-        # 立即启动托盘
-        global _tray_icon_ref
-        _tray_icon_ref = setup_tray(agent_id, company_name)
-
-        # 立即启动探测和拓扑线程
-        threading.Thread(target=_run_probe_loop, args=(agent_id,),
-                        daemon=True, name="probe").start()
-        threading.Thread(target=_run_topo_loop, args=(agent_id,),
-                        daemon=True, name="topology").start()
-
-        # 重启 Tk mainloop（新守护线程），再通过 after() 弹出成功窗口
-        def _restart_and_show():
-            root.after(500, lambda: _show_success_window(root, company_name, agent_id, token))
-        thr = threading.Thread(target=lambda: (setattr(root, '_running', True), root.mainloop()),
-                               daemon=True, name='tk-mainloop')
-        thr.start()
-        root.after(0, _restart_and_show)
+        root.after(200, _do_registration)
 
     def on_cancel():
-        result["cancelled"] = True; win.destroy(); root.quit()
+        result["cancelled"] = True
+        win.destroy()
+        root.quit()   # 直接退出 mainloop，程序退出
 
     tk.Button(btn_frame, text="取消", command=on_cancel,
              font=("微软雅黑",10), width=10, bg="#F3F4F6", fg=TEXT2,
@@ -970,7 +961,7 @@ def _show_success_window(root, company_name, agent_id, token):
              font=("微软雅黑",9), bg="#F3F4F6", fg=TEXT,
              relief="flat", pady=7).pack(side="left", fill="x", expand=True, padx=4)
     tk.Button(btn_frame, text="完成",
-             command=win.destroy,
+             command=lambda: (win.destroy(), root.quit()),
              font=("微软雅黑",9,"bold"), bg=GREEN, fg="white",
              relief="flat", pady=7).pack(side="left", fill="x", expand=True, padx=(4,0))
 
@@ -997,13 +988,7 @@ def main():
 
     import tkinter as tk
     root = tk.Tk()
-    root.withdraw()  # 隐藏根窗口
-
-    # 在守护线程里跑 mainloop，让 Tk 事件驱动正常运转
-    def run_mainloop():
-        root.mainloop()
-    t = threading.Thread(target=run_mainloop, daemon=True, name="tk-mainloop")
-    t.start()
+    root.withdraw()  # 隐藏根窗口，只用 Toplevel 对话框
 
     log.info("=" * 50)
     log.info("lanwatch_agent v%s 启动", __version__)
@@ -1026,10 +1011,12 @@ def main():
     if not config or not config.get("agent_id"):
         log.info("首次运行，显示设置向导...")
         _show_setup_window(root)
-        log.info("设置向导已关闭，继续启动...")
+        # mainloop 处理所有后续事件（成功窗口、按钮回调）
+        # on_ok() 中的 after() 在这里被调度
+        root.mainloop()
         config = load_config()
         if not config or not config.get("agent_id"):
-            log.warning("未完成注册，退出")
+            log.warning("注册未完成，退出")
             return
     else:
         agent_id = config["agent_id"]
