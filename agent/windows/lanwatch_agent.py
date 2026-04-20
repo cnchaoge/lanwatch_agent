@@ -605,10 +605,11 @@ def setup_tray(agent_id, company_name):
 
 def update_tray_status(is_online):
     """线程安全地更新托盘状态（通过队列）"""
+    log.info("[托盘] update_tray_status called: is_online=%s", is_online)
     try:
         _status_queue.put_nowait(("status", is_online))
-    except Exception:
-        pass
+    except Exception as e:
+        log.error("[托盘] 放入队列失败: %s", e)
 
 
 def _poll_status_queue():
@@ -618,6 +619,7 @@ def _poll_status_queue():
     while True:
         try:
             op, data = _status_queue.get(timeout=1)
+            log.info("[托盘] 收到状态更新: op=%s, data=%s", op, data)
             if op == "status":
                 color = "#34c759" if data else "#ff3b30"
                 if color != current_color:
