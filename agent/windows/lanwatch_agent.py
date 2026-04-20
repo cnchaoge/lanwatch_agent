@@ -55,6 +55,7 @@ _status_queue = queue.Queue()  # 托盘状态更新队列（跨线程通信）
 _tray_icon_ref = None
 _winreg = None          # 动态导入，Windows 专用
 _executor = None        # 拓扑扫描线程池
+_status_thread_started = False  # 托盘状态轮询线程只启动一次
 
 # ═══════════════════════════════════════════════════════════════
 # 工具函数
