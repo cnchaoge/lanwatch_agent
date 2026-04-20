@@ -835,11 +835,11 @@ def _show_success_window(company_name, agent_id, token):
     """注册成功窗口（含二维码）"""
     import tkinter as tk
     from PIL import Image, ImageTk
-    import io
+    import io as _io
 
     root = tk.Tk()
     root.title("注册成功 - lanwatch")
-    W, H = 380, 560
+    W, H = 400, 520
     root.geometry(f"{W}x{H}")
     root.resizable(False, False)
     root.attributes("-topmost", True)
@@ -858,32 +858,43 @@ def _show_success_window(company_name, agent_id, token):
     tk.Label(header, text=company_name, font=("微软雅黑",10),
              bg="#F3F4F6", fg=TEXT2).pack(pady=(0,12))
 
-    # 中间主内容区（可滚动）
+    # 中间
     main = tk.Frame(root, bg=BG)
     main.pack(fill="both", expand=True, padx=32, pady=(12,0))
 
     # 二维码
-    qr_label = tk.Label(main, bg=BG)
+    qr_label = tk.Label(main, bg=BG, text=" ", width=20, height=12)
     qr_label.pack()
     loading_lbl = tk.Label(main, text="正在加载二维码...", font=("微软雅黑",9),
                            bg=BG, fg=TEXT2)
     loading_lbl.pack(pady=(4,0))
 
+    # 保持引用防止 gc
+    qr_label._ref = qr_label
+    loading_lbl._ref = loading_lbl
+
     def load_qr():
         try:
+            import urllib.request
             req = urllib.request.Request(
                 SERVER_URL + f"/api/agents/{agent_id}/qr",
                 headers={"User-Agent": "lanwatch_agent"}
             )
             with urllib.request.urlopen(req, timeout=10) as resp:
-                img_data = resp.read()
-            img = Image.open(io.BytesIO(img_data)).resize((180,180))
+                img_bytes = resp.read()
+            buf = _io.BytesIO(img_bytes)
+            img = Image.open(buf)
+            img = img.resize((180, 180))
             photo = ImageTk.PhotoImage(img)
-            qr_label.config(image=photo, bg=BG)
+            # mainloop 仍在运行，可以安全 update
+            qr_label.config(image=photo, text="")
             qr_label.image = photo
             loading_lbl.config(text="手机扫码查看监控 · " + agent_id)
         except Exception as e:
-            loading_lbl.config(text="二维码加载失败", fg="#EF4444")
+            try:
+                loading_lbl.config(text="二维码加载失败", fg="#EF4444")
+            except Exception:
+                pass
 
     threading.Thread(target=load_qr, daemon=True).start()
 
@@ -901,22 +912,22 @@ def _show_success_window(company_name, agent_id, token):
     tk.Label(token_frame, text=token, font=("Consolas",9),
              bg=INPUT_BG, fg=ACCENT).pack(anchor="w", padx=10, pady=(0,8))
 
-    # 按钮（固定底部）
+    # 三个按钮一行
     btn_frame = tk.Frame(root, bg=BG)
     btn_frame.pack(side="bottom", fill="x", padx=32, pady=14)
 
     tk.Button(btn_frame, text="打开监控页面",
              command=lambda:_open_mobile(agent_id),
-             font=("微软雅黑",10), bg=ACCENT, fg="white",
-             relief="flat", pady=8, width=14).grid(row=0, column=0, padx=(0,8))
+             font=("微软雅黑",9), bg=ACCENT, fg="white",
+             relief="flat", pady=7).pack(side="left", fill="x", expand=True, padx=(0,4))
     tk.Button(btn_frame, text="复制 Token",
              command=lambda:_copy_token(root, token),
-             font=("微软雅黑",10), bg="#F3F4F6", fg=TEXT,
-             relief="flat", pady=8, width=11).grid(row=0, column=1, padx=(8,0))
-
-    tk.Button(root, text="完成", command=root.destroy,
-             font=("微软雅黑",10,"bold"), width=22, bg=GREEN, fg="white",
-             relief="flat", pady=8).pack(side="bottom", padx=32, pady=(0,14))
+             font=("微软雅黑",9), bg="#F3F4F6", fg=TEXT,
+             relief="flat", pady=7).pack(side="left", fill="x", expand=True, padx=4)
+    tk.Button(btn_frame, text="完成",
+             command=root.destroy,
+             font=("微软雅黑",9,"bold"), bg=GREEN, fg="white",
+             relief="flat", pady=7).pack(side="left", fill="x", expand=True, padx=(4,0))
 
     root.mainloop()
 
