@@ -1146,7 +1146,7 @@ def _run_monitoring(agent_id, company_name):
             result = report(data, agent_id)
             if result:
                 consecutive_errors = 0
-                update_tray_status(data.get("target_reachable", False))
+                update_tray_status(data.get("dns_ms") is not None)
                 log.info("[探测] 网关:%sms DNS:%sms",
                     f"{data.get('ping_rtt_ms', 0):.1f}" if data.get('ping_rtt_ms') else "-",
                     f"{data.get('dns_ms', 0):.1f}" if data.get('dns_ms') else "-")
