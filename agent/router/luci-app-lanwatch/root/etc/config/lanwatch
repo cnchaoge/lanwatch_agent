@@ -1,0 +1,5 @@
+config lanwatch 'agent'
+	option enabled '0'
+	option server_url 'http://82.156.229.67:8000'
+	option interval '60'
+	list target_host ''

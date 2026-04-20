@@ -1,0 +1,47 @@
+#!/bin/sh /etc/rc.common
+# OpenWRT 启动脚本
+# 使用方式：
+#   /etc/init.d/lanwatch enable   # 开机自启
+#   /etc/init.d/lanwatch start     # 立即启动
+#   /etc/init.d/lanwatch stop      # 停止
+#   /etc/init.d/lanwatch restart   # 重启
+
+START=95
+STOP=15
+USE_PROCD=0
+
+AGENT_BIN="/etc/lanwatch/router_agent.sh"
+PID_FILE="/var/run/lanwatch.pid"
+CONFIG_FILE="/etc/lanwatch/agent.json"
+
+start_service() {
+    if [ ! -f "$AGENT_BIN" ]; then
+        echo "lanwatch agent not found at $AGENT_BIN"
+        return 1
+    fi
+    
+    # 加载配置
+    [ -f "$CONFIG_FILE" ] && . "$CONFIG_FILE"
+    
+    echo "Starting lanwatch agent..."
+    nohup "$AGENT_BIN" > /tmp/lanwatch_agent_stdout.log 2>&1 &
+    echo $! > "$PID_FILE"
+    echo "lanwatch agent started (PID: $(cat $PID_FILE))"
+}
+
+stop_service() {
+    if [ -f "$PID_FILE" ]; then
+        kill $(cat "$PID_FILE") 2>/dev/null
+        rm -f "$PID_FILE"
+        echo "lanwatch agent stopped"
+    else
+        killall router_agent.sh 2>/dev/null
+        echo "lanwatch agent stopped (killall)"
+    fi
+}
+
+reload_service() {
+    stop_service
+    sleep 1
+    start_service
+}
