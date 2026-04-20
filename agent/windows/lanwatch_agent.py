@@ -866,7 +866,7 @@ def _show_setup_window(root):
     autostart_var = tk.BooleanVar(value=True)
     tk.Checkbutton(form, text="开机自动启动", variable=autostart_var,
                    font=("微软雅黑", 10), bg=BG, fg=TEXT,
-                   activebackground=BG, anchor="w", pady=(8,0)).pack(anchor="w")
+                   activebackground=BG, anchor="w", pady=8).pack(anchor="w")
 
 
     # 按钮行
