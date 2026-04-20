@@ -720,6 +720,10 @@ def _show_setup_window(company_name=""):
     tk.Label(win, text="监控网段:", font=("微软雅黑", 10)).place(x=20, y=130)
     subnet_entry = tk.Entry(win, width=30, font=("微软雅黑", 9))
     subnet_entry.place(x=110, y=130, width=360)
+    # 自动填入本机所在网段
+    default_subnet = get_subnet_prefix()
+    if default_subnet:
+        subnet_entry.insert(0, default_subnet)
     tk.Label(win, text="多个网段用逗号分隔，如: 192.168.1,192.168.2",
              font=("微软雅黑", 8), fg="gray").place(x=110, y=155)
 
@@ -804,31 +808,6 @@ def _show_setup_window(company_name=""):
     scan_btn.place(x=400, y=153)
 
     # 确认按钮
-    def on_ok():
-        company = name_entry.get().strip()
-        if not company:
-            messagebox.showwarning("提示", "请填写企业名称")
-            return
-        result["company_name"] = company
-        result["location"] = location_entry.get().strip()
-        result["autostart"] = autostart_var.get()
-        # 解析网段
-        subnet_text = subnet_entry.get().strip()
-        subnets = [s.strip() for s in subnet_text.split(",") if s.strip()]
-        result["subnets"] = subnets
-        # 解析目标
-        targets = []
-        for row in target_rows:
-            children = row.winfo_children()
-            # [label, entry_name, label, entry_host, button]
-            name_val = children[1].get().strip()
-            host_val = children[3].get().strip()
-            if name_val and host_val:
-                targets.append({"name": name_val, "host": host_val})
-        result["targets"] = targets
-        result["cancelled"] = False
-        win.destroy()
-
     def on_ok():
         company = name_entry.get().strip()
         if not company:
