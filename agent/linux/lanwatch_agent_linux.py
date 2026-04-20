@@ -373,6 +373,24 @@ def report_offline(agent_id):
         log.warning("离线通知失败: %s", e)
         return None
 
+
+def report_uninstall(agent_id):
+    """卸载时通知服务端，标记该设备已卸载"""
+    try:
+        req = urllib.request.Request(
+            SERVER_URL + "/api/" + agent_id + "/uninstall",
+            data=b"{}",
+            headers={"Content-Type": "application/json"},
+            method="POST"
+        )
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            result = json.loads(resp.read())
+            log.info("[卸载] 通知服务端成功: %s", result)
+            return result
+    except Exception as e:
+        log.warning("[卸载] 通知服务端失败: %s", e)
+        return None
+
 def report_topology(devices, agent_id):
     try:
         data = json.dumps({
@@ -643,6 +661,10 @@ def _show_settings_window():
                     "确定要卸载网络守护吗？\n\n将删除所有配置并停止监控。"):
                 return
             log.info("[卸载] 开始卸载...")
+            # 通知服务端该设备已卸载
+            cfg = load_config()
+            if cfg and cfg.get("agent_id"):
+                report_uninstall(cfg["agent_id"])
             try:
                 if os.path.exists(CONFIG_FILE):
                     os.remove(CONFIG_FILE)

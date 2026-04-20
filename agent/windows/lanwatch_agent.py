@@ -450,6 +450,24 @@ def report_offline(agent_id):
         pass
 
 
+def report_uninstall(agent_id):
+    """卸载时通知服务端，标记该设备已卸载"""
+    try:
+        req = urllib.request.Request(
+            SERVER_URL + "/api/" + agent_id + "/uninstall",
+            data=b"{}",
+            headers={"Content-Type": "application/json"},
+            method="POST"
+        )
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            result = json.loads(resp.read())
+            log.info("[卸载] 通知服务端成功: %s", result)
+            return result
+    except Exception as e:
+        log.warning("[卸载] 通知服务端失败: %s", e)
+        return None
+
+
 def report_topology(devices, agent_id):
     """上报拓扑数据"""
     try:
@@ -550,6 +568,8 @@ def setup_tray(agent_id, company_name):
         def make_menu():
             return Menu(
                 MenuItem("查看日志", lambda icon, item: _open_log(), default=False),
+                MenuItem("设置", lambda icon, item: _show_settings_window(), default=False),
+                MenuItem("卸载", lambda icon, item: _on_uninstall(), default=False),
                 MenuItem("关于", lambda icon, item: _show_about(), default=False),
                 MenuItem("退出", lambda icon, item: _exit_app(), default=False),
             )
@@ -645,6 +665,37 @@ def _exit_app(icon=None):
         except Exception:
             pass
     os._exit(0)
+
+
+def _on_uninstall():
+    """卸载：确认后通知服务端、删配置、关自启、退出"""
+    import tkinter as tk
+    from tkinter import messagebox
+    root = tk.Tk()
+    root.withdraw()
+    if not messagebox.askyesno("卸载确认", "确定要卸载 lanwatch 吗？\n\n将删除所有配置并停止监控。"):
+        root.destroy()
+        return
+    root.destroy()
+    log.info("[卸载] 开始卸载...")
+    config = load_config()
+    if config and config.get("agent_id"):
+        report_uninstall(config["agent_id"])
+    try:
+        if os.path.exists(CONFIG_FILE):
+            os.remove(CONFIG_FILE)
+            log.info("[卸载] 配置已删除")
+    except Exception as e:
+        log.error("[卸载] 删除配置失败: %s", e)
+    set_autostart(False)
+    log.info("[卸载] 完成")
+    os._exit(0)
+
+
+def _show_settings_window():
+    """显示设置窗口（托盘点击"设置"触发）"""
+    # TODO: 可扩展为设置编辑窗口
+    _show_about()
 
 
 # ═══════════════════════════════════════════════════════════════
