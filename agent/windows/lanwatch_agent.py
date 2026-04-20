@@ -951,6 +951,10 @@ def _show_success_window(root, company_name, agent_id, token):
 def _dismiss_and_start(win, root, agent_id, company_name):
     win.destroy()
     root.quit()
+    # 启动托盘（如果还未启动）
+    global _tray_icon_ref
+    if _tray_icon_ref is None:
+        setup_tray(agent_id, company_name)
     _run_monitoring(agent_id, company_name)
 
 
