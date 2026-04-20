@@ -687,14 +687,15 @@ def _show_setup_window(root):
     win.update_idletasks()
     sw = root.winfo_screenwidth(); sh = root.winfo_screenheight()
     win.geometry(f"+{(sw-W)//2}+{(sh-H)//2}")
-    win.protocol("WM_DELETE_WINDOW", lambda: None)  # 禁止点X关闭
+    def _on_close(): result["cancelled"] = True; root.quit()
+    win.protocol("WM_DELETE_WINDOW", _on_close)
 
     BG="#FFFFFF"; ACCENT="#2563EB"; TEXT="#111827"; TEXT2="#6B7280"
     HL="#D1D5DB"; INPUT_BG="#F9FAFB"; GREEN="#10B981"
     win.configure(bg=BG)
 
     # 顶部
-    header = tk.Frame(root, bg="#F3F4F6")
+    header = tk.Frame(win, bg="#F3F4F6")
     header.pack(fill="x")
     tk.Label(header, text="◉ lanwatch", font=("微软雅黑",14,"bold"),
              bg="#F3F4F6", fg=ACCENT).pack(pady=(12,1))
@@ -702,7 +703,7 @@ def _show_setup_window(root):
              bg="#F3F4F6", fg=TEXT2).pack(pady=(0,10))
 
     # 表单
-    form = tk.Frame(root, bg=BG)
+    form = tk.Frame(win, bg=BG)
     form.pack(fill="x", padx=36, pady=(8,0))
 
     def entry(parent):
@@ -798,22 +799,22 @@ def _show_setup_window(root):
     scan_btn.config(command=on_scan_click)
 
     # 按钮行
-    btn_frame = tk.Frame(root, bg=BG)
+    btn_frame = tk.Frame(win, bg=BG)
     btn_frame.pack(side="bottom", fill="x", padx=36, pady=14)
 
     def on_ok():
         name = name_entry.get().strip()
         if not name:
-            messagebox.showwarning("提示","请填写企业名称", parent=root); return
+            messagebox.showwarning("提示","请填写企业名称", parent=win); return
         result["company_name"] = name
         result["phone"]    = phone_entry.get().strip()
         result["location"] = addr_entry.get().strip()
         result["subnet"]   = subnet_sv.get() or get_subnet_prefix() or "无法检测"
         result["cancelled"] = False
-        win.destroy()
+        root.quit()
 
     def on_cancel():
-        result["cancelled"] = True; root.destroy()
+        result["cancelled"] = True; root.quit()
 
     tk.Button(btn_frame, text="取消", command=on_cancel,
              font=("微软雅黑",10), width=10, bg="#F3F4F6", fg=TEXT2,
@@ -849,14 +850,15 @@ def _show_success_window(root, company_name, agent_id, token):
     win.update_idletasks()
     sw = root.winfo_screenwidth(); sh = root.winfo_screenheight()
     win.geometry(f"+{(sw-W)//2}+{(sh-H)//2}")
-    win.protocol("WM_DELETE_WINDOW", lambda: None)
+    def _on_close(): root.quit()
+    win.protocol("WM_DELETE_WINDOW", _on_close)
 
     BG="#FFFFFF"; ACCENT="#2563EB"; TEXT="#111827"; TEXT2="#6B7280"
     GREEN="#10B981"; INPUT_BG="#F9FAFB"
     win.configure(bg=BG)
 
     # 顶部
-    header = tk.Frame(root, bg="#F3F4F6")
+    header = tk.Frame(win, bg="#F3F4F6")
     header.pack(fill="x")
     tk.Label(header, text="✓  注册成功", font=("微软雅黑",15,"bold"),
              bg="#F3F4F6", fg=GREEN).pack(pady=(14,2))
@@ -864,7 +866,7 @@ def _show_success_window(root, company_name, agent_id, token):
              bg="#F3F4F6", fg=TEXT2).pack(pady=(0,12))
 
     # 中间
-    main = tk.Frame(root, bg=BG)
+    main = tk.Frame(win, bg=BG)
     main.pack(fill="both", expand=True, padx=32, pady=(12,0))
 
     # 二维码
@@ -918,7 +920,7 @@ def _show_success_window(root, company_name, agent_id, token):
              bg=INPUT_BG, fg=ACCENT).pack(anchor="w", padx=10, pady=(0,8))
 
     # 三个按钮一行
-    btn_frame = tk.Frame(root, bg=BG)
+    btn_frame = tk.Frame(win, bg=BG)
     btn_frame.pack(side="bottom", fill="x", padx=32, pady=14)
 
     tk.Button(btn_frame, text="打开监控页面",
@@ -930,7 +932,7 @@ def _show_success_window(root, company_name, agent_id, token):
              font=("微软雅黑",9), bg="#F3F4F6", fg=TEXT,
              relief="flat", pady=7).pack(side="left", fill="x", expand=True, padx=4)
     tk.Button(btn_frame, text="完成",
-             command=root.destroy,
+             command=root.quit,
              font=("微软雅黑",9,"bold"), bg=GREEN, fg="white",
              relief="flat", pady=7).pack(side="left", fill="x", expand=True, padx=(4,0))
 
@@ -955,10 +957,15 @@ def _copy_token(root, token):
 def main():
     global _winreg, _tray_icon_ref
 
-    # 创建唯一的 Tk 实例，所有窗口都基于此
     import tkinter as tk
     root = tk.Tk()
-    root.withdraw()  # 隐藏根窗口，只用 Toplevel 对话框
+    root.withdraw()  # 隐藏根窗口
+
+    # 在守护线程里跑 mainloop，让 Tk 事件驱动正常运转
+    def run_mainloop():
+        root.mainloop()
+    t = threading.Thread(target=run_mainloop, daemon=True, name="tk-mainloop")
+    t.start()
 
     log.info("=" * 50)
     log.info("lanwatch_agent v%s 启动", __version__)
