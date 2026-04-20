@@ -705,9 +705,11 @@ def _show_setup_window():
     form.pack(fill="x", padx=36, pady=(16,0))
 
     def entry(parent):
-        return tk.Entry(parent, font=("微软雅黑",10), bg=INPUT_BG, fg=TEXT,
-                        insertbackground=ACCENT, relief="solid", bd=1,
-                        highlightthickness=0, pady=7, padx=8)
+        e = tk.Entry(parent, font=("微软雅黑",10), bg=INPUT_BG, fg=TEXT,
+                     insertbackground=ACCENT, relief="solid", bd=1,
+                     highlightthickness=0)
+        e.pack_configure(pady=(3,10), ipady=5, padx=0)
+        return e
 
     def label_row(parent, text):
         tk.Label(parent, text=text, font=("微软雅黑",9,"bold"),
@@ -730,8 +732,8 @@ def _show_setup_window():
     subnet_sv = tk.StringVar(value=get_subnet_prefix() or "无法检测")
     se = tk.Entry(form, textvariable=subnet_sv, font=("微软雅黑",10),
                   bg="#EBEDEF", fg="#9CA3AF", state="readonly",
-                  relief="flat", bd=0, pady=7, padx=8, insertbackground=ACCENT)
-    se.pack(fill="x")
+                  relief="flat", bd=0, insertbackground=ACCENT)
+    se.pack(fill="x", ipady=5)
 
     # 按钮行（固定在底部）
     btn_frame = tk.Frame(root, bg=BG)
