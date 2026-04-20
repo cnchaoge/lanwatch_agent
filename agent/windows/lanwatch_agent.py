@@ -378,12 +378,12 @@ def scan_topology(subnets=None):
 # 上报接口
 # ═══════════════════════════════════════════════════════════════
 
-def register_agent(company_name, location=""):
-    """向服务端注册企业"""
+def register_agent(company_name, phone="", location=""):
+    """向服务端注册企业，返回 dict {agent_id, token, user_id, name} 或 None"""
     try:
         data = json.dumps({
             "name": company_name,
-            "customer_name": company_name,
+            "phone": phone,
             "location": location,
             "remark": "lanwatch_agent_v0.5"
         }).encode()
@@ -395,7 +395,8 @@ def register_agent(company_name, location=""):
         )
         with urllib.request.urlopen(req, timeout=10) as resp:
             result = json.loads(resp.read())
-            return result.get("agent_id")
+            log.info("注册成功: agent_id=%s, token=%s", result.get("agent_id"), result.get("token"))
+            return result
     except Exception as e:
         log.error("注册失败: %s", e)
         return None
@@ -670,196 +671,194 @@ def is_autostart_enabled():
 # GUI 窗口（设置向导 + 成功提示）
 # ═══════════════════════════════════════════════════════════════
 
-def _show_setup_window(company_name=""):
-    """显示设置向导窗口，返回 (公司名, 开机自启, 位置, 网段列表, 目标列表)"""
+def _show_setup_window():
+    """极简设置向导：企业名称、地址、电话、网段自动读取"""
     import tkinter as tk
     from tkinter import messagebox
 
     result = {}
 
     root = tk.Tk()
-    root.title("lanwatch_agent 设置向导")
-    root.geometry("520x460")
+    root.title("lanwatch - 首次设置")
+    root.geometry("440x380")
     root.resizable(False, False)
-    root.protocol("WM_DELETE_WINDOW", lambda: None)  # 禁止点X关闭，等待确认
-
-    # 居中
+    root.attributes("-topmost", True)
     root.update_idletasks()
-    w, h = 520, 460
+    w, h = 440, 380
     sw = root.winfo_screenwidth()
     sh = root.winfo_screenheight()
     root.geometry(f"{w}x{h}+{(sw-w)//2}+{(sh-h)//2}")
 
-    # 公司名称
-    tk.Label(root, text="企业名称:", font=("微软雅黑", 10)).place(x=20, y=20)
-    name_entry = tk.Entry(root, width=30, font=("微软雅黑", 10))
-    name_entry.place(x=110, y=20, width=360)
-    name_entry.insert(0, company_name)
+    # 顶部标题
+    header = tk.Frame(root, bg="#050810")
+    header.pack(fill="x")
+    tk.Label(header, text="◉ lanwatch", font=("微软雅黑", 14, "bold"),
+             bg="#050810", fg="#00e5cc").pack(pady=(16, 4))
+    tk.Label(header, text="首次设置向导", font=("微软雅黑", 10),
+             bg="#050810", fg="#94a3b8").pack(pady=(0, 16))
 
-    # 位置
-    tk.Label(root, text="安装位置:", font=("微软雅黑", 10)).place(x=20, y=60)
-    location_entry = tk.Entry(root, width=30, font=("微软雅黑", 10))
-    location_entry.place(x=110, y=60, width=360)
+    # 表单区
+    form = tk.Frame(root, bg="#050810")
+    form.pack(pady=8, padx=32, fill="both", expand=True)
 
-    # 开机自启
-    autostart_var = tk.BooleanVar(value=True)
-    tk.Checkbutton(root, text="开机自动启动", variable=autostart_var,
-                   font=("微软雅黑", 10)).place(x=110, y=95)
+    def row(label, **entry_kwargs):
+        f = tk.Frame(form, bg="#050810")
+        tk.Label(f, text=label, font=("微软雅黑", 10), bg="#050810",
+                  fg="#94a3b8", width=10, anchor="w").pack(side=tk.LEFT)
+        e = tk.Entry(f, font=("微软雅黑", 10), bg="#0f1629", fg="#f0f4ff",
+                     insertbackground="#00e5cc", bd=0, **entry_kwargs)
+        e.pack(side=tk.LEFT, fill="x", expand=True, padx=(4, 0))
+        f.pack(fill="x", pady=6)
+        return e
 
-    # 监控网段
-    tk.Label(root, text="监控网段:", font=("微软雅黑", 10)).place(x=20, y=130)
-    subnet_entry = tk.Entry(root, width=30, font=("微软雅黑", 9))
-    subnet_entry.place(x=110, y=130, width=360)
-    default_subnet = get_subnet_prefix()
-    if default_subnet:
-        subnet_entry.insert(0, default_subnet)
-    tk.Label(root, text="多个网段用逗号分隔，如: 192.168.1,192.168.2",
-             font=("微软雅黑", 8), fg="gray").place(x=110, y=155)
+    name_entry    = row("企业名称 *")
+    addr_entry    = row("安装地址")
+    phone_entry   = row("网管电话")
 
-    # 监控目标
-    tk.Label(root, text="监控目标:", font=("微软雅黑", 10)).place(x=20, y=185)
-    targets_frame = tk.Frame(root)
-    targets_frame.place(x=110, y=185, width=360, height=100)
-
-    target_rows = []
-    def add_target(name="", host=""):
-        row = tk.Frame(targets_frame)
-        tk.Label(row, text="名称:", font=("微软雅黑", 8)).pack(side=tk.LEFT)
-        e_name = tk.Entry(row, width=10, font=("微软雅黑", 9))
-        e_name.insert(0, name)
-        e_name.pack(side=tk.LEFT, padx=2)
-        tk.Label(row, text="地址:", font=("微软雅黑", 8)).pack(side=tk.LEFT, padx=2)
-        e_host = tk.Entry(row, width=22, font=("微软雅黑", 9))
-        e_host.insert(0, host)
-        e_host.pack(side=tk.LEFT, padx=2)
-        def remove():
-            row.destroy()
-            target_rows.remove(row)
-        tk.Button(row, text="×", command=remove, width=2).pack(side=tk.LEFT, padx=2)
-        row.pack(fill=tk.X, pady=2)
-        target_rows.append(row)
-
-    add_target("网关", "192.168.1.1")
-    add_target("DNS", "8.8.8.8")
-    tk.Button(targets_frame, text="+ 添加目标", command=lambda: add_target(),
-              font=("微软雅黑", 8)).pack(anchor=tk.W, pady=4)
-
-    # 扫描按钮
-    scan_status = tk.StringVar(value="")
-    tk.Label(root, textvariable=scan_status, font=("微软雅黑", 8), fg="green").place(x=110, y=295)
-    scanning = {"busy": False}
-
-    def do_scan():
-        if scanning["busy"]:
-            return
-        prefix = get_subnet_prefix()
-        if not prefix:
-            scan_status.set("无法获取本机网段")
-            return
-        scan_status.set(f"正在扫描 {prefix}.x ...")
-        scan_btn.config(state="disabled")
-        scanning["busy"] = True
-
-        def scan():
-            import concurrent.futures
-            devices = []
-            try:
-                with concurrent.futures.ThreadPoolExecutor(max_workers=30) as executor:
-                    futures = {executor.submit(_probe_host, f"{prefix}.{i}"): i for i in range(1, 255)}
-                    for future in concurrent.futures.as_completed(futures, timeout=15):
-                        try:
-                            res = future.result()
-                            if res:
-                                ip, mac, hostname = res
-                                from lanwatch_agent import get_vendor, guess_device_type
-                                devices.append({
-                                    "ip": ip, "mac": mac, "hostname": hostname,
-                                    "vendor": get_vendor(mac),
-                                    "device_type": guess_device_type(hostname, get_vendor(mac), mac)
-                                })
-                        except Exception:
-                            pass
-            except Exception:
-                pass
-            root.after(0, lambda d=devices: _show_scan_results(d))
-
-        def _show_scan_results(devices):
-            scanning["busy"] = False
-            scan_btn.config(state="normal")
-            scan_status.set(f"扫描完成，发现 {len(devices)} 台设备")
-
-        threading.Thread(target=scan, daemon=True).start()
-
-    scan_btn = tk.Button(root, text="扫描内网", command=do_scan, font=("微软雅黑", 9))
-    scan_btn.place(x=400, y=153)
+    # 自动读取的网段（只读展示）
+    subnet_frame = tk.Frame(form, bg="#050810")
+    tk.Label(subnet_frame, text="内网网段", font=("微软雅黑", 10), bg="#050810",
+             fg="#94a3b8", width=10, anchor="w").pack(side=tk.LEFT)
+    subnet_val = tk.StringVar()
+    auto_subnet = get_subnet_prefix() or "无法检测"
+    subnet_val.set(auto_subnet)
+    tk.Entry(subnet_frame, textvariable=subnet_val, font=("微软雅黑", 10),
+             bg="#0a0f1e", fg="#00e5cc", state="readonly",
+             readonlybackground="#0a0f1e", bd=0, width=24).pack(
+                 side=tk.LEFT, padx=(4, 0))
+    tk.Label(subnet_frame, text="(自动)", font=("微软雅黑", 8), bg="#050810",
+             fg="#4b5d72").pack(side=tk.LEFT, padx=4)
+    subnet_frame.pack(fill="x", pady=6)
 
     def on_ok():
-        company = name_entry.get().strip()
-        if not company:
+        name = name_entry.get().strip()
+        if not name:
             messagebox.showwarning("提示", "请填写企业名称", parent=root)
             return
-        result["company_name"] = company
-        result["location"] = location_entry.get().strip()
-        result["autostart"] = autostart_var.get()
-        subnet_text = subnet_entry.get().strip()
-        result["subnets"] = [s.strip() for s in subnet_text.split(",") if s.strip()]
-        targets = []
-        for row in target_rows:
-            children = row.winfo_children()
-            name_val = children[1].get().strip()
-            host_val = children[3].get().strip()
-            if name_val and host_val:
-                targets.append({"name": name_val, "host": host_val})
-        result["targets"] = targets
-        result["cancelled"] = False
+        result["company_name"] = name
+        result["phone"]       = phone_entry.get().strip()
+        result["location"]    = addr_entry.get().strip()
+        result["subnet"]      = subnet_val.get()
+        result["cancelled"]   = False
         root.destroy()
 
     def on_cancel():
         result["cancelled"] = True
         root.destroy()
 
-    tk.Button(root, text="确认注册", command=on_ok,
-              font=("微软雅黑", 10), bg="#0078d4", fg="white",
-              width=12, height=2).place(x=320, y=360)
-    tk.Button(root, text="取消", command=on_cancel,
-              font=("微软雅黑", 10), width=12, height=2).place(x=180, y=360)
+    # 按钮
+    btn_frame = tk.Frame(root, bg="#050810")
+    btn_frame.pack(pady=(8, 20))
+    tk.Button(btn_frame, text="取消", command=on_cancel,
+              font=("微软雅黑", 10), width=12, height=2,
+              bg="#1e2d4a", fg="#94a3b8").grid(row=0, column=0, padx=8)
+    tk.Button(btn_frame, text="确认注册", command=on_ok,
+              font=("微软雅黑", 10), width=12, height=2,
+              bg="#00e5cc", fg="#000").grid(row=0, column=1, padx=8)
+
+    root.mainloop()
+    return (
+        result.get("company_name", ""),
+        result.get("phone", ""),
+        result.get("location", ""),
+        result.get("subnet", ""),
+        result.get("cancelled", True),
+    )
+
+
+def _show_success_window(company_name, agent_id, token):
+    """注册成功窗口（含二维码）"""
+    import tkinter as tk
+    from tkinter import messagebox
+    from PIL import Image, ImageTk
+    import io
+
+    root = tk.Tk()
+    root.title("注册成功 - lanwatch")
+    root.geometry("400x530")
+    root.resizable(False, False)
+    root.attributes("-topmost", True)
+    root.update_idletasks()
+    sw = root.winfo_screenwidth()
+    sh = root.winfo_screenheight()
+    root.geometry(f"400x530+{(sw-400)//2}+{(sh-530)//2}")
+
+    # 标题
+    tk.Label(root, text="✓  注册成功", font=("微软雅黑", 16, "bold"),
+             fg="#10b981", bg="#050810").pack(pady=(20, 2))
+    tk.Label(root, text=company_name, font=("微软雅黑", 11),
+             fg="#94a3b8", bg="#050810").pack()
+
+    # 二维码占位
+    qr_label = tk.Label(root, bg="#050810")
+    qr_label.pack(pady=14)
+    loading_label = tk.Label(root, text="二维码加载中...", font=("微软雅黑", 9),
+                              fg="#4b5d72", bg="#050810")
+    loading_label.pack()
+
+    def load_qr():
+        try:
+            req = urllib.request.Request(
+                SERVER_URL + f"/api/agents/{agent_id}/qr",
+                headers={"User-Agent": "lanwatch_agent"}
+            )
+            with urllib.request.urlopen(req, timeout=10) as resp:
+                img_data = resp.read()
+            img = Image.open(io.BytesIO(img_data)).resize((210, 210))
+            photo = ImageTk.PhotoImage(img)
+            qr_label.config(image=photo, bg="#050810")
+            qr_label.image = photo
+            loading_label.config(text="手机扫码查看监控页面")
+        except Exception as e:
+            loading_label.config(text=f"二维码加载失败: {e}", fg="#ef4444")
+
+    threading.Thread(target=load_qr, daemon=True).start()
+
+    # Agent ID
+    tk.Label(root, text="Agent ID: " + agent_id, font=("微软雅黑", 9),
+             fg="#4b5d72", bg="#050810").pack()
+
+    # Token 显示框
+    token_frame = tk.Frame(root, bg="#0a0f1e", bd=1, relief="solid")
+    token_frame.pack(padx=32, pady=(12, 2), fill="x")
+    tk.Label(token_frame, text="Token（管理凭证）", bg="#0a0f1e",
+             fg="#4b5d72", font=("微软雅黑", 8)).pack(anchor="w", padx=8, pady=(4, 0))
+    tk.Label(token_frame, text=token, bg="#0a0f1e", fg="#00e5cc",
+             font=("Consolas", 9), wraplength=320).pack(anchor="w", padx=8, pady=(0, 6))
+
+    tk.Label(root, text="请妥善保管 Token，遗失无法找回", font=("微软雅黑", 8),
+             fg="#4b5d72", bg="#050810").pack()
+
+    # 按钮行
+    btn_frame = tk.Frame(root, bg="#050810")
+    btn_frame.pack(pady=14)
+    tk.Button(btn_frame, text="打开监控页面", command=lambda: _open_mobile(agent_id),
+              font=("微软雅黑", 10), bg="#2563eb", fg="white",
+              width=14, height=2).grid(row=0, column=0, padx=6)
+    tk.Button(btn_frame, text="复制 Token", command=lambda: _copy_token(root, token),
+              font=("微软雅黑", 10), bg="#1e2d4a", fg="white",
+              width=10, height=2).grid(row=0, column=1, padx=6)
+
+    tk.Button(root, text="完成", command=root.destroy,
+              font=("微软雅黑", 10, "bold"), width=22, height=2,
+              bg="#00e5cc", fg="#000").pack(pady=(0, 14))
 
     root.mainloop()
 
-    return (
-        result.get("company_name", ""),
-        result.get("autostart", False),
-        result.get("location", ""),
-        result.get("subnets", []),
-        result.get("targets", []),
-    )
+
+def _open_mobile(agent_id):
+    import webbrowser
+    webbrowser.open(f"http://82.156.229.67:8000/mobile?agent={agent_id}")
+
+def _copy_token(root, token):
+    root.clipboard_clear()
+    root.clipboard_append(token)
+    # Visual feedback
+    for w in root.winfo_children():
+        if isinstance(w, tk.Button) and "复制" in str(w.cget("text")):
+            w.config(text="已复制!", bg="#10b981")
 
 
-def _show_success_window(company_name, agent_id, location):
-    """显示注册成功窗口（非阻塞）"""
-    import tkinter as tk
-    from tkinter import messagebox
-
-    root = tk.Tk()
-    root.withdraw()
-    messagebox.showinfo(
-        "注册成功",
-        f"企业: {company_name}\n"
-        f"Agent ID: {agent_id}\n"
-        f"位置: {location or '未填写'}\n\n"
-        f"程序已最小化到系统托盘。\n"
-        f"手机访问 http://82.156.229.67:8000/mobile 查看监控状态",
-        parent=root
-    )
-    try:
-        root.destroy()
-    except Exception:
-        pass
-
-
-# ═══════════════════════════════════════════════════════════════
-# 主入口
-# ═══════════════════════════════════════════════════════════════
 
 def main():
     global _winreg, _tray_icon_ref
@@ -883,45 +882,44 @@ def main():
 
     # ── 首次注册 ──
     if not config or not config.get("agent_id"):
-        log.info("首次运行，显示设置向导...")
-        company_name, autostart, location, subnets, targets = _show_setup_window(
-            company_name=config.get("company_name") if config else ""
-        )
-        if not company_name:
-            log.info("用户取消设置，退出")
+        log.info("首次运行，开始注册...")
+        company_name, phone, location, subnet, cancelled = _show_setup_window()
+        if cancelled:
+            log.warning("用户取消，退出")
             return
 
-        log.info("正在注册企业: %s", company_name)
-        agent_id = register_agent(company_name, location)
-        if not agent_id:
+        reg = register_agent(company_name, phone, location)
+        if not reg:
             import tkinter as tk
             from tkinter import messagebox
-            root = tk.Tk()
-            root.withdraw()
+            root = tk.Tk(); root.withdraw()
             messagebox.showerror("错误", "注册失败，请检查网络后重试。")
             root.destroy()
             log.error("注册失败，退出")
             return
 
+        agent_id = reg["agent_id"]
+        token    = reg["token"]
         log.info("注册成功，Agent ID: %s", agent_id)
 
-        # 立即在后台显示成功窗口（非阻塞）
+        # 弹出成功窗口（非阻塞）
         threading.Thread(
             target=_show_success_window,
-            args=(company_name, agent_id, location),
+            args=(company_name, agent_id, token),
             daemon=True
         ).start()
+
+        import time; time.sleep(2)
 
         config = {
             "agent_id": agent_id,
             "company_name": company_name,
-            "subnets": subnets,
-            "targets": targets,
+            "phone": phone,
+            "location": location,
+            "subnets": [subnet] if subnet and subnet != "无法检测" else [],
+            "targets": [{"name": "网关", "host": "192.168.1.1"}],
         }
         save_config(config)
-
-        if autostart and _winreg:
-            set_autostart(True)
     else:
         agent_id = config["agent_id"]
         company_name = config.get("company_name", "")
