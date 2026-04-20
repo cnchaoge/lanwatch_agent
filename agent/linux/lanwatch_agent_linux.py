@@ -661,10 +661,12 @@ def _show_settings_window():
                     "确定要卸载网络守护吗？\n\n将删除所有配置并停止监控。"):
                 return
             log.info("[卸载] 开始卸载...")
-            # 通知服务端该设备已卸载
+            # 后台异步通知服务端（不阻塞卸载流程）
             cfg = load_config()
-            if cfg and cfg.get("agent_id"):
-                report_uninstall(cfg["agent_id"])
+            agent_id = cfg.get("agent_id") if cfg else None
+            if agent_id:
+                threading.Thread(target=lambda aid=agent_id: report_uninstall(aid),
+                                 daemon=True, name="uninstall-notify").start()
             try:
                 if os.path.exists(CONFIG_FILE):
                     os.remove(CONFIG_FILE)

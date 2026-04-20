@@ -668,7 +668,7 @@ def _exit_app(icon=None):
 
 
 def _on_uninstall():
-    """卸载：确认后通知服务端、删配置、关自启、退出"""
+    """卸载：确认后后台通知服务端、删配置、关自启、退出"""
     import tkinter as tk
     from tkinter import messagebox
     root = tk.Tk()
@@ -679,8 +679,13 @@ def _on_uninstall():
     root.destroy()
     log.info("[卸载] 开始卸载...")
     config = load_config()
-    if config and config.get("agent_id"):
-        report_uninstall(config["agent_id"])
+    agent_id = config.get("agent_id") if config else None
+
+    # 后台异步通知服务端（不阻塞卸载流程）
+    if agent_id:
+        threading.Thread(target=lambda aid=agent_id: report_uninstall(aid),
+                         daemon=True, name="uninstall-notify").start()
+
     try:
         if os.path.exists(CONFIG_FILE):
             os.remove(CONFIG_FILE)
