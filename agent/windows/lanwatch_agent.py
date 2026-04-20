@@ -806,15 +806,48 @@ def _show_setup_window(root):
         name = name_entry.get().strip()
         if not name:
             messagebox.showwarning("提示","请填写企业名称", parent=win); return
-        result["company_name"] = name
-        result["phone"]    = phone_entry.get().strip()
-        result["location"] = addr_entry.get().strip()
-        result["subnet"]   = subnet_sv.get() or get_subnet_prefix() or "无法检测"
-        result["cancelled"] = False
+        company_name = name
+        phone        = phone_entry.get().strip()
+        location     = addr_entry.get().strip()
+        subnet       = subnet_sv.get() or get_subnet_prefix() or "无法检测"
+
+        # 关闭窗口 + 退出 mainloop，让 main() 继续
         win.destroy()
+        root.quit()   # 退出守护线程的 mainloop
+
+        # 在 main() 线程继续：注册
+        reg = register_agent(company_name, phone, location)
+        if not reg:
+            _show_error_dialog("注册失败，请检查网络后重试。")
+            return
+
+        agent_id = reg["agent_id"]
+        token    = reg["token"]
+        log.info("注册成功，Agent ID: %s", agent_id)
+
+        cfg = {
+            "agent_id": agent_id, "company_name": company_name,
+            "phone": phone, "location": location,
+            "subnets": [subnet] if subnet and subnet != "无法检测" else [],
+            "targets": [{"name": "网关", "host": "192.168.1.1"}],
+        }
+        save_config(cfg)
+
+        # 立即启动托盘
+        global _tray_icon_ref
+        _tray_icon_ref = setup_tray(agent_id, company_name)
+
+        # 立即启动探测和拓扑线程
+        threading.Thread(target=_run_probe_loop, args=(agent_id,),
+                        daemon=True, name="probe").start()
+        threading.Thread(target=_run_topo_loop, args=(agent_id,),
+                        daemon=True, name="topology").start()
+
+        # 在 Tk 主线程弹出成功窗口
+        root.after(0, lambda: _show_success_window(root, company_name, agent_id, token))
 
     def on_cancel():
-        result["cancelled"] = True; win.destroy()
+        result["cancelled"] = True; win.destroy(); root.quit()
 
     tk.Button(btn_frame, text="取消", command=on_cancel,
              font=("微软雅黑",10), width=10, bg="#F3F4F6", fg=TEXT2,
@@ -986,47 +1019,24 @@ def main():
 
     # ── 首次注册 ──
     if not config or not config.get("agent_id"):
-        log.info("首次运行，开始注册...")
-        company_name, phone, location, subnet, cancelled = _show_setup_window(root)
-        if cancelled:
-            log.warning("用户取消，退出")
+        log.info("首次运行，显示设置向导...")
+        _show_setup_window(root)
+        log.info("设置向导已关闭，继续启动...")
+        config = load_config()
+        if not config or not config.get("agent_id"):
+            log.warning("未完成注册，退出")
             return
-
-        reg = register_agent(company_name, phone, location)
-        if not reg:
-            import tkinter as tk
-            from tkinter import messagebox
-            root = tk.Tk(); root.withdraw()
-            messagebox.showerror("错误", "注册失败，请检查网络后重试。")
-            root.destroy()
-            log.error("注册失败，退出")
-            return
-
-        agent_id = reg["agent_id"]
-        token    = reg["token"]
-        log.info("注册成功，Agent ID: %s", agent_id)
-
-        config = {
-            "agent_id": agent_id,
-            "company_name": company_name,
-            "phone": phone,
-            "location": location,
-            "subnets": [subnet] if subnet and subnet != "无法检测" else [],
-            "targets": [{"name": "网关", "host": "192.168.1.1"}],
-        }
-        save_config(config)
-
-        # 弹出成功窗口（共享同一个 Tk 主循环）
-        _show_success_window(root, company_name, agent_id, token)
     else:
         agent_id = config["agent_id"]
         company_name = config.get("company_name", "")
         log.info("已配置 Agent ID: %s", agent_id)
 
-    # 启动托盘（启动后永不阻塞）
-    tray_icon = setup_tray(agent_id, company_name)
-    if not tray_icon:
-        log.warning("[托盘] 托盘启动失败，将继续无托盘运行")
+    # 托盘
+    global _tray_icon_ref
+    if _tray_icon_ref is None:
+        tray_icon = setup_tray(agent_id, company_name)
+    else:
+        tray_icon = _tray_icon_ref
 
     log.info("开始监控探测...")
     consecutive_errors = 0
