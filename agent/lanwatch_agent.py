@@ -1,0 +1,979 @@
+#!/usr/bin/env python3
+"""
+lanwatch_agent - 企业网络监控客户端 v0.5
+- 多线程并行拓扑扫描（快速发现内网设备）
+- 正确的 ICMP/ARP 探测（不再只扫 80 端口）
+- 线程安全的托盘状态更新
+- 启动/关闭通知服务端
+- 修复 v0.4 所有已知问题
+"""
+__version__ = "0.5.0"
+
+import socket
+import time
+import json
+import sys
+import os
+import uuid
+import logging
+import subprocess
+import urllib.request
+import urllib.error
+import threading
+import ctypes
+import queue
+import re
+from concurrent.futures import ThreadPoolExecutor, as_completed
+
+# ═══════════════════════════════════════════════════════════════
+# 配置
+# ═══════════════════════════════════════════════════════════════
+SERVER_URL = "http://82.156.229.67:8000"
+REPORT_INTERVAL = 60
+TOPOLOGY_INTERVAL = 300       # 5 分钟扫一次拓扑
+LOG_FILE = os.path.expanduser("~/.lanwatch_agent.log")
+CONFIG_FILE = os.path.expanduser("~/.lanwatch_agent.json")
+
+# ═══════════════════════════════════════════════════════════════
+# 日志
+# ═══════════════════════════════════════════════════════════════
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(message)s",
+    handlers=[
+        logging.FileHandler(LOG_FILE, encoding="utf-8"),
+        logging.StreamHandler()
+    ]
+)
+log = logging.getLogger()
+
+# ═══════════════════════════════════════════════════════════════
+# 全局状态（线程安全）
+# ═══════════════════════════════════════════════════════════════
+_status_queue = queue.Queue()  # 托盘状态更新队列（跨线程通信）
+_tray_icon_ref = None
+_winreg = None          # 动态导入，Windows 专用
+_executor = None        # 拓扑扫描线程池
+
+# ═══════════════════════════════════════════════════════════════
+# 工具函数
+# ═══════════════════════════════════════════════════════════════
+
+def _run_hidden(cmd, timeout=5):
+    """静默执行系统命令，隐藏黑窗口"""
+    try:
+        si = subprocess.STARTUPINFO()
+        si.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+        si.wShowWindow = subprocess.SW_HIDE
+        result = subprocess.run(
+            cmd, capture_output=True, text=True,
+            timeout=timeout, startupinfo=si
+        )
+        return result.stdout, result.stderr
+    except Exception:
+        return "", ""
+
+
+def get_local_ip():
+    """获取本机默认网卡 IP"""
+    try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.connect(("8.8.8.8", 80))
+        ip = s.getsockname()[0]
+        s.close()
+        return ip
+    except Exception:
+        return ""
+
+
+def get_subnet_prefix():
+    """从本机 IP 推断网段前缀，如 192.168.1"""
+    ip = get_local_ip()
+    if not ip:
+        return ""
+    parts = ip.rsplit(".", 1)
+    return parts[0] + "." + parts[1]
+
+
+def get_gateway():
+    """获取本机默认网关"""
+    ip = get_local_ip()
+    if not ip:
+        return "192.168.1.1"
+    parts = ip.rsplit(".", 1)
+    return parts[0] + ".1"
+
+
+# ═══════════════════════════════════════════════════════════════
+# 配置读写
+# ═══════════════════════════════════════════════════════════════
+
+def load_config():
+    if os.path.exists(CONFIG_FILE):
+        try:
+            with open(CONFIG_FILE) as f:
+                return json.load(f)
+        except Exception:
+            pass
+    return None
+
+
+def save_config(cfg):
+    try:
+        with open(CONFIG_FILE, "w") as f:
+            json.dump(cfg, f, ensure_ascii=False, indent=2)
+    except Exception as e:
+        log.error("保存配置失败: %s", e)
+
+
+# ═══════════════════════════════════════════════════════════════
+# 探测函数（核心）
+# ═══════════════════════════════════════════════════════════════
+
+def ping_once(host, timeout=3):
+    """用 ICMP ping 探测主机是否可达，返回延迟ms；失败返回 None"""
+    try:
+        if sys.platform == "win32":
+            out, _ = _run_hidden(f'ping -n 1 -w {timeout*1000} {host}')
+            if "TTL=" in out.upper() or "TTL=" in out:
+                # 提取 RTT
+                m = re.search(r'(\d+)ms', out)
+                rtt = float(m.group(1)) if m else None
+                return rtt
+            return None
+        else:
+            out, _ = _run_hidden(f'ping -c 1 -W {timeout} {host}')
+            if "1 packets transmitted, 1 received" in out or "1 received" in out:
+                m = re.search(r'time[=<](\d+\.?\d*)', out)
+                return float(m.group(1)) if m else None
+            return None
+    except Exception:
+        return None
+
+
+def ping_multi(host, count=3, timeout=2):
+    """
+    多次 Ping，计算丢包率和平均延迟
+    优先用 ICMP，真正可用的探测方式
+    """
+    rtts = []
+    for _ in range(count):
+        rtt = ping_once(host, timeout=timeout)
+        if rtt is not None:
+            rtts.append(rtt)
+        time.sleep(0.3)
+    loss = (count - len(rtts)) / count * 100
+    avg_rtt = sum(rtts) / len(rtts) if rtts else None
+    return bool(rtts), avg_rtt, loss
+
+
+def measure_dns(host="www.baidu.com"):
+    """测 DNS 解析延迟"""
+    try:
+        start = time.time()
+        socket.gethostbyname(host)
+        return (time.time() - start) * 1000
+    except Exception:
+        return None
+
+
+# ═══════════════════════════════════════════════════════════════
+# MAC 地址获取（正确实现）
+# ═══════════════════════════════════════════════════════════════
+
+def get_mac_for_ip(ip):
+    """
+    向目标 IP 发送 ARP 请求（Windows: arp -a 之前先用 ping 触发 ARP 缓存）
+    返回 MAC 地址字符串，失败返回 ""
+    """
+    try:
+        if sys.platform == "win32":
+            # 先 ping（触发 ARP），再查 ARP 表
+            _run_hidden(f'ping -n 1 -w 300 {ip}', timeout=2)
+            out, _ = _run_hidden(f'arp -a {ip}')
+            # 格式如: 192.168.1.1    60:de:44:67:12:1a     动态
+            m = re.search(r'([0-9a-fA-F]{2}[:-]){5}[0-9a-fA-F]{2}', out)
+            if m:
+                return m.group(0).replace("-", ":").upper()
+            # 尝试全量 ARP 表
+            out_all, _ = _run_hidden('arp -a')
+            for line in out_all.splitlines():
+                if ip in line:
+                    m2 = re.search(r'([0-9a-fA-F]{2}[:-]){5}[0-9a-fA-F]{2}', line)
+                    if m2:
+                        return m2.group(0).replace("-", ":").upper()
+        else:
+            # Linux: 先 ping，再查 arp -a
+            _run_hidden(f'ping -c 1 -W 1 {ip}', timeout=2)
+            out, _ = _run_hidden(f'arp -a -n {ip}')
+            m = re.search(r'([0-9a-fA-F]{2}[:-]){5}[0-9a-fA-F]{2}', out)
+            if m:
+                return m.group(0).replace("-", ":").upper()
+    except Exception as e:
+        log.debug("MAC lookup failed for %s: %s", ip, e)
+    return ""
+
+
+def get_local_mac():
+    """获取本机 MAC 地址（所有网卡，返回第一个有效的）"""
+    try:
+        if sys.platform == "win32":
+            out, _ = _run_hidden('getmac /v /fo csv /nh')
+            for line in out.splitlines():
+                line = line.strip()
+                if not line:
+                    continue
+                parts = [p.strip().strip('"') for p in line.split(",")]
+                # 格式: 连接名称, 网络适配器, MAC, 传输类型
+                if len(parts) >= 3:
+                    mac = parts[2]
+                    if re.match(r'^([0-9a-fA-F]{2}[:-]){5}[0-9a-fA-F]{2}$', mac):
+                        return mac.upper().replace("-", ":")
+        else:
+            out, _ = _run_hidden("ip link show")
+            for line in out.splitlines():
+                m = re.search(r'link/ether ([0-9a-f:]+)', line)
+                if m:
+                    return m.group(1).upper()
+    except Exception:
+        pass
+    return ""
+
+
+# ═══════════════════════════════════════════════════════════════
+# 厂商识别
+# ═══════════════════════════════════════════════════════════════
+
+OUI_VENDOR = {
+    "00:50:56": "VMware",   "00:0C:29": "VMware",   "00:1C:14": "VMware",
+    "00:05:69": "VMware",
+    "00:14:6C": "NetGear", "00:50:BA": "NetGear",
+    "00:1B:2B": "HP",      "00:1F:29": "HP",       "00:21:5A": "HP",
+    "00:22:64": "Dell",    "00:06:5B": "Dell",
+    "00:1C:B3": "Apple",   "00:1D:4F": "Apple",    "00:1E:C9": "Apple",
+    "00:1E:52": "Cisco",   "00:1A:2B": "Cisco",    "00:25:84": "Cisco",
+    "00:04:4B": "Nvidia",
+    "00:1A:11": "Google",
+    "00:50:F2": "Microsoft","00:0D:3A": "Microsoft","00:12:5A": "Microsoft",
+    "00:15:5D": "Microsoft","00:17:FA": "Microsoft",
+    "00:1A:6B": "TP-Link", "00:27:19": "TP-Link",  "14:CC:20": "TP-Link",
+    "30:B5:C2": "TP-Link",
+    "00:25:9E": "Cisco-Linksys","00:1A:70": "Cisco-Linksys",
+    "00:1E:58": "D-Link",  "00:22:B0": "D-Link",   "00:26:5A": "D-Link",
+    "1C:AF:F7": "D-Link",
+    "00:24:B2": "ZTE",     "00:1B:3C": "ZTE",     "44:2A:60": "ZTE",
+    "00:25:68": "Huawei",  "00:18:82": "Huawei",   "00:1E:10": "Huawei",
+    "34:29:12": "Huawei",
+    "20:CF:30": "Xiaomi", "34:80:B3": "Xiaomi",   "F8:A4:5F": "Xiaomi",
+    "C8:D7:B0": "Xiaomi",
+    "18:31:BF": "Huawei", "88:53:95": "Huawei",
+    "08:00:27": "VirtualBox",
+    "00:1C:42": "Parallels",
+    "00:16:3E": "Xensource",
+}
+
+
+def get_vendor(mac):
+    if not mac:
+        return ""
+    prefix = mac.upper().replace("-", ":")[:8]
+    return OUI_VENDOR.get(prefix, "")
+
+
+def guess_device_type(hostname="", vendor="", mac=""):
+    h = hostname.lower()
+    v = vendor.lower()
+    if any(k in h for k in ["router","gateway","tplink","netgear","tendawifi","mercury","mi"]):
+        return "router"
+    if any(k in h for k in ["printer","print","hp","canon","brother","epson"]):
+        return "printer"
+    if any(k in h for k in ["server","nas","synology","qnap","群晖"]):
+        return "server"
+    if any(k in h for k in ["switch","sw"]):
+        return "switch"
+    if "cisco" in v: return "router"
+    if "hp" in v: return "switch"
+    if "dell" in v: return "server"
+    if "vmware" in v or "virtualbox" in v: return "vm"
+    if "apple" in v: return "phone"
+    if "xiaomi" in v or "huawei" in v or "zte" in v or "tp-link" in v: return "router"
+    return "unknown"
+
+
+# ═══════════════════════════════════════════════════════════════
+# 拓扑扫描（多线程并发）
+# ═══════════════════════════════════════════════════════════════
+
+def _probe_host(ip):
+    """探测单个 IP 是否存活（ICMP ping），返回 (ip, mac, hostname) 或 None"""
+    rtt = ping_once(ip, timeout=1)
+    if rtt is not None:
+        mac = get_mac_for_ip(ip)
+        hostname = _resolve_hostname(ip)
+        return (ip, mac, hostname)
+    return None
+
+
+def _resolve_hostname(ip):
+    """尝试反解主机名"""
+    try:
+        name, _, _ = socket.gethostbyaddr(ip)
+        return name
+    except Exception:
+        return ""
+
+
+def scan_topology(subnets=None):
+    """
+    并行扫描网段，发现所有在线设备
+    subnets: ["192.168.1", "192.168.2"] 或 None（自动探测本机网段）
+    返回 [{ip, mac, hostname, vendor, device_type}, ...]
+    """
+    global _executor
+    if _executor is None:
+        _executor = ThreadPoolExecutor(max_workers=30)
+
+    if not subnets:
+        prefix = get_subnet_prefix()
+        subnets = [prefix] if prefix else []
+
+    targets = []
+    for prefix in subnets:
+        for i in range(1, 255):
+            targets.append(f"{prefix}.{i}")
+
+    log.info("[拓扑] 开始扫描 %d 个目标...", len(targets))
+    start = time.time()
+    devices = []
+
+    futures = {_executor.submit(_probe_host, ip): ip for ip in targets}
+    for future in as_completed(futures, timeout=30):
+        try:
+            result = future.result()
+            if result:
+                ip, mac, hostname = result
+                vendor = get_vendor(mac)
+                dtype = guess_device_type(hostname, vendor, mac)
+                devices.append({
+                    "ip": ip,
+                    "mac": mac,
+                    "hostname": hostname,
+                    "vendor": vendor,
+                    "device_type": dtype,
+                })
+                log.debug("[拓扑] 发现 %s (%s) %s", ip, mac or "?", vendor or "?")
+        except Exception:
+            pass
+
+    elapsed = time.time() - start
+    log.info("[拓扑] 扫描完成，发现 %d 台设备，耗时 %.1fs", len(devices), elapsed)
+    return devices
+
+
+# ═══════════════════════════════════════════════════════════════
+# 上报接口
+# ═══════════════════════════════════════════════════════════════
+
+def register_agent(company_name, location=""):
+    """向服务端注册企业"""
+    try:
+        data = json.dumps({
+            "name": company_name,
+            "customer_name": company_name,
+            "location": location,
+            "remark": "lanwatch_agent_v0.5"
+        }).encode()
+        req = urllib.request.Request(
+            SERVER_URL + "/api/register",
+            data=data,
+            headers={"Content-Type": "application/json"},
+            method="POST"
+        )
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            result = json.loads(resp.read())
+            return result.get("agent_id")
+    except Exception as e:
+        log.error("注册失败: %s", e)
+        return None
+
+
+def report(data, agent_id):
+    """上报探测数据"""
+    try:
+        req = urllib.request.Request(
+            SERVER_URL + "/api/" + agent_id + "/report",
+            data=json.dumps(data).encode(),
+            headers={"Content-Type": "application/json"},
+            method="POST"
+        )
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            return json.loads(resp.read())
+    except Exception as e:
+        log.warning("上报失败: %s", e)
+        return None
+
+
+def report_offline(agent_id):
+    """下线通知"""
+    try:
+        req = urllib.request.Request(
+            SERVER_URL + "/api/" + agent_id + "/offline",
+            data=b"{}",
+            headers={"Content-Type": "application/json"},
+            method="POST"
+        )
+        with urllib.request.urlopen(req, timeout=5):
+            pass
+        log.info("[离线] 已通知服务端")
+    except Exception:
+        pass
+
+
+def report_topology(devices, agent_id):
+    """上报拓扑数据"""
+    try:
+        req = urllib.request.Request(
+            SERVER_URL + "/api/" + agent_id + "/topology",
+            data=json.dumps({"devices": devices}).encode(),
+            headers={"Content-Type": "application/json"},
+            method="POST"
+        )
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            return json.loads(resp.read())
+    except Exception as e:
+        log.warning("拓扑上报失败: %s", e)
+        return None
+
+
+# ═══════════════════════════════════════════════════════════════
+# 探测主函数
+# ═══════════════════════════════════════════════════════════════
+
+DEFAULT_TARGETS = [
+    {"name": "网关", "host": "192.168.1.1"},
+    {"name": "DNS", "host": "8.8.8.8"},
+]
+
+
+def get_targets():
+    cfg = load_config()
+    if cfg and cfg.get("targets"):
+        return cfg["targets"]
+    return DEFAULT_TARGETS
+
+
+def run_probe(subnets=None):
+    targets = get_targets()
+    gateway = get_gateway()
+
+    # 探测网关（3次 ICMP ping）
+    gw_ok, gw_rtt, gw_loss = ping_multi(gateway, count=3, timeout=2)
+
+    # DNS 延迟
+    dns_ms = measure_dns()
+
+    # 探测目标列表（第一个可达的算目标）
+    target_ok = False
+    target_rtt = None
+    target_name = ""
+    for t in targets:
+        rtt = ping_once(t["host"], timeout=3)
+        if rtt is not None:
+            target_ok = True
+            target_rtt = rtt
+            target_name = t["name"]
+            break
+
+    # 如果没配目标，默认把网关当目标
+    if not target_name:
+        target_ok = gw_ok
+        target_rtt = gw_rtt
+        target_name = "网关"
+
+    return {
+        "ping_ok": gw_ok,
+        "ping_rtt_ms": gw_rtt,
+        "ping_loss_pct": gw_loss,
+        "dns_ms": dns_ms,
+        "gateway_reachable": gw_ok,
+        "target_reachable": target_ok,
+        "target_name": target_name,
+        "target_rtt_ms": target_rtt,
+        "subnets": ",".join(subnets) if subnets else "",
+    }
+
+
+# ═══════════════════════════════════════════════════════════════
+# 托盘图标
+# ═══════════════════════════════════════════════════════════════
+
+def _create_tray_image(color_hex="#34c759"):
+    """创建托盘图标（绿=在线，红=离线）"""
+    from PIL import Image, ImageDraw
+    img = Image.new("RGB", (16, 16), (0, 0, 0))
+    draw = ImageDraw.Draw(img)
+    draw.ellipse([2, 2, 13, 13], fill=color_hex)
+    return img
+
+
+def setup_tray(agent_id, company_name):
+    """初始化系统托盘，返回 icon 对象"""
+    global _tray_icon_ref
+    try:
+        from pystray import Icon, MenuItem, Menu
+        create_img = _create_tray_image
+
+        def make_menu():
+            return Menu(
+                MenuItem("查看日志", _open_log, default=False),
+                MenuItem("关于", _show_about, default=False),
+                MenuItem("退出", _exit_app, default=False),
+            )
+
+        icon = Icon(
+            "lanwatch_agent",
+            create_img("#34c759"),
+            f"lanwatch ({company_name})",
+            make_menu()
+        )
+        _tray_icon_ref = icon
+
+        def run_tray():
+            icon.run()
+
+        t = threading.Thread(target=run_tray, daemon=True, name="tray")
+        t.start()
+        log.info("[托盘] 启动成功")
+        return icon
+    except Exception as e:
+        log.warning("[托盘] 启动失败: %s", e)
+        return None
+
+
+def update_tray_status(is_online):
+    """线程安全地更新托盘状态（通过队列）"""
+    try:
+        _status_queue.put_nowait(("status", is_online))
+    except Exception:
+        pass
+
+
+def _poll_status_queue():
+    """在托盘线程中轮询状态队列，更新图标颜色"""
+    global _tray_icon_ref
+    while True:
+        try:
+            op, data = _status_queue.get(timeout=1)
+            if op == "status" and _tray_icon_ref:
+                color = "#34c759" if data else "#ff3b30"
+                img = _create_tray_image(color)
+                _tray_icon_ref.icon = img
+                _tray_icon_ref.update_menu()
+        except queue.Empty:
+            continue
+        except Exception:
+            pass
+
+
+def _open_log():
+    """打开日志文件"""
+    try:
+        os.startfile(LOG_FILE) if sys.platform == "win32" else None
+    except Exception:
+        pass
+
+
+def _show_about():
+    """显示关于对话框"""
+    try:
+        import tkinter as tk
+        from tkinter import messagebox
+        root = tk.Tk()
+        root.withdraw()
+        messagebox.showinfo(
+            "关于 lanwatch_agent",
+            f"lanwatch_agent v{__version__}\n"
+            f"企业网络监控客户端\n\n"
+            f"服务端: {SERVER_URL}"
+        )
+        root.destroy()
+    except Exception:
+        pass
+
+
+def _exit_app():
+    """安全退出（通知服务端后退出）"""
+    global _tray_icon_ref
+    log.info("[托盘] 请求退出")
+    config = load_config()
+    if config and config.get("agent_id"):
+        report_offline(config["agent_id"])
+    if _tray_icon_ref:
+        try:
+            _tray_icon_ref.stop()
+        except Exception:
+            pass
+    os._exit(0)
+
+
+# ═══════════════════════════════════════════════════════════════
+# 开机自启
+# ═══════════════════════════════════════════════════════════════
+
+def set_autostart(enable=True):
+    if not _winreg:
+        return False
+    try:
+        key_path = r"Software\Microsoft\Windows\CurrentVersion\Run"
+        key = _winreg.OpenKey(_winreg.HKEY_CURRENT_USER, key_path, 0, _winreg.KEY_ALL_ACCESS)
+        if enable:
+            exe_path = sys.executable
+            script_path = os.path.abspath(__file__)
+            cmd = f'"{exe_path}" "{script_path}"'
+            _winreg.SetValueEx(key, "lanwatch_agent", 0, _winreg.REG_SZ, cmd)
+            log.info("[自启] 已开启")
+        else:
+            try:
+                _winreg.DeleteValue(key, "lanwatch_agent")
+                log.info("[自启] 已关闭")
+            except FileNotFoundError:
+                pass
+        _winreg.CloseKey(key)
+        return True
+    except Exception as e:
+        log.warning("[自启] 设置失败: %s", e)
+        return False
+
+
+def is_autostart_enabled():
+    if not _winreg:
+        return False
+    try:
+        key_path = r"Software\Microsoft\Windows\CurrentVersion\Run"
+        key = _winreg.OpenKey(_winreg.HKEY_CURRENT_USER, key_path, 0, _winreg.KEY_READ)
+        try:
+            val, _ = _winreg.QueryValueEx(key, "lanwatch_agent")
+            _winreg.CloseKey(key)
+            return bool(val)
+        except FileNotFoundError:
+            _winreg.CloseKey(key)
+            return False
+    except Exception:
+        return False
+
+
+# ═══════════════════════════════════════════════════════════════
+# GUI 窗口（设置向导 + 成功提示）
+# ═══════════════════════════════════════════════════════════════
+
+def _show_setup_window(company_name=""):
+    """显示设置向导窗口，返回 (公司名, 开机自启, 位置, 网段列表, 目标列表)"""
+    import tkinter as tk
+    from tkinter import ttk, messagebox
+
+    result = {}
+
+    def on_close():
+        result["cancelled"] = True
+        win.destroy()
+
+    win = tk.Toplevel()
+    win.title("lanwatch_agent 设置向导")
+    win.geometry("520x420")
+    win.resizable(False, False)
+    win.protocol("WM_DELETE_WINDOW", on_close)
+
+    # 公司名称
+    tk.Label(win, text="企业名称:", font=("微软雅黑", 10)).place(x=20, y=20)
+    name_entry = tk.Entry(win, width=30, font=("微软雅黑", 10))
+    name_entry.place(x=110, y=20, width=360)
+    name_entry.insert(0, company_name)
+
+    # 位置
+    tk.Label(win, text="安装位置:", font=("微软雅黑", 10)).place(x=20, y=60)
+    location_entry = tk.Entry(win, width=30, font=("微软雅黑", 10))
+    location_entry.place(x=110, y=60, width=360)
+
+    # 开机自启
+    autostart_var = tk.BooleanVar(value=True)
+    tk.Checkbutton(
+        win, text="开机自动启动", variable=autostart_var,
+        font=("微软雅黑", 10)
+    ).place(x=110, y=95)
+
+    # 监控网段
+    tk.Label(win, text="监控网段:", font=("微软雅黑", 10)).place(x=20, y=130)
+    subnet_entry = tk.Entry(win, width=30, font=("微软雅黑", 9))
+    subnet_entry.place(x=110, y=130, width=360)
+    tk.Label(win, text="多个网段用逗号分隔，如: 192.168.1,192.168.2",
+             font=("微软雅黑", 8), fg="gray").place(x=110, y=155)
+
+    # 监控目标
+    tk.Label(win, text="监控目标:", font=("微软雅黑", 10)).place(x=20, y=185)
+    targets_frame = tk.Frame(win)
+    targets_frame.place(x=110, y=185, width=360, height=100)
+
+    target_rows = []
+    def add_target(name="", host=""):
+        row = tk.Frame(targets_frame)
+        e_name = tk.Entry(row, width=10, font=("微软雅黑", 9))
+        e_name.insert(0, name)
+        e_host = tk.Entry(row, width=22, font=("微软雅黑", 9))
+        e_host.insert(0, host)
+        tk.Label(row, text="名称:", font=("微软雅黑", 8)).pack(side=tk.LEFT)
+        e_name.pack(side=tk.LEFT, padx=2)
+        tk.Label(row, text="地址:", font=("微软雅黑", 8)).pack(side=tk.LEFT, padx=2)
+        e_host.pack(side=tk.LEFT, padx=2)
+
+        def remove():
+            row.destroy()
+            target_rows.remove(row)
+        tk.Button(row, text="×", command=remove, width=2).pack(side=tk.LEFT, padx=2)
+        row.pack(fill=tk.X, pady=2)
+        target_rows.append(row)
+
+    add_target("网关", "192.168.1.1")
+    add_target("DNS", "8.8.8.8")
+
+    tk.Button(targets_frame, text="+ 添加目标", command=lambda: add_target(),
+              font=("微软雅黑", 8)).pack(anchor=tk.W, pady=4)
+
+    # 扫描按钮
+    scan_status = tk.StringVar(value="")
+    tk.Label(win, textvariable=scan_status, font=("微软雅黑", 8), fg="green").place(x=110, y=295)
+    scanning = {"busy": False}
+
+    def do_scan():
+        if scanning["busy"]:
+            return
+        prefix = get_subnet_prefix()
+        if prefix:
+            scan_status.set(f"正在扫描网段 {prefix}.x ...")
+            scanning["busy"] = True
+            def scan():
+                devices = scan_topology([prefix])
+                win.after(0, lambda: _show_scan_results(devices))
+            threading.Thread(target=scan, daemon=True).start()
+
+    def _show_scan_results(devices):
+        scanning["busy"] = False
+        scan_status.set(f"扫描完成，发现 {len(devices)} 台设备")
+        # 自动填入发现的网段
+        prefix = get_subnet_prefix()
+        subnet_entry.delete(0, tk.END)
+        subnet_entry.insert(0, prefix)
+
+    tk.Button(win, text="扫描内网", command=do_scan,
+             font=("微软雅黑", 9)).place(x=400, y=155)
+
+    # 确认按钮
+    def on_ok():
+        company = name_entry.get().strip()
+        if not company:
+            messagebox.showwarning("提示", "请填写企业名称")
+            return
+        result["company_name"] = company
+        result["location"] = location_entry.get().strip()
+        result["autostart"] = autostart_var.get()
+        # 解析网段
+        subnet_text = subnet_entry.get().strip()
+        subnets = [s.strip() for s in subnet_text.split(",") if s.strip()]
+        result["subnets"] = subnets
+        # 解析目标
+        targets = []
+        for row in target_rows:
+            children = row.winfo_children()
+            # [label, entry_name, label, entry_host, button]
+            name_val = children[1].get().strip()
+            host_val = children[3].get().strip()
+            if name_val and host_val:
+                targets.append({"name": name_val, "host": host_val})
+        result["targets"] = targets
+        result["cancelled"] = False
+        win.destroy()
+
+    tk.Button(win, text="确认注册", command=on_ok,
+              font=("微软雅黑", 10), bg="#0078d4", fg="white",
+              width=12, height=2).place(x=320, y=350)
+    tk.Button(win, text="取消", command=on_close,
+              font=("微软雅黑", 10), width=12, height=2).place(x=180, y=350)
+
+    win.wait_window()
+    return (
+        result.get("company_name", ""),
+        result.get("autostart", False),
+        result.get("location", ""),
+        result.get("subnets", []),
+        result.get("targets", []),
+    )
+
+
+def _show_success_window(company_name, agent_id, location):
+    """显示注册成功窗口（非阻塞）"""
+    import tkinter as tk
+    from tkinter import messagebox
+
+    root = tk.Tk()
+    root.withdraw()
+    messagebox.showinfo(
+        "注册成功",
+        f"企业: {company_name}\n"
+        f"Agent ID: {agent_id}\n"
+        f"位置: {location or '未填写'}\n\n"
+        f"程序已最小化到系统托盘。\n"
+        f"手机访问 http://82.156.229.67:8000/mobile 查看监控状态"
+    )
+    root.destroy()
+
+
+# ═══════════════════════════════════════════════════════════════
+# 主入口
+# ═══════════════════════════════════════════════════════════════
+
+def main():
+    global _winreg, _tray_icon_ref
+
+    log.info("=" * 50)
+    log.info("lanwatch_agent v%s 启动", __version__)
+    log.info("服务端: %s", SERVER_URL)
+    log.info("=" * 50)
+
+    # Windows: 隐藏控制台窗口
+    if sys.platform == "win32":
+        try:
+            ctypes.windll.user32.ShowWindow(
+                ctypes.windll.kernel32.GetConsoleWindow(), 0
+            )
+        except Exception:
+            pass
+        _winreg = __import__("winreg")
+
+    config = load_config()
+
+    # ── 首次注册 ──
+    if not config or not config.get("agent_id"):
+        log.info("首次运行，显示设置向导...")
+        company_name, autostart, location, subnets, targets = _show_setup_window(
+            company_name=config.get("company_name") if config else ""
+        )
+        if not company_name:
+            log.info("用户取消设置，退出")
+            return
+
+        log.info("正在注册企业: %s", company_name)
+        agent_id = register_agent(company_name, location)
+        if not agent_id:
+            import tkinter as tk
+            from tkinter import messagebox
+            root = tk.Tk()
+            root.withdraw()
+            messagebox.showerror("错误", "注册失败，请检查网络后重试。")
+            root.destroy()
+            log.error("注册失败，退出")
+            return
+
+        log.info("注册成功，Agent ID: %s", agent_id)
+
+        # 立即在后台显示成功窗口（非阻塞）
+        threading.Thread(
+            target=_show_success_window,
+            args=(company_name, agent_id, location),
+            daemon=True
+        ).start()
+
+        config = {
+            "agent_id": agent_id,
+            "company_name": company_name,
+            "subnets": subnets,
+            "targets": targets,
+        }
+        save_config(config)
+
+        if autostart and _winreg:
+            set_autostart(True)
+    else:
+        agent_id = config["agent_id"]
+        company_name = config.get("company_name", "")
+        log.info("已配置 Agent ID: %s", agent_id)
+
+    # 启动托盘（启动后永不阻塞）
+    tray_icon = setup_tray(agent_id, company_name)
+    if not tray_icon:
+        log.warning("[托盘] 托盘启动失败，将继续无托盘运行")
+
+    log.info("开始监控探测...")
+    consecutive_errors = 0
+    topo_next_in = TOPOLOGY_INTERVAL  # 首次拓扑扫描稍后执行
+
+    while True:
+        try:
+            cfg = load_config()
+            subnets = (cfg or {}).get("subnets", [])
+            targets = (cfg or {}).get("targets", DEFAULT_TARGETS)
+
+            # 探测
+            data = run_probe(subnets)
+            result = report(data, agent_id)
+
+            if result:
+                consecutive_errors = 0
+                is_online = data["ping_ok"]
+                update_tray_status(is_online)
+                status = "OK" if is_online else "FAIL"
+                log.info("[%s] 网关:%sms DNS:%sms 目标:%s 可达:%s",
+                    status,
+                    f"{data['ping_rtt_ms']:.1f}" if data['ping_rtt_ms'] else "-",
+                    f"{data['dns_ms']:.1f}" if data['dns_ms'] else "-",
+                    data['target_name'] or "N/A",
+                    data['target_reachable'])
+            else:
+                consecutive_errors += 1
+                log.warning("上报失败 (连续失败 %d 次)", consecutive_errors)
+                update_tray_status(False)
+
+            # 拓扑扫描计时
+            topo_next_in -= REPORT_INTERVAL
+            if topo_next_in <= 0:
+                topo_next_in = TOPOLOGY_INTERVAL
+                cfg = load_config()
+                subnets = (cfg or {}).get("subnets", [])
+                # 在后台线程执行拓扑扫描，不阻塞主循环
+                threading.Thread(
+                    target=_do_topology_scan,
+                    args=(subnets, agent_id),
+                    daemon=True,
+                    name="topology_scan"
+                ).start()
+
+        except KeyboardInterrupt:
+            log.info("收到停止信号")
+            break
+        except Exception as e:
+            log.error("运行异常: %s", e)
+            consecutive_errors += 1
+            update_tray_status(False)
+
+        time.sleep(REPORT_INTERVAL)
+
+    # 退出前通知服务端
+    report_offline(agent_id)
+    if tray_icon:
+        try:
+            tray_icon.stop()
+        except Exception:
+            pass
+    log.info("Agent 已停止")
+
+
+def _do_topology_scan(subnets, agent_id):
+    """执行拓扑扫描并上报（后台线程调用）"""
+    try:
+        devices = scan_topology(subnets) if subnets else scan_topology()
+        if devices:
+            report_topology(devices, agent_id)
+    except Exception as e:
+        log.error("[拓扑] 扫描异常: %s", e)
+
+
+if __name__ == "__main__":
+    main()
