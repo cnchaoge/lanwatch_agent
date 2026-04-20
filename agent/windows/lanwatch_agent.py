@@ -561,7 +561,8 @@ def setup_tray(agent_id, company_name):
         _tray_icon_ref = icon
 
         # 启动托盘状态轮询线程（只启动一次）
-        if not globals().get("_status_thread_started", False):
+        global _status_thread_started
+        if not _status_thread_started:
             t = threading.Thread(target=_poll_status_queue, daemon=True, name="tray_status")
             t.start()
             _status_thread_started = True
