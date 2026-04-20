@@ -680,65 +680,66 @@ def _show_setup_window():
     result = {}
     root = tk.Tk()
     root.title("lanwatch - 首次设置")
-    root.geometry("400x340")
+    W, H = 400, 420
+    root.geometry(f"{W}x{H}")
     root.resizable(False, False)
     root.attributes("-topmost", True)
     root.update_idletasks()
     sw = root.winfo_screenwidth()
     sh = root.winfo_screenheight()
-    root.geometry(f"400x340+{(sw-400)//2}+{(sh-340)//2}")
+    root.geometry(f"+{(sw-W)//2}+{(sh-H)//2}")
 
-    # 背景色
-    BG = "#FFFFFF"
-    ACCENT = "#2563EB"
-    TEXT = "#1F2937"
-    TEXT2 = "#6B7280"
-    BORDER = "#E5E7EB"
+    BG = "#FFFFFF"; ACCENT = "#2563EB"; TEXT = "#111827"
+    TEXT2 = "#6B7280"; BORDER = "#D1D5DB"; HL = "#2563EB"
     root.configure(bg=BG)
 
-    # 标题区
-    header = tk.Frame(root, bg="#F8FAFC", height=60)
-    header.pack(fill="x", pady=(0,0))
+    # 标题
+    header = tk.Frame(root, bg="#F9FAFB", height=60)
+    header.pack(fill="x")
     header.pack_propagate(False)
-    tk.Label(header, text="◉ lanwatch", font=("微软雅黑", 13, "bold"),
-             bg="#F8FAFC", fg=ACCENT).pack(pady=(16, 2))
-    tk.Label(header, text="首次设置", font=("微软雅黑", 10),
-             bg="#F8FAFC", fg=TEXT2).pack()
+    inner = tk.Frame(header, bg="#F9FAFB")
+    inner.pack(pady=14)
+    tk.Label(inner, text="◉ lanwatch", font=("微软雅黑", 13, "bold"),
+             bg="#F9FAFB", fg=ACCENT).pack()
+    tk.Label(inner, text="首次设置", font=("微软雅黑", 9), bg="#F9FAFB",
+             fg=TEXT2).pack()
 
     # 表单
     form = tk.Frame(root, bg=BG)
-    form.pack(padx=32, pady=20, fill="x")
+    form.pack(fill="x", padx=32, pady=16)
 
-    def field(label, placeholder=""):
-        f = tk.Frame(form, bg=BG)
-        tk.Label(f, text=label, font=("微软雅黑", 9), bg=BG,
-                 fg=TEXT2, anchor="w").pack(anchor="w")
-        e = tk.Entry(f, font=("微软雅黑", 10), bg=BG, fg=TEXT,
-                     insertbackground=ACCENT, bd=0, relief="flat",
-                     highlightthickness=1, highlightcolor=ACCENT,
-                     highlightbackground=BORDER)
-        e.pack(fill="x", pady=(2, 10))
-        if placeholder:
-            e.insert(0, placeholder)
+    entry_opts = dict(font=("微软雅黑", 10), bg=BG, fg=TEXT,
+                      insertbackground=ACCENT, relief="solid",
+                      bd=1, highlightthickness=1,
+                      highlightcolor=HL, highlightbackground=BORDER)
+
+    def make_field(parent, label_text, placeholder="", readonly=False, readonly_val=None):
+        lf = tk.Frame(parent, bg=BG)
+        tk.Label(lf, text=label_text, font=("微软雅黑", 9, "bold"),
+                 bg=BG, fg=TEXT2, anchor="w").pack(anchor="w")
+        if readonly:
+            sv = tk.StringVar(value=readonly_val or "")
+            e = tk.Entry(lf, textvariable=sv, font=("微软雅黑", 10),
+                         bg="#F3F4F6", fg="#9CA3AF", state="readonly",
+                         relief="flat", bd=0, highlightthickness=0,
+                         insertbackground=ACCENT, readonlybackground="#F3F4F6")
+        else:
+            e = tk.Entry(lf, **entry_opts)
+            if placeholder:
+                e.insert(0, placeholder)
+        e.pack(fill="x", pady=(3, 12))
+        lf.pack(fill="x")
         return e
 
-    name_entry = field("企业名称 *", "")
-    addr_entry = field("安装地址", "")
-    phone_entry = field("网管电话（选填）", "")
-
-    # 自动网段（只读）
-    f = tk.Frame(form, bg=BG)
-    tk.Label(f, text="内网网段（自动）", font=("微软雅黑", 9), bg=BG,
-             fg=TEXT2, anchor="w").pack(anchor="w")
-    subnet_val = tk.StringVar(value=get_subnet_prefix() or "无法检测")
-    e = tk.Entry(f, textvariable=subnet_val, font=("微软雅黑", 10), bg="#F3F4F6",
-                 fg="#9CA3AF", state="readonly", bd=0, relief="flat")
-    e.pack(fill="x", pady=(2, 0))
-    f.pack(anchor="w")
+    name_entry  = make_field(form, "企业名称 *")
+    addr_entry = make_field(form, "安装地址")
+    phone_entry = make_field(form, "网管电话（选填）")
+    make_field(form, "内网网段（自动读取）", readonly=True,
+               readonly_val=get_subnet_prefix() or "无法检测")
 
     # 按钮
     btn_frame = tk.Frame(root, bg=BG)
-    btn_frame.pack(side="bottom", pady=16, fill="x", padx=32)
+    btn_frame.pack(side="bottom", fill="x", padx=32, pady=16)
 
     def on_ok():
         name = name_entry.get().strip()
@@ -746,10 +747,11 @@ def _show_setup_window():
             messagebox.showwarning("提示", "请填写企业名称", parent=root)
             return
         result["company_name"] = name
-        result["phone"] = phone_entry.get().strip()
-        result["location"] = addr_entry.get().strip()
-        result["subnet"] = subnet_val.get()
-        result["cancelled"] = False
+        result["phone"]       = phone_entry.get().strip()
+        result["location"]    = addr_entry.get().strip()
+        subnet_val = get_subnet_prefix() or "无法检测"
+        result["subnet"]      = subnet_val
+        result["cancelled"]   = False
         root.destroy()
 
     def on_cancel():
@@ -757,13 +759,11 @@ def _show_setup_window():
         root.destroy()
 
     tk.Button(btn_frame, text="取消", command=on_cancel,
-              font=("微软雅黑", 10), width=10,
-              bg="#F3F4F6", fg=TEXT2, bd=0, relief="flat",
-              pady=8).pack(side="left", padx=(0, 8))
+              font=("微软雅黑", 10), width=10, bg="#F3F4F6", fg=TEXT2,
+              relief="flat", pady=7).pack(side="left", padx=(0, 8))
     tk.Button(btn_frame, text="确认注册", command=on_ok,
-              font=("微软雅黑", 10, "bold"), width=10,
-              bg=ACCENT, fg="white", bd=0, relief="flat",
-              pady=8).pack(side="right", padx=(8, 0))
+              font=("微软雅黑", 10, "bold"), width=10, bg=ACCENT, fg="white",
+              relief="flat", pady=7).pack(side="right", padx=(8, 0))
 
     root.mainloop()
     return (
@@ -773,6 +773,7 @@ def _show_setup_window():
         result.get("subnet", ""),
         result.get("cancelled", True),
     )
+
 
 
 def _show_success_window(company_name, agent_id, token):
