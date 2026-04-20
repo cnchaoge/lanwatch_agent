@@ -680,100 +680,92 @@ def _show_setup_window():
     result = {}
     root = tk.Tk()
     root.title("lanwatch - 首次设置")
-    W, H = 400, 420
+    W, H = 420, 480
     root.geometry(f"{W}x{H}")
     root.resizable(False, False)
     root.attributes("-topmost", True)
-    root.update_idletasks()
-    sw = root.winfo_screenwidth()
-    sh = root.winfo_screenheight()
+    sw = root.winfo_screenwidth(); sh = root.winfo_screenheight()
     root.geometry(f"+{(sw-W)//2}+{(sh-H)//2}")
 
-    BG = "#FFFFFF"; ACCENT = "#2563EB"; TEXT = "#111827"
-    TEXT2 = "#6B7280"; BORDER = "#D1D5DB"; HL = "#2563EB"
+    # 颜色
+    BG="#FFFFFF"; ACCENT="#2563EB"; TEXT="#111827"; TEXT2="#6B7280"
+    HL="#D1D5DB"; INPUT_BG="#F9FAFB"
     root.configure(bg=BG)
 
-    # 标题
-    header = tk.Frame(root, bg="#F9FAFB", height=60)
+    # 顶部浅灰标题栏
+    header = tk.Frame(root, bg="#F3F4F6")
     header.pack(fill="x")
-    header.pack_propagate(False)
-    inner = tk.Frame(header, bg="#F9FAFB")
-    inner.pack(pady=14)
-    tk.Label(inner, text="◉ lanwatch", font=("微软雅黑", 13, "bold"),
-             bg="#F9FAFB", fg=ACCENT).pack()
-    tk.Label(inner, text="首次设置", font=("微软雅黑", 9), bg="#F9FAFB",
-             fg=TEXT2).pack()
+    tk.Label(header, text="◉ lanwatch", font=("微软雅黑",14,"bold"),
+             bg="#F3F4F6", fg=ACCENT).pack(pady=(14,2))
+    tk.Label(header, text="首次设置向导", font=("微软雅黑",9),
+             bg="#F3F4F6", fg=TEXT2).pack(pady=(0,12))
 
-    # 表单
+    # 表单（可滚动，如果超高的话；但这里刚好够放）
     form = tk.Frame(root, bg=BG)
-    form.pack(fill="x", padx=32, pady=16)
+    form.pack(fill="x", padx=36, pady=(16,0))
 
-    entry_opts = dict(font=("微软雅黑", 10), bg=BG, fg=TEXT,
-                      insertbackground=ACCENT, relief="solid",
-                      bd=1, highlightthickness=1,
-                      highlightcolor=HL, highlightbackground=BORDER)
+    def entry(parent):
+        return tk.Entry(parent, font=("微软雅黑",10), bg=INPUT_BG, fg=TEXT,
+                        insertbackground=ACCENT, relief="solid", bd=1,
+                        highlightthickness=0, pady=7, padx=8)
 
-    def make_field(parent, label_text, placeholder="", readonly=False, readonly_val=None):
-        lf = tk.Frame(parent, bg=BG)
-        tk.Label(lf, text=label_text, font=("微软雅黑", 9, "bold"),
-                 bg=BG, fg=TEXT2, anchor="w").pack(anchor="w")
-        if readonly:
-            sv = tk.StringVar(value=readonly_val or "")
-            e = tk.Entry(lf, textvariable=sv, font=("微软雅黑", 10),
-                         bg="#F3F4F6", fg="#9CA3AF", state="readonly",
-                         relief="flat", bd=0, highlightthickness=0,
-                         insertbackground=ACCENT, readonlybackground="#F3F4F6")
-        else:
-            e = tk.Entry(lf, **entry_opts)
-            if placeholder:
-                e.insert(0, placeholder)
-        e.pack(fill="x", pady=(3, 12))
-        lf.pack(fill="x")
-        return e
+    def label_row(parent, text):
+        tk.Label(parent, text=text, font=("微软雅黑",9,"bold"),
+                 bg=BG, fg=TEXT2).pack(anchor="w", pady=(8,2))
 
-    name_entry  = make_field(form, "企业名称 *")
-    addr_entry = make_field(form, "安装地址")
-    phone_entry = make_field(form, "网管电话（选填）")
-    make_field(form, "内网网段（自动读取）", readonly=True,
-               readonly_val=get_subnet_prefix() or "无法检测")
+    # 企业名称
+    label_row(form, "企业名称 *")
+    name_entry = entry(form); name_entry.pack(fill="x")
 
-    # 按钮
+    # 安装地址
+    label_row(form, "安装地址")
+    addr_entry = entry(form); addr_entry.pack(fill="x")
+
+    # 网关电话
+    label_row(form, "网关电话（选填）")
+    phone_entry = entry(form); phone_entry.pack(fill="x")
+
+    # 内网网段（只读）
+    label_row(form, "内网网段（自动读取）")
+    subnet_sv = tk.StringVar(value=get_subnet_prefix() or "无法检测")
+    se = tk.Entry(form, textvariable=subnet_sv, font=("微软雅黑",10),
+                  bg="#EBEDEF", fg="#9CA3AF", state="readonly",
+                  relief="flat", bd=0, pady=7, padx=8, insertbackground=ACCENT)
+    se.pack(fill="x")
+
+    # 按钮行（固定在底部）
     btn_frame = tk.Frame(root, bg=BG)
-    btn_frame.pack(side="bottom", fill="x", padx=32, pady=16)
+    btn_frame.pack(side="bottom", fill="x", padx=36, pady=16)
 
     def on_ok():
         name = name_entry.get().strip()
         if not name:
-            messagebox.showwarning("提示", "请填写企业名称", parent=root)
-            return
+            messagebox.showwarning("提示","请填写企业名称", parent=root); return
         result["company_name"] = name
-        result["phone"]       = phone_entry.get().strip()
-        result["location"]    = addr_entry.get().strip()
-        subnet_val = get_subnet_prefix() or "无法检测"
-        result["subnet"]      = subnet_val
-        result["cancelled"]   = False
+        result["phone"]    = phone_entry.get().strip()
+        result["location"] = addr_entry.get().strip()
+        result["subnet"]   = get_subnet_prefix() or "无法检测"
+        result["cancelled"] = False
         root.destroy()
 
     def on_cancel():
-        result["cancelled"] = True
-        root.destroy()
+        result["cancelled"] = True; root.destroy()
 
     tk.Button(btn_frame, text="取消", command=on_cancel,
-              font=("微软雅黑", 10), width=10, bg="#F3F4F6", fg=TEXT2,
-              relief="flat", pady=7).pack(side="left", padx=(0, 8))
+             font=("微软雅黑",10), width=10, bg="#F3F4F6", fg=TEXT2,
+             relief="flat", pady=8).pack(side="left")
     tk.Button(btn_frame, text="确认注册", command=on_ok,
-              font=("微软雅黑", 10, "bold"), width=10, bg=ACCENT, fg="white",
-              relief="flat", pady=7).pack(side="right", padx=(8, 0))
+             font=("微软雅黑",10,"bold"), width=10, bg=ACCENT, fg="white",
+             relief="flat", pady=8).pack(side="right")
 
     root.mainloop()
     return (
-        result.get("company_name", ""),
-        result.get("phone", ""),
-        result.get("location", ""),
-        result.get("subnet", ""),
-        result.get("cancelled", True),
+        result.get("company_name",""),
+        result.get("phone",""),
+        result.get("location",""),
+        result.get("subnet",""),
+        result.get("cancelled",True),
     )
-
 
 
 def _show_success_window(company_name, agent_id, token):
@@ -784,36 +776,35 @@ def _show_success_window(company_name, agent_id, token):
 
     root = tk.Tk()
     root.title("注册成功 - lanwatch")
-    root.geometry("360x500")
+    W, H = 380, 560
+    root.geometry(f"{W}x{H}")
     root.resizable(False, False)
     root.attributes("-topmost", True)
-    root.update_idletasks()
-    sw = root.winfo_screenwidth()
-    sh = root.winfo_screenheight()
-    root.geometry(f"360x500+{(sw-360)//2}+{(sh-500)//2}")
+    sw = root.winfo_screenwidth(); sh = root.winfo_screenheight()
+    root.geometry(f"+{(sw-W)//2}+{(sh-H)//2}")
 
-    BG = "#FFFFFF"
-    ACCENT = "#2563EB"
-    TEXT = "#1F2937"
-    TEXT2 = "#6B7280"
-    GREEN = "#10B981"
-    BORDER = "#E5E7EB"
+    BG="#FFFFFF"; ACCENT="#2563EB"; TEXT="#111827"; TEXT2="#6B7280"
+    GREEN="#10B981"; INPUT_BG="#F9FAFB"
     root.configure(bg=BG)
 
-    # 成功标记
-    tk.Label(root, text="✓", font=("微软雅黑", 32), bg=BG,
-             fg=GREEN).pack(pady=(24, 4))
-    tk.Label(root, text="注册成功", font=("微软雅黑", 15, "bold"),
-             bg=BG, fg=TEXT).pack()
-    tk.Label(root, text=company_name, font=("微软雅黑", 10),
-             bg=BG, fg=TEXT2).pack(pady=(2, 16))
+    # 顶部
+    header = tk.Frame(root, bg="#F3F4F6")
+    header.pack(fill="x")
+    tk.Label(header, text="✓  注册成功", font=("微软雅黑",15,"bold"),
+             bg="#F3F4F6", fg=GREEN).pack(pady=(14,2))
+    tk.Label(header, text=company_name, font=("微软雅黑",10),
+             bg="#F3F4F6", fg=TEXT2).pack(pady=(0,12))
+
+    # 中间主内容区（可滚动）
+    main = tk.Frame(root, bg=BG)
+    main.pack(fill="both", expand=True, padx=32, pady=(12,0))
 
     # 二维码
-    qr_label = tk.Label(root, bg=BG)
+    qr_label = tk.Label(main, bg=BG)
     qr_label.pack()
-    loading_lbl = tk.Label(root, text="正在加载二维码...", font=("微软雅黑", 9),
+    loading_lbl = tk.Label(main, text="正在加载二维码...", font=("微软雅黑",9),
                            bg=BG, fg=TEXT2)
-    loading_lbl.pack()
+    loading_lbl.pack(pady=(4,0))
 
     def load_qr():
         try:
@@ -823,40 +814,46 @@ def _show_success_window(company_name, agent_id, token):
             )
             with urllib.request.urlopen(req, timeout=10) as resp:
                 img_data = resp.read()
-            img = Image.open(io.BytesIO(img_data)).resize((180, 180))
+            img = Image.open(io.BytesIO(img_data)).resize((180,180))
             photo = ImageTk.PhotoImage(img)
             qr_label.config(image=photo, bg=BG)
             qr_label.image = photo
-            loading_lbl.config(text="手机扫码查看监控 · Agent: " + agent_id)
+            loading_lbl.config(text="手机扫码查看监控 · " + agent_id)
         except Exception as e:
             loading_lbl.config(text="二维码加载失败", fg="#EF4444")
 
     threading.Thread(target=load_qr, daemon=True).start()
 
-    # Token
-    token_frame = tk.Frame(root, bg="#F8FAFC", bd=1, relief="solid",
-                           highlightbackground=BORDER, highlightthickness=1)
-    token_frame.pack(padx=32, pady=(16, 4), fill="x")
-    tk.Label(token_frame, text="Token（请妥善保存，遗失无法找回）",
-             font=("微软雅黑", 8), bg="#F8FAFC", fg=TEXT2,
-             anchor="w").pack(padx=10, pady=(6, 0), fill="x")
-    tk.Label(token_frame, text=token, font=("Consolas", 9), bg="#F8FAFC",
-             fg="#2563EB", anchor="w").pack(padx=10, pady=(0, 8), fill="x")
+    # Agent ID
+    tk.Label(main, text="Agent ID: " + agent_id, font=("微软雅黑",9),
+             bg=BG, fg=TEXT2).pack(pady=(8,0))
 
-    # 按钮
-    btn_row = tk.Frame(root, bg=BG)
-    btn_row.pack(pady=14)
-    tk.Button(btn_row, text="打开监控页面", command=lambda: _open_mobile(agent_id),
-              font=("微软雅黑", 10), bg=ACCENT, fg="white", bd=0, relief="flat",
-              pady=7, width=14).grid(row=0, column=0, padx=6)
-    tk.Button(btn_row, text="复制 Token", command=lambda: _copy_token(root, token),
-              font=("微软雅黑", 10), bg="#F3F4F6", fg=TEXT, bd=0, relief="flat",
-              pady=7, width=10).grid(row=0, column=1, padx=6)
+    # Token 框
+    token_frame = tk.Frame(main, bg=INPUT_BG, relief="solid", bd=1,
+                           highlightbackground=HL)
+    token_frame.pack(fill="x", pady=(10,0))
+    tk.Label(token_frame, text="Token（请妥善保存，遗失无法找回）",
+             font=("微软雅黑",8), bg=INPUT_BG, fg=TEXT2).pack(
+                 anchor="w", padx=10, pady=(6,0))
+    tk.Label(token_frame, text=token, font=("Consolas",9),
+             bg=INPUT_BG, fg=ACCENT).pack(anchor="w", padx=10, pady=(0,8))
+
+    # 按钮（固定底部）
+    btn_frame = tk.Frame(root, bg=BG)
+    btn_frame.pack(side="bottom", fill="x", padx=32, pady=14)
+
+    tk.Button(btn_frame, text="打开监控页面",
+             command=lambda:_open_mobile(agent_id),
+             font=("微软雅黑",10), bg=ACCENT, fg="white",
+             relief="flat", pady=8, width=14).grid(row=0, column=0, padx=(0,8))
+    tk.Button(btn_frame, text="复制 Token",
+             command=lambda:_copy_token(root, token),
+             font=("微软雅黑",10), bg="#F3F4F6", fg=TEXT,
+             relief="flat", pady=8, width=11).grid(row=0, column=1, padx=(8,0))
 
     tk.Button(root, text="完成", command=root.destroy,
-              font=("微软雅黑", 10, "bold"), width=18,
-              bg=GREEN, fg="white", bd=0, relief="flat",
-              pady=8).pack(pady=(0, 16))
+             font=("微软雅黑",10,"bold"), width=22, bg=GREEN, fg="white",
+             relief="flat", pady=8).pack(side="bottom", padx=32, pady=(0,14))
 
     root.mainloop()
 
