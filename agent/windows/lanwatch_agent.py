@@ -10,6 +10,7 @@ lanwatch_agent - 企业网络监控客户端 v0.5
 __version__ = "0.5.0"
 
 import socket
+from time import sleep
 import time
 import json
 import sys
@@ -165,7 +166,7 @@ def ping_multi(host, count=3, timeout=2):
         rtt = ping_once(host, timeout=timeout)
         if rtt is not None:
             rtts.append(rtt)
-        time.sleep(0.3)
+        sleep(0.3)
     loss = (count - len(rtts)) / count * 100
     avg_rtt = sum(rtts) / len(rtts) if rtts else None
     return bool(rtts), avg_rtt, loss
@@ -909,7 +910,7 @@ def main():
             daemon=True
         ).start()
 
-        import time; time.sleep(2)
+        import time; sleep(2)
 
         config = {
             "agent_id": agent_id,
@@ -982,7 +983,7 @@ def main():
             consecutive_errors += 1
             update_tray_status(False)
 
-        time.sleep(REPORT_INTERVAL)
+        sleep(REPORT_INTERVAL)
 
     # 退出前通知服务端
     report_offline(agent_id)
