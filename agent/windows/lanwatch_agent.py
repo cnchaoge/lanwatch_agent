@@ -802,6 +802,7 @@ def _show_setup_window(root):
                     "targets": [{"name": "网关", "host": get_gateway()}],
                 }
                 save_config(cfg)
+                win.destroy()  # 关闭设置向导
                 root.after(0, lambda a=agent_id, t=token: _show_success_window(root, company_name, a, t))
             except Exception as e:
                 import traceback
