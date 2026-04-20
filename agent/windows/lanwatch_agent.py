@@ -1104,6 +1104,8 @@ def main():
         if not cfg2 or not cfg2.get("agent_id"):
             log.warning("注册未完成，退出")
             return
+        agent_id = cfg2["agent_id"]
+        company_name = cfg2.get("company_name", "")
     else:
         agent_id = config["agent_id"]
         company_name = config.get("company_name", "")
