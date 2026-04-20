@@ -854,128 +854,40 @@ def _show_setup_window(root):
 
 
 def _show_success_window(root, company_name, agent_id, token):
-    """注册成功窗口（含二维码，接收主窗口根实例）"""
+    """极简注册成功窗口，点"完成"后直接进入监控"""
     import tkinter as tk
-    from PIL import Image, ImageTk
-    import io as _io
 
     win = tk.Toplevel(root)
-    win.title("注册成功 - lanwatch")
-    W, H = 400, 520
-    win.geometry(f"{W}x{H}")
+    win.title("注册成功")
+    win.geometry("280x160")
     win.resizable(False, False)
     win.attributes("-topmost", True)
     win.update_idletasks()
     sw = root.winfo_screenwidth(); sh = root.winfo_screenheight()
-    win.geometry(f"+{(sw-W)//2}+{(sh-H)//2}")
-    def _on_close(): win.destroy()
-    win.protocol("WM_DELETE_WINDOW", _on_close)
+    win.geometry(f"+{(sw-280)//2}+{(sh-160)//2}")
+    win.configure(bg="#FFFFFF")
 
-    BG="#FFFFFF"; ACCENT="#2563EB"; TEXT="#111827"; TEXT2="#6B7280"
-    GREEN="#10B981"; INPUT_BG="#F9FAFB"
-    win.configure(bg=BG)
+    tk.Label(win, text="✓  注册成功", font=("微软雅黑",18,"bold"),
+             bg="#FFFFFF", fg="#10B981").pack(pady=(28,8))
+    tk.Label(win, text=company_name, font=("微软雅黑",11),
+             bg="#FFFFFF", fg="#6B7280").pack()
+    tk.Label(win, text=f"Agent: {agent_id}", font=("微软雅黑",9),
+             bg="#FFFFFF", fg="#9CA3AF").pack(pady=(4,20))
 
-    # 顶部
-    header = tk.Frame(win, bg="#F3F4F6")
-    header.pack(fill="x")
-    tk.Label(header, text="✓  注册成功", font=("微软雅黑",15,"bold"),
-             bg="#F3F4F6", fg=GREEN).pack(pady=(14,2))
-    tk.Label(header, text=company_name, font=("微软雅黑",10),
-             bg="#F3F4F6", fg=TEXT2).pack(pady=(0,12))
+    btn = tk.Button(win, text="完 成", font=("微软雅黑",11,"bold"),
+                   bg="#2563EB", fg="white", relief="flat",
+                   width=12, height=1, cursor="hand2",
+                   command=lambda: _dismiss_and_start(win, root, agent_id, company_name))
+    btn.pack(pady=(0,20))
 
-    # 中间
-    main = tk.Frame(win, bg=BG)
-    main.pack(fill="both", expand=True, padx=32, pady=(12,0))
-
-    # 二维码
-    qr_label = tk.Label(main, bg=BG, text=" ", width=20, height=12)
-    qr_label.pack()
-    loading_lbl = tk.Label(main, text="正在加载二维码...", font=("微软雅黑",9),
-                           bg=BG, fg=TEXT2)
-    loading_lbl.pack(pady=(4,0))
-
-    # 保持引用防止 gc
-    qr_label._ref = qr_label
-    loading_lbl._ref = loading_lbl
-
-    def load_qr():
-        try:
-            import urllib.request
-            req = urllib.request.Request(
-                SERVER_URL + f"/api/agents/{agent_id}/qr",
-                headers={"User-Agent": "lanwatch_agent"}
-            )
-            with urllib.request.urlopen(req, timeout=10) as resp:
-                img_bytes = resp.read()
-            buf = _io.BytesIO(img_bytes)
-            img = Image.open(buf)
-            img = img.resize((180, 180))
-            photo = ImageTk.PhotoImage(img)
-            # mainloop 仍在运行，可以安全 update
-            qr_label.config(image=photo, text="")
-            qr_label.image = photo
-            loading_lbl.config(text="手机扫码查看监控 · " + agent_id)
-        except Exception as e:
-            try:
-                loading_lbl.config(text="二维码加载失败", fg="#EF4444")
-            except Exception:
-                pass
-
-    threading.Thread(target=load_qr, daemon=True).start()
-
-    # Agent ID
-    tk.Label(main, text="Agent ID: " + agent_id, font=("微软雅黑",9),
-             bg=BG, fg=TEXT2).pack(pady=(8,0))
-
-    # Token 框
-    token_frame = tk.Frame(main, bg=INPUT_BG, relief="solid", bd=1,
-                           highlightbackground="#D1D5DB")
-    token_frame.pack(fill="x", pady=(10,0))
-    tk.Label(token_frame, text="Token（请妥善保存，遗失无法找回）",
-             font=("微软雅黑",8), bg=INPUT_BG, fg=TEXT2).pack(
-                 anchor="w", padx=10, pady=(6,0))
-    tk.Label(token_frame, text=token, font=("Consolas",9),
-             bg=INPUT_BG, fg=ACCENT).pack(anchor="w", padx=10, pady=(0,8))
-
-    # 三个按钮一行
-    btn_frame = tk.Frame(win, bg=BG)
-    btn_frame.pack(side="bottom", fill="x", padx=32, pady=14)
-
-    tk.Button(btn_frame, text="打开监控页面",
-             command=lambda:_open_mobile(agent_id),
-             font=("微软雅黑",9), bg=ACCENT, fg="white",
-             relief="flat", pady=7).pack(side="left", fill="x", expand=True, padx=(0,4))
-    tk.Button(btn_frame, text="复制 Token",
-             command=lambda:_copy_token(root, token),
-             font=("微软雅黑",9), bg="#F3F4F6", fg=TEXT,
-             relief="flat", pady=7).pack(side="left", fill="x", expand=True, padx=4)
-    def _start_monitoring():
-        win.destroy()
-        root.quit()
-        # 现在进入监控主循环（在 main() 的 mainloop 退出后执行）
-        _run_monitoring(agent_id, company_name)
-
-    tk.Button(btn_frame, text="完成",
-             command=_start_monitoring,
-             font=("微软雅黑",9,"bold"), bg=GREEN, fg="white",
-             relief="flat", pady=7).pack(side="left", fill="x", expand=True, padx=(4,0))
-
+    win.protocol("WM_DELETE_WINDOW", lambda: _dismiss_and_start(win, root, agent_id, company_name))
     win.wait_window()
 
 
-
-def _open_mobile(agent_id):
-    import webbrowser
-    webbrowser.open(f"http://82.156.229.67:8000/mobile?agent={agent_id}")
-
-def _copy_token(root, token):
-    root.clipboard_clear()
-    root.clipboard_append(token)
-    # Visual feedback
-    for w in root.winfo_children():
-        if isinstance(w, tk.Button) and "复制" in str(w.cget("text")):
-            w.config(text="已复制!", bg="#10b981")
-
+def _dismiss_and_start(win, root, agent_id, company_name):
+    win.destroy()
+    root.quit()
+    _run_monitoring(agent_id, company_name)
 
 
 def main():
