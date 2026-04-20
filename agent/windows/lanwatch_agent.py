@@ -614,18 +614,36 @@ def update_tray_status(is_online):
 def _poll_status_queue():
     """在托盘线程中轮询状态队列，更新图标颜色"""
     global _tray_icon_ref
+    current_color = None
     while True:
         try:
             op, data = _status_queue.get(timeout=1)
-            if op == "status" and _tray_icon_ref:
+            if op == "status":
                 color = "#34c759" if data else "#ff3b30"
-                img = _create_tray_image(color)
-                _tray_icon_ref.icon = img
-                _tray_icon_ref.update_menu()
+                if color != current_color:
+                    current_color = color
+                    _do_update_tray_icon(color)
         except queue.Empty:
             continue
-        except Exception:
-            pass
+        except Exception as e:
+            log.debug("[托盘] 状态轮询异常: %s", e)
+
+
+def _do_update_tray_icon(color):
+    """在托盘线程中安全更新图标和菜单文字（直接操作 pystray Icon 对象）"""
+    global _tray_icon_ref
+    try:
+        if _tray_icon_ref is None:
+            return
+        # 更新图标图片
+        _tray_icon_ref.icon = _create_tray_image(color)
+        # 更新托盘提示文字
+        _tray_icon_ref.title = f"lanwatch ({'在线' if color == '#34c759' else '离线'})"
+        # pystray 菜单内容是每次右键点击时从 make_menu 动态读取的，
+        # 图标本身更新后视觉上就会变化，不需要调用 update_menu()
+        log.info("[托盘] 状态更新: %s", color)
+    except Exception as e:
+        log.warning("[托盘] 更新失败: %s", e)
 
 
 def _poll_action_queue():
