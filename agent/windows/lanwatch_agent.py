@@ -687,7 +687,7 @@ def _show_setup_window(root):
     win.update_idletasks()
     sw = root.winfo_screenwidth(); sh = root.winfo_screenheight()
     win.geometry(f"+{(sw-W)//2}+{(sh-H)//2}")
-    def _on_close(): result["cancelled"] = True; root.quit()
+    def _on_close(): result["cancelled"] = True; win.destroy()
     win.protocol("WM_DELETE_WINDOW", _on_close)
 
     BG="#FFFFFF"; ACCENT="#2563EB"; TEXT="#111827"; TEXT2="#6B7280"
@@ -811,10 +811,10 @@ def _show_setup_window(root):
         result["location"] = addr_entry.get().strip()
         result["subnet"]   = subnet_sv.get() or get_subnet_prefix() or "无法检测"
         result["cancelled"] = False
-        root.quit()
+        win.destroy()
 
     def on_cancel():
-        result["cancelled"] = True; root.quit()
+        result["cancelled"] = True; win.destroy()
 
     tk.Button(btn_frame, text="取消", command=on_cancel,
              font=("微软雅黑",10), width=10, bg="#F3F4F6", fg=TEXT2,
@@ -850,7 +850,7 @@ def _show_success_window(root, company_name, agent_id, token):
     win.update_idletasks()
     sw = root.winfo_screenwidth(); sh = root.winfo_screenheight()
     win.geometry(f"+{(sw-W)//2}+{(sh-H)//2}")
-    def _on_close(): root.quit()
+    def _on_close(): win.destroy()
     win.protocol("WM_DELETE_WINDOW", _on_close)
 
     BG="#FFFFFF"; ACCENT="#2563EB"; TEXT="#111827"; TEXT2="#6B7280"
@@ -932,7 +932,7 @@ def _show_success_window(root, company_name, agent_id, token):
              font=("微软雅黑",9), bg="#F3F4F6", fg=TEXT,
              relief="flat", pady=7).pack(side="left", fill="x", expand=True, padx=4)
     tk.Button(btn_frame, text="完成",
-             command=root.quit,
+             command=win.destroy,
              font=("微软雅黑",9,"bold"), bg=GREEN, fg="white",
              relief="flat", pady=7).pack(side="left", fill="x", expand=True, padx=(4,0))
 
