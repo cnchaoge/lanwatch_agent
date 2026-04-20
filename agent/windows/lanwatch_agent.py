@@ -843,8 +843,13 @@ def _show_setup_window(root):
         threading.Thread(target=_run_topo_loop, args=(agent_id,),
                         daemon=True, name="topology").start()
 
-        # 在 Tk 主线程弹出成功窗口
-        root.after(0, lambda: _show_success_window(root, company_name, agent_id, token))
+        # 重启 Tk mainloop（新守护线程），再通过 after() 弹出成功窗口
+        def _restart_and_show():
+            root.after(500, lambda: _show_success_window(root, company_name, agent_id, token))
+        thr = threading.Thread(target=lambda: (setattr(root, '_running', True), root.mainloop()),
+                               daemon=True, name='tk-mainloop')
+        thr.start()
+        root.after(0, _restart_and_show)
 
     def on_cancel():
         result["cancelled"] = True; win.destroy(); root.quit()
