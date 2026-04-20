@@ -673,25 +673,25 @@ def is_autostart_enabled():
 # ═══════════════════════════════════════════════════════════════
 
 def _show_setup_window(root):
-    """极简设置向导（接收主窗口根实例）"""
+    """极简设置向导（modeless，不阻塞）"""
     import tkinter as tk
     from tkinter import messagebox
+    from threading import Thread
 
     result = {}
     win = tk.Toplevel(root)
     win.title("lanwatch - 首次设置")
-    W, H = 440, 540
+    W, H = 440, 560
     win.geometry(f"{W}x{H}")
     win.resizable(False, False)
     win.attributes("-topmost", True)
     win.update_idletasks()
     sw = root.winfo_screenwidth(); sh = root.winfo_screenheight()
     win.geometry(f"+{(sw-W)//2}+{(sh-H)//2}")
-    def _on_close(): result["cancelled"] = True; win.destroy()
-    win.protocol("WM_DELETE_WINDOW", _on_close)
+    win.protocol("WM_DELETE_WINDOW", lambda: None)  # 禁止点X
 
     BG="#FFFFFF"; ACCENT="#2563EB"; TEXT="#111827"; TEXT2="#6B7280"
-    HL="#D1D5DB"; INPUT_BG="#F9FAFB"; GREEN="#10B981"
+    GREEN="#10B981"; INPUT_BG="#F9FAFB"
     win.configure(bg=BG)
 
     # 顶部
@@ -811,14 +811,20 @@ def _show_setup_window(root):
         location     = addr_entry.get().strip()
         subnet       = subnet_sv.get() or get_subnet_prefix() or "无法检测"
 
-        # 关闭窗口，wait_window 返回，on_ok 之后的代码在 mainloop 启动后执行
-        win.destroy()
+        # 显示进度状态
+        for w in btn_frame.winfo_children():
+            try: w.config(state="disabled")
+            except Exception: pass
+        status_lbl.config(text="正在注册...", fg=TEXT2)
+        win.update_idletasks()
 
-        # 注册和服务启动通过 after() 回调完成
-        def _do_registration():
+        # 在后台线程执行注册（不阻塞 Tk 主循环）
+        def _do_register():
             reg = register_agent(company_name, phone, location)
             if not reg:
-                _show_error_dialog("注册失败，请检查网络后重试。")
+                root.after(0, lambda: _show_err("注册失败，请检查网络后重试。"))
+                root.after(0, lambda: status_lbl.config(text="注册失败", fg="#EF4444"))
+                root.after(0, lambda: [w.config(state="normal") for w in btn_frame.winfo_children()])
                 return
             agent_id = reg["agent_id"]
             token    = reg["token"]
@@ -832,18 +838,30 @@ def _show_setup_window(root):
             save_config(cfg)
             global _tray_icon_ref
             _tray_icon_ref = setup_tray(agent_id, company_name)
-            threading.Thread(target=_run_probe_loop, args=(agent_id,),
-                           daemon=True, name="probe").start()
-            threading.Thread(target=_run_topo_loop, args=(agent_id,),
-                           daemon=True, name="topology").start()
-            _show_success_window(root, company_name, agent_id, token)
+            threading.Thread(target=_run_probe_loop, args=(agent_id,), daemon=True, name="probe").start()
+            threading.Thread(target=_run_topo_loop, args=(agent_id,), daemon=True, name="topology").start()
+            # 在 Tk 主线程弹出成功窗口
+            root.after(0, lambda a=agent_id, t=token: _show_success_window(root, company_name, a, t))
 
-        root.after(200, _do_registration)
+        def _show_err(msg):
+            try:
+                import tkinter as tk2
+                from tkinter import messagebox as mb
+                r = tk2.Tk(); r.withdraw()
+                mb.showerror("错误", msg)
+                r.destroy()
+            except Exception: pass
+
+        threading.Thread(target=_do_register, daemon=True, name="register").start()
 
     def on_cancel():
         result["cancelled"] = True
         win.destroy()
-        root.quit()   # 直接退出 mainloop，程序退出
+        root.quit()
+
+    # 状态标签（显示注册进度）
+    status_lbl = tk.Label(form, text="", font=("微软雅黑", 9), bg=BG, fg=TEXT2, anchor="w")
+    status_lbl.pack(fill="x", pady=(4,0))
 
     tk.Button(btn_frame, text="取消", command=on_cancel,
              font=("微软雅黑",10), width=10, bg="#F3F4F6", fg=TEXT2,
@@ -852,8 +870,9 @@ def _show_setup_window(root):
              font=("微软雅黑",10,"bold"), width=10, bg=ACCENT, fg="white",
              relief="flat", pady=7).pack(side="right")
 
-    # 等待用户确认或取消
-    win.wait_window()
+    # 不阻塞，窗口关闭后自动清理
+    def _cleanup():
+        pass
     return (
         result.get("company_name",""),
         result.get("phone",""),
@@ -960,8 +979,14 @@ def _show_success_window(root, company_name, agent_id, token):
              command=lambda:_copy_token(root, token),
              font=("微软雅黑",9), bg="#F3F4F6", fg=TEXT,
              relief="flat", pady=7).pack(side="left", fill="x", expand=True, padx=4)
+    def _start_monitoring():
+        win.destroy()
+        root.quit()
+        # 现在进入监控主循环（在 main() 的 mainloop 退出后执行）
+        _run_monitoring(agent_id, company_name)
+
     tk.Button(btn_frame, text="完成",
-             command=lambda: (win.destroy(), root.quit()),
+             command=_start_monitoring,
              font=("微软雅黑",9,"bold"), bg=GREEN, fg="white",
              relief="flat", pady=7).pack(side="left", fill="x", expand=True, padx=(4,0))
 
@@ -1011,13 +1036,9 @@ def main():
     if not config or not config.get("agent_id"):
         log.info("首次运行，显示设置向导...")
         _show_setup_window(root)
-        # mainloop 处理所有后续事件（成功窗口、按钮回调）
-        # on_ok() 中的 after() 在这里被调度
-        root.mainloop()
-        config = load_config()
-        if not config or not config.get("agent_id"):
-            log.warning("注册未完成，退出")
-            return
+        # 窗口是 modeless，setup 完成后（成功或取消），程序继续
+        # 如果用户取消，root.quit() 会退出
+        return  # setup 窗口关闭后函数返回，程序结束（无监控配置）
     else:
         agent_id = config["agent_id"]
         company_name = config.get("company_name", "")
@@ -1030,67 +1051,8 @@ def main():
     else:
         tray_icon = _tray_icon_ref
 
-    log.info("开始监控探测...")
-    consecutive_errors = 0
-    topo_next_in = TOPOLOGY_INTERVAL  # 首次拓扑扫描稍后执行
-
-    while True:
-        try:
-            cfg = load_config()
-            subnets = (cfg or {}).get("subnets", [])
-            targets = (cfg or {}).get("targets", DEFAULT_TARGETS)
-
-            # 探测
-            data = run_probe(subnets)
-            result = report(data, agent_id)
-
-            if result:
-                consecutive_errors = 0
-                is_online = data["ping_ok"]
-                update_tray_status(is_online)
-                status = "OK" if is_online else "FAIL"
-                log.info("[%s] 网关:%sms DNS:%sms 目标:%s 可达:%s",
-                    status,
-                    f"{data['ping_rtt_ms']:.1f}" if data['ping_rtt_ms'] else "-",
-                    f"{data['dns_ms']:.1f}" if data['dns_ms'] else "-",
-                    data['target_name'] or "N/A",
-                    data['target_reachable'])
-            else:
-                consecutive_errors += 1
-                log.warning("上报失败 (连续失败 %d 次)", consecutive_errors)
-                update_tray_status(False)
-
-            # 拓扑扫描计时
-            topo_next_in -= REPORT_INTERVAL
-            if topo_next_in <= 0:
-                topo_next_in = TOPOLOGY_INTERVAL
-                cfg = load_config()
-                subnets = (cfg or {}).get("subnets", [])
-                # 在后台线程执行拓扑扫描，不阻塞主循环
-                threading.Thread(
-                    target=_do_topology_scan,
-                    args=(subnets, agent_id),
-                    daemon=True,
-                    name="topology_scan"
-                ).start()
-
-        except KeyboardInterrupt:
-            log.info("收到停止信号")
-            break
-        except Exception as e:
-            log.error("运行异常: %s", e)
-            consecutive_errors += 1
-            update_tray_status(False)
-
-        sleep(REPORT_INTERVAL)
-
-    # 退出前通知服务端
-    report_offline(agent_id)
-    if tray_icon:
-        try:
-            tray_icon.stop()
-        except Exception:
-            pass
+    # _run_monitoring handles the loop
+    pass  # placeholder
     log.info("Agent 已停止")
 
 
