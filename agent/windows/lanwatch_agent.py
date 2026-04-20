@@ -56,6 +56,7 @@ _tray_icon_ref = None
 _winreg = None          # 动态导入，Windows 专用
 _executor = None        # 拓扑扫描线程池
 _status_thread_started = False  # 托盘状态轮询线程只启动一次
+consecutive_errors = 0  # 连续上报失败次数
 
 # ═══════════════════════════════════════════════════════════════
 # 工具函数
@@ -851,14 +852,13 @@ def _show_setup_window(root):
         status_lbl.config(text="正在注册...", fg=TEXT2)
         win.update_idletasks()
 
-        # 在后台线程执行注册（不阻塞 Tk 主循环）
         def _do_register():
             try:
                 reg = register_agent(company_name, phone, location)
                 if not reg:
+                    root.after(0, lambda: status_lbl.config(text="注册失败", fg="#EF4444"))
+                    root.after(0, lambda: [w.config(state="normal") for w in btn_frame.winfo_children()])
                     root.after(0, lambda: _show_err("注册失败，请检查网络后重试。"))
-                    root.after(0, lambda: status_lbl.config(text="注册失败", fg="#EF4444"))
-                    root.after(0, lambda: [w.config(state="normal") for w in btn_frame.winfo_children()])
                     return
                 agent_id = reg["agent_id"]
                 token    = reg["token"]
@@ -867,45 +867,9 @@ def _show_setup_window(root):
                     "agent_id": agent_id, "company_name": company_name,
                     "phone": phone, "location": location,
                     "subnets": [subnet] if subnet and subnet != "无法检测" else [],
-                    "targets": [{"name": "网关", "host": "192.168.1.1"}],
+                    "targets": [{"name": "网关", "host": get_gateway()}],
                 }
                 save_config(cfg)
-                # 在 Tk 主线程弹出成功窗口
-                root.after(0, lambda a=agent_id, t=token: _show_success_window(root, company_name, a, t))
-            except Exception as e:
-                log.error("注册异常: %s", e)
-                root.after(0, lambda: _show_err(f"注册异常: {e}"))
-                root.after(0, lambda: status_lbl.config(text="注册异常", fg="#EF4444"))
-
-        def _show_err(msg):
-            # 通过 root.after 在主线程显示错误
-            def _show():
-                from tkinter import messagebox
-                messagebox.showerror("注册异常", msg)
-            try:
-                root.after(0, _show)
-            except Exception:
-                log.error("无法显示错误弹窗: %s", msg)
-
-        def _do_register():
-            try:
-                reg = register_agent(company_name, phone, location)
-                if not reg:
-                    root.after(0, lambda: status_lbl.config(text="注册失败", fg="#EF4444"))
-                    root.after(0, lambda: [w.config(state="normal") for w in btn_frame.winfo_children()])
-                    _show_err("注册失败，请检查网络后重试。")
-                    return
-                agent_id = reg["agent_id"]
-                token    = reg["token"]
-                log.info("注册成功，Agent ID: %s", agent_id)
-                cfg = {
-                    "agent_id": agent_id, "company_name": company_name,
-                    "phone": phone, "location": location,
-                    "subnets": [subnet] if subnet and subnet != "无法检测" else [],
-                    "targets": [{"name": "网关", "host": "192.168.1.1"}],
-                }
-                save_config(cfg)
-                # 在 Tk 主线程弹出成功窗口
                 root.after(0, lambda a=agent_id, t=token: _show_success_window(root, company_name, a, t))
             except Exception as e:
                 import traceback
@@ -915,7 +879,16 @@ def _show_setup_window(root):
                     status_lbl.config(text=f"异常: {msg[:50]}", fg="#EF4444"),
                     [w.config(state="normal") for w in btn_frame.winfo_children()]
                 ])
-                _show_err(f"注册异常: {e}")
+                root.after(0, lambda: _show_err(f"注册异常: {e}"))
+
+        def _show_err(msg):
+            def _show():
+                from tkinter import messagebox
+                messagebox.showerror("注册异常", msg)
+            try:
+                root.after(0, _show)
+            except Exception:
+                log.error("无法显示错误弹窗: %s", msg)
 
         threading.Thread(target=_do_register, daemon=True, name="register").start()
 
@@ -1115,15 +1088,11 @@ def main():
         log.info("已配置 Agent ID: %s", agent_id)
 
     # 托盘（已注册用户也启动托盘）
-    global _tray_icon_ref
     if _tray_icon_ref is None:
         tray_icon = setup_tray(agent_id, company_name)
     else:
         tray_icon = _tray_icon_ref
 
-    # 先启动托盘
-    global _tray_icon_ref
-    _tray_icon_ref = setup_tray(agent_id, company_name)
     # 进入监控主循环
     _run_monitoring(agent_id, company_name)
     log.info("Agent 已停止")
