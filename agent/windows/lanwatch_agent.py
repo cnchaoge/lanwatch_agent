@@ -1069,24 +1069,76 @@ def main():
     if not config or not config.get("agent_id"):
         log.info("首次运行，显示设置向导...")
         _show_setup_window(root)
-        # 窗口是 modeless，setup 完成后（成功或取消），程序继续
-        # 如果用户取消，root.quit() 会退出
-        return  # setup 窗口关闭后函数返回，程序结束（无监控配置）
+        # 启动 Tk 事件循环，保持程序运行
+        # 点"完成"后 root.quit() 退出此循环
+        root.mainloop()
+        # 检查是否完成注册
+        cfg2 = load_config()
+        if not cfg2 or not cfg2.get("agent_id"):
+            log.warning("注册未完成，退出")
+            return
     else:
         agent_id = config["agent_id"]
         company_name = config.get("company_name", "")
         log.info("已配置 Agent ID: %s", agent_id)
 
-    # 托盘
+    # 托盘（已注册用户也启动托盘）
     global _tray_icon_ref
     if _tray_icon_ref is None:
         tray_icon = setup_tray(agent_id, company_name)
     else:
         tray_icon = _tray_icon_ref
 
-    # _run_monitoring handles the loop
-    pass  # placeholder
+    # 进入监控主循环
+    _run_monitoring(agent_id, company_name)
     log.info("Agent 已停止")
+
+def _run_monitoring(agent_id, company_name):
+    """监控主循环"""
+    global consecutive_errors
+    log.info("开始监控探测...")
+    consecutive_errors = 0
+    topo_next_in = TOPOLOGY_INTERVAL
+    while True:
+        try:
+            cfg = load_config()
+            subnets = (cfg or {}).get("subnets", [])
+            targets = (cfg or {}).get("targets", DEFAULT_TARGETS)
+            data = run_probe(subnets)
+            result = report(data, agent_id)
+            if result:
+                consecutive_errors = 0
+                update_tray_status(data.get("ping_ok", False))
+                log.info("[探测] 网关:%sms DNS:%sms",
+                    f"{data.get('ping_rtt_ms', 0):.1f}" if data.get('ping_rtt_ms') else "-",
+                    f"{data.get('dns_ms', 0):.1f}" if data.get('dns_ms') else "-")
+            else:
+                consecutive_errors += 1
+                log.warning("[探测] 上报失败 (连续失败 %d 次)", consecutive_errors)
+                update_tray_status(False)
+        except KeyboardInterrupt:
+            log.info("收到停止信号")
+            break
+        except Exception as e:
+            log.error("[探测] 运行异常: %s", e)
+            consecutive_errors += 1
+            update_tray_status(False)
+
+        topo_next_in -= REPORT_INTERVAL
+        if topo_next_in <= 0:
+            topo_next_in = TOPOLOGY_INTERVAL
+            threading.Thread(target=_do_topology_scan,
+                           args=((cfg or {}).get("subnets", []), agent_id),
+                           daemon=True, name="topology").start()
+        sleep(REPORT_INTERVAL)
+
+    report_offline(agent_id)
+    global _tray_icon_ref
+    if _tray_icon_ref:
+        try: _tray_icon_ref.stop()
+        except Exception: pass
+    log.info("监控已停止")
+
 
 
 def _do_topology_scan(subnets, agent_id):
