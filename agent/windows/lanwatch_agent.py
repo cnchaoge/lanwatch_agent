@@ -1048,13 +1048,10 @@ def _show_success_window(root, company_name, agent_id, token):
 
 
 def _dismiss_and_start(win, root, agent_id, company_name):
+    """setup wizard 点完成后：销毁向导窗口，退出 setup 的 mainloop，返回 main() 继续"""
     win.destroy()
-    root.quit()
-    # 启动托盘（如果还未启动）
-    global _tray_icon_ref
-    if _tray_icon_ref is None:
-        setup_tray(agent_id, company_name)
-    _run_monitoring(agent_id, company_name)
+    root.quit()  # 退出 _show_setup_window 的 root.mainloop()
+    # 托盘和监控会在 main() 里接着启动，这里不要直接调用 _run_monitoring
 
 
 def _open_mobile(agent_id):
