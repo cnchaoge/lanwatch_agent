@@ -862,6 +862,12 @@ def _show_setup_window(root):
     status_lbl = tk.Label(form, text="", font=("微软雅黑", 9), bg=BG, fg=TEXT2, anchor="w")
     status_lbl.pack(fill="x", pady=(4,0))
 
+    # 开机自启
+    autostart_var = tk.BooleanVar(value=True)
+    tk.Checkbutton(form, text="开机自动启动", variable=autostart_var,
+                   font=("微软雅黑", 10), bg=BG, fg=TEXT,
+                   activebackground=BG, anchor="w", pady=(8,0)).pack(anchor="w")
+
 
     # 按钮行
     btn_frame = tk.Frame(win, bg=BG)
@@ -901,6 +907,9 @@ def _show_setup_window(root):
                     "targets": [{"name": "网关", "host": get_gateway()}],
                 }
                 save_config(cfg)
+                # 设置开机自启（根据用户选择）
+                if autostart_var.get():
+                    set_autostart(True)
                 win.destroy()  # 关闭设置向导
                 root.after(0, lambda a=agent_id, t=token: _show_success_window(root, company_name, a, t))
             except Exception as e:
