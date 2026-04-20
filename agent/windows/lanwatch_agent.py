@@ -675,69 +675,129 @@ def is_autostart_enabled():
 def _show_setup_window():
     """极简设置向导"""
     import tkinter as tk
-    from tkinter import messagebox
+    from tkinter import messagebox, ttk
 
     result = {}
     root = tk.Tk()
     root.title("lanwatch - 首次设置")
-    W, H = 420, 480
+    W, H = 440, 540
     root.geometry(f"{W}x{H}")
     root.resizable(False, False)
     root.attributes("-topmost", True)
     sw = root.winfo_screenwidth(); sh = root.winfo_screenheight()
     root.geometry(f"+{(sw-W)//2}+{(sh-H)//2}")
 
-    # 颜色
     BG="#FFFFFF"; ACCENT="#2563EB"; TEXT="#111827"; TEXT2="#6B7280"
-    HL="#D1D5DB"; INPUT_BG="#F9FAFB"
+    HL="#D1D5DB"; INPUT_BG="#F9FAFB"; GREEN="#10B981"
     root.configure(bg=BG)
 
-    # 顶部浅灰标题栏
+    # 顶部
     header = tk.Frame(root, bg="#F3F4F6")
     header.pack(fill="x")
     tk.Label(header, text="◉ lanwatch", font=("微软雅黑",14,"bold"),
-             bg="#F3F4F6", fg=ACCENT).pack(pady=(14,2))
+             bg="#F3F4F6", fg=ACCENT).pack(pady=(12,1))
     tk.Label(header, text="首次设置向导", font=("微软雅黑",9),
-             bg="#F3F4F6", fg=TEXT2).pack(pady=(0,12))
+             bg="#F3F4F6", fg=TEXT2).pack(pady=(0,10))
 
-    # 表单（可滚动，如果超高的话；但这里刚好够放）
+    # 表单
     form = tk.Frame(root, bg=BG)
-    form.pack(fill="x", padx=36, pady=(16,0))
+    form.pack(fill="x", padx=36, pady=(8,0))
 
     def entry(parent):
         e = tk.Entry(parent, font=("微软雅黑",10), bg=INPUT_BG, fg=TEXT,
                      insertbackground=ACCENT, relief="solid", bd=1,
                      highlightthickness=0)
-        e.pack_configure(pady=(3,10), ipady=5, padx=0)
+        e.pack_configure(pady=(3,8), ipady=5, padx=0)
         return e
 
     def label_row(parent, text):
         tk.Label(parent, text=text, font=("微软雅黑",9,"bold"),
-                 bg=BG, fg=TEXT2).pack(anchor="w", pady=(8,2))
+                 bg=BG, fg=TEXT2).pack(anchor="w", pady=(6,1))
 
-    # 企业名称
     label_row(form, "企业名称 *")
     name_entry = entry(form); name_entry.pack(fill="x")
 
-    # 安装地址
     label_row(form, "安装地址")
     addr_entry = entry(form); addr_entry.pack(fill="x")
 
-    # 网关电话
     label_row(form, "网关电话（选填）")
     phone_entry = entry(form); phone_entry.pack(fill="x")
 
-    # 内网网段（只读）
-    label_row(form, "内网网段（自动读取）")
+    # 内网网段 + 扫描按钮
+    label_row(form, "内网网段")
+    subnet_row = tk.Frame(form, bg=BG)
+    subnet_row.pack(fill="x", pady=(3,4))
     subnet_sv = tk.StringVar(value=get_subnet_prefix() or "无法检测")
-    se = tk.Entry(form, textvariable=subnet_sv, font=("微软雅黑",10),
-                  bg="#EBEDEF", fg="#9CA3AF", state="readonly",
-                  relief="flat", bd=0, insertbackground=ACCENT)
-    se.pack(fill="x", ipady=5)
+    se = tk.Entry(subnet_row, textvariable=subnet_sv, font=("微软雅黑",10),
+                  bg=INPUT_BG, fg=TEXT, state="readonly",
+                  relief="solid", bd=1, highlightthickness=0)
+    se.pack_configure(side="left", fill="x", expand=True, ipady=5)
+    scan_btn = tk.Button(subnet_row, text="扫描网络",
+                         font=("微软雅黑",9,"bold"),
+                         bg=ACCENT, fg="white", relief="flat", pady=0,
+                         padx=8, cursor="hand2")
+    scan_btn.pack_configure(side="right", padx=(6,0))
 
-    # 按钮行（固定在底部）
+    # 扫描结果列表
+    scan_status_sv = tk.StringVar(value="")
+    scan_canvas = None; scan_inner = None; scanyscroll = None
+    found_devices = []
+
+    status_lbl = tk.Label(form, textvariable=scan_status_sv,
+                          font=("微软雅黑",9), bg=BG, fg=TEXT2, anchor="w")
+    status_lbl.pack(fill="x", pady=(0,4))
+
+    def on_scan_click():
+        prefix = get_subnet_prefix()
+        if not prefix or prefix == "无法检测":
+            scan_status_sv.set("无法获取本机网段，请检查网络连接")
+            return
+        scan_btn.config(state="disabled", text="扫描中...")
+        scan_status_sv.set(f"正在扫描 {prefix}.x ...")
+        found_devices.clear()
+
+        def do_scan():
+            import concurrent.futures
+            local_found = []
+            try:
+                with concurrent.futures.ThreadPoolExecutor(max_workers=50) as ex:
+                    futures = {ex.submit(_probe_host, f"{prefix}.{i}"): i
+                               for i in range(1, 255)}
+                    for fut in concurrent.futures.as_completed(futures, timeout=20):
+                        try:
+                            res = fut.result()
+                            if res:
+                                ip, mac, hostname = res
+                                local_found.append((ip, mac, hostname))
+                                root.after(0, lambda d=local_found:
+                                    scan_status_sv.set(
+                                        f"已发现 {len(d)} 台设备，继续扫描..."))
+                        except Exception:
+                            pass
+            except Exception:
+                pass
+            root.after(0, lambda d=local_found: show_results(d))
+
+        def show_results(devs):
+            nonlocal found_devices
+            found_devices = devs
+            scan_btn.config(state="normal", text="重新扫描")
+            cnt = len(devs)
+            scan_status_sv.set(
+                f"发现 {cnt} 台设备" if cnt > 0 else "未发现设备，请确认网络连接")
+            if cnt > 0:
+                # 自动填入网段
+                prefix = get_subnet_prefix()
+                if prefix:
+                    subnet_sv.set(prefix)
+
+        threading.Thread(target=do_scan, daemon=True).start()
+
+    scan_btn.config(command=on_scan_click)
+
+    # 按钮行
     btn_frame = tk.Frame(root, bg=BG)
-    btn_frame.pack(side="bottom", fill="x", padx=36, pady=16)
+    btn_frame.pack(side="bottom", fill="x", padx=36, pady=14)
 
     def on_ok():
         name = name_entry.get().strip()
@@ -746,7 +806,7 @@ def _show_setup_window():
         result["company_name"] = name
         result["phone"]    = phone_entry.get().strip()
         result["location"] = addr_entry.get().strip()
-        result["subnet"]   = get_subnet_prefix() or "无法检测"
+        result["subnet"]   = subnet_sv.get() or get_subnet_prefix() or "无法检测"
         result["cancelled"] = False
         root.destroy()
 
@@ -755,10 +815,10 @@ def _show_setup_window():
 
     tk.Button(btn_frame, text="取消", command=on_cancel,
              font=("微软雅黑",10), width=10, bg="#F3F4F6", fg=TEXT2,
-             relief="flat", pady=8).pack(side="left")
+             relief="flat", pady=7).pack(side="left")
     tk.Button(btn_frame, text="确认注册", command=on_ok,
              font=("微软雅黑",10,"bold"), width=10, bg=ACCENT, fg="white",
-             relief="flat", pady=8).pack(side="right")
+             relief="flat", pady=7).pack(side="right")
 
     root.mainloop()
     return (
@@ -768,6 +828,7 @@ def _show_setup_window():
         result.get("subnet",""),
         result.get("cancelled",True),
     )
+
 
 
 def _show_success_window(company_name, agent_id, token):
