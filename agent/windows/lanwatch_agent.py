@@ -1120,7 +1120,7 @@ def main():
         tray_icon = _tray_icon_ref
 
     # 启动 action 队列轮询（在 Tk 主线程中）
-    _tk_root.after(500, _poll_action_queue)
+    _tk_root.after(200, _poll_action_queue)
 
     # 监控主循环放在独立线程，避免阻塞 Tk mainloop
     def run_monitor():
