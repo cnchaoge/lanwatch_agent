@@ -135,11 +135,15 @@ def ping_once(host, timeout=3):
     try:
         if sys.platform == "win32":
             out, _ = _run_hidden(f'ping -n 1 -w {timeout*1000} {host}')
-            if "TTL=" in out.upper() or "TTL=" in out:
-                # 提取 RTT
-                m = re.search(r'(\d+)ms', out)
-                rtt = float(m.group(1)) if m else None
-                return rtt
+            if "TTL=" in out.upper():
+                # 优先取 Average 时间，格式: Average = Xms
+                m = re.search(r'[Aa]verage\s*=\s*(\d+)ms', out)
+                if m:
+                    return float(m.group(1))
+                # 其次取 time=Xms（ping 输出行的 RTT）
+                m = re.search(r'time[=<](\d+\.?\d*)\s*ms', out, re.IGNORECASE)
+                if m:
+                    return float(m.group(1))
             return None
         else:
             out, _ = _run_hidden(f'ping -c 1 -W {timeout} {host}')
@@ -669,19 +673,30 @@ def is_autostart_enabled():
 def _show_setup_window(company_name=""):
     """显示设置向导窗口，返回 (公司名, 开机自启, 位置, 网段列表, 目标列表)"""
     import tkinter as tk
-    from tkinter import ttk, messagebox
+    from tkinter import messagebox
 
     result = {}
 
+    # 必须先创建 Tk 根窗口，Toplevel 才能正常工作
+    root = tk.Tk()
+    root.withdraw()  # 隐藏根窗口，只显示对话框
+
     def on_close():
         result["cancelled"] = True
-        win.destroy()
+        root.quit()   # 退出 wait_window 的本地事件循环
 
-    win = tk.Toplevel()
+    win = tk.Toplevel(root)
     win.title("lanwatch_agent 设置向导")
-    win.geometry("520x420")
+    win.geometry("520x450")
     win.resizable(False, False)
     win.protocol("WM_DELETE_WINDOW", on_close)
+    # 居中显示
+    win.update_idletasks()
+    w = win.winfo_width()
+    h = win.winfo_height()
+    sw = root.winfo_screenwidth()
+    sh = root.winfo_screenheight()
+    win.geometry(f"{w}x{h}+{(sw-w)//2}+{(sh-h)//2}")
 
     # 公司名称
     tk.Label(win, text="企业名称:", font=("微软雅黑", 10)).place(x=20, y=20)
@@ -747,24 +762,46 @@ def _show_setup_window(company_name=""):
         if scanning["busy"]:
             return
         prefix = get_subnet_prefix()
-        if prefix:
-            scan_status.set(f"正在扫描网段 {prefix}.x ...")
-            scanning["busy"] = True
-            def scan():
-                devices = scan_topology([prefix])
-                win.after(0, lambda: _show_scan_results(devices))
-            threading.Thread(target=scan, daemon=True).start()
+        if not prefix:
+            scan_status.set("无法获取本机网段")
+            return
+        scan_status.set(f"正在扫描 {prefix}.x ...")
+        scan_btn.config(state="disabled")
+        scanning["busy"] = True
 
-    def _show_scan_results(devices):
-        scanning["busy"] = False
-        scan_status.set(f"扫描完成，发现 {len(devices)} 台设备")
-        # 自动填入发现的网段
-        prefix = get_subnet_prefix()
-        subnet_entry.delete(0, tk.END)
-        subnet_entry.insert(0, prefix)
+        def scan():
+            # 带总超时的拓扑扫描（最多等待 15 秒）
+            import concurrent.futures
+            devices = []
+            try:
+                with concurrent.futures.ThreadPoolExecutor(max_workers=30) as executor:
+                    futures = {executor.submit(_probe_host, f"{prefix}.{i}"): i for i in range(1, 255)}
+                    for future in concurrent.futures.as_completed(futures, timeout=15):
+                        try:
+                            res = future.result()
+                            if res:
+                                ip, mac, hostname = res
+                                from lanwatch_agent import get_vendor, guess_device_type
+                                devices.append({
+                                    "ip": ip, "mac": mac, "hostname": hostname,
+                                    "vendor": get_vendor(mac), "device_type": guess_device_type(hostname, get_vendor(mac), mac)
+                                })
+                        except Exception:
+                            pass
+            except Exception:
+                pass
+            win.after(0, lambda d=devices: _show_scan_results(d))
 
-    tk.Button(win, text="扫描内网", command=do_scan,
-             font=("微软雅黑", 9)).place(x=400, y=155)
+        def _show_scan_results(devices):
+            scanning["busy"] = False
+            scan_btn.config(state="normal")
+            scan_status.set(f"扫描完成，发现 {len(devices)} 台设备")
+
+        threading.Thread(target=scan, daemon=True).start()
+
+    scan_btn = tk.Button(win, text="扫描内网", command=do_scan,
+                         font=("微软雅黑", 9))
+    scan_btn.place(x=400, y=153)
 
     # 确认按钮
     def on_ok():
@@ -792,13 +829,43 @@ def _show_setup_window(company_name=""):
         result["cancelled"] = False
         win.destroy()
 
+    def on_ok():
+        company = name_entry.get().strip()
+        if not company:
+            messagebox.showwarning("提示", "请填写企业名称", parent=win)
+            return
+        result["company_name"] = company
+        result["location"] = location_entry.get().strip()
+        result["autostart"] = autostart_var.get()
+        # 解析网段
+        subnet_text = subnet_entry.get().strip()
+        subnets = [s.strip() for s in subnet_text.split(",") if s.strip()]
+        result["subnets"] = subnets
+        # 解析目标
+        targets = []
+        for row in target_rows:
+            children = row.winfo_children()
+            # [label, entry_name, label, entry_host, button]
+            name_val = children[1].get().strip()
+            host_val = children[3].get().strip()
+            if name_val and host_val:
+                targets.append({"name": name_val, "host": host_val})
+        result["targets"] = targets
+        result["cancelled"] = False
+        root.quit()   # 退出 wait_window 事件循环
+
     tk.Button(win, text="确认注册", command=on_ok,
               font=("微软雅黑", 10), bg="#0078d4", fg="white",
-              width=12, height=2).place(x=320, y=350)
+              width=12, height=2).place(x=320, y=360)
     tk.Button(win, text="取消", command=on_close,
-              font=("微软雅黑", 10), width=12, height=2).place(x=180, y=350)
+              font=("微软雅黑", 10), width=12, height=2).place(x=180, y=360)
 
+    # 等待窗口关闭（进入 Tk 事件循环，按钮点击正常响应）
     win.wait_window()
+    try:
+        root.destroy()
+    except Exception:
+        pass
     return (
         result.get("company_name", ""),
         result.get("autostart", False),
@@ -821,9 +888,13 @@ def _show_success_window(company_name, agent_id, location):
         f"Agent ID: {agent_id}\n"
         f"位置: {location or '未填写'}\n\n"
         f"程序已最小化到系统托盘。\n"
-        f"手机访问 http://82.156.229.67:8000/mobile 查看监控状态"
+        f"手机访问 http://82.156.229.67:8000/mobile 查看监控状态",
+        parent=root
     )
-    root.destroy()
+    try:
+        root.destroy()
+    except Exception:
+        pass
 
 
 # ═══════════════════════════════════════════════════════════════
