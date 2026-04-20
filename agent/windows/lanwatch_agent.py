@@ -672,24 +672,26 @@ def is_autostart_enabled():
 # GUI 窗口（设置向导 + 成功提示）
 # ═══════════════════════════════════════════════════════════════
 
-def _show_setup_window():
-    """极简设置向导"""
+def _show_setup_window(root):
+    """极简设置向导（接收主窗口根实例）"""
     import tkinter as tk
-    from tkinter import messagebox, ttk
+    from tkinter import messagebox
 
     result = {}
-    root = tk.Tk()
-    root.title("lanwatch - 首次设置")
+    win = tk.Toplevel(root)
+    win.title("lanwatch - 首次设置")
     W, H = 440, 540
-    root.geometry(f"{W}x{H}")
-    root.resizable(False, False)
-    root.attributes("-topmost", True)
+    win.geometry(f"{W}x{H}")
+    win.resizable(False, False)
+    win.attributes("-topmost", True)
+    win.update_idletasks()
     sw = root.winfo_screenwidth(); sh = root.winfo_screenheight()
-    root.geometry(f"+{(sw-W)//2}+{(sh-H)//2}")
+    win.geometry(f"+{(sw-W)//2}+{(sh-H)//2}")
+    win.protocol("WM_DELETE_WINDOW", lambda: None)  # 禁止点X关闭
 
     BG="#FFFFFF"; ACCENT="#2563EB"; TEXT="#111827"; TEXT2="#6B7280"
     HL="#D1D5DB"; INPUT_BG="#F9FAFB"; GREEN="#10B981"
-    root.configure(bg=BG)
+    win.configure(bg=BG)
 
     # 顶部
     header = tk.Frame(root, bg="#F3F4F6")
@@ -769,14 +771,14 @@ def _show_setup_window():
                             if res:
                                 ip, mac, hostname = res
                                 local_found.append((ip, mac, hostname))
-                                root.after(0, lambda d=local_found:
+                                win.after(0, lambda d=local_found:
                                     scan_status_sv.set(
                                         f"已发现 {len(d)} 台设备，继续扫描..."))
                         except Exception:
                             pass
             except Exception:
                 pass
-            root.after(0, lambda d=local_found: show_results(d))
+            win.after(0, lambda d=local_found: show_results(d))
 
         def show_results(devs):
             nonlocal found_devices
@@ -808,7 +810,7 @@ def _show_setup_window():
         result["location"] = addr_entry.get().strip()
         result["subnet"]   = subnet_sv.get() or get_subnet_prefix() or "无法检测"
         result["cancelled"] = False
-        root.destroy()
+        win.destroy()
 
     def on_cancel():
         result["cancelled"] = True; root.destroy()
@@ -820,7 +822,8 @@ def _show_setup_window():
              font=("微软雅黑",10,"bold"), width=10, bg=ACCENT, fg="white",
              relief="flat", pady=7).pack(side="right")
 
-    root.mainloop()
+    # 等待用户确认或取消
+    win.wait_window()
     return (
         result.get("company_name",""),
         result.get("phone",""),
@@ -831,24 +834,26 @@ def _show_setup_window():
 
 
 
-def _show_success_window(company_name, agent_id, token):
-    """注册成功窗口（含二维码）"""
+def _show_success_window(root, company_name, agent_id, token):
+    """注册成功窗口（含二维码，接收主窗口根实例）"""
     import tkinter as tk
     from PIL import Image, ImageTk
     import io as _io
 
-    root = tk.Tk()
-    root.title("注册成功 - lanwatch")
+    win = tk.Toplevel(root)
+    win.title("注册成功 - lanwatch")
     W, H = 400, 520
-    root.geometry(f"{W}x{H}")
-    root.resizable(False, False)
-    root.attributes("-topmost", True)
+    win.geometry(f"{W}x{H}")
+    win.resizable(False, False)
+    win.attributes("-topmost", True)
+    win.update_idletasks()
     sw = root.winfo_screenwidth(); sh = root.winfo_screenheight()
-    root.geometry(f"+{(sw-W)//2}+{(sh-H)//2}")
+    win.geometry(f"+{(sw-W)//2}+{(sh-H)//2}")
+    win.protocol("WM_DELETE_WINDOW", lambda: None)
 
     BG="#FFFFFF"; ACCENT="#2563EB"; TEXT="#111827"; TEXT2="#6B7280"
     GREEN="#10B981"; INPUT_BG="#F9FAFB"
-    root.configure(bg=BG)
+    win.configure(bg=BG)
 
     # 顶部
     header = tk.Frame(root, bg="#F3F4F6")
@@ -929,7 +934,7 @@ def _show_success_window(company_name, agent_id, token):
              font=("微软雅黑",9,"bold"), bg=GREEN, fg="white",
              relief="flat", pady=7).pack(side="left", fill="x", expand=True, padx=(4,0))
 
-    root.mainloop()
+    win.wait_window()
 
 
 
@@ -949,6 +954,11 @@ def _copy_token(root, token):
 
 def main():
     global _winreg, _tray_icon_ref
+
+    # 创建唯一的 Tk 实例，所有窗口都基于此
+    import tkinter as tk
+    root = tk.Tk()
+    root.withdraw()  # 隐藏根窗口，只用 Toplevel 对话框
 
     log.info("=" * 50)
     log.info("lanwatch_agent v%s 启动", __version__)
@@ -970,7 +980,7 @@ def main():
     # ── 首次注册 ──
     if not config or not config.get("agent_id"):
         log.info("首次运行，开始注册...")
-        company_name, phone, location, subnet, cancelled = _show_setup_window()
+        company_name, phone, location, subnet, cancelled = _show_setup_window(root)
         if cancelled:
             log.warning("用户取消，退出")
             return
@@ -999,13 +1009,8 @@ def main():
         }
         save_config(config)
 
-        # 弹出成功窗口（在主线程，窗口关闭后主程序继续）
-        root = __import__('tkinter').Tk()
-        root.withdraw()
-        root.attributes("-topmost", True)
-        _show_success_window(company_name, agent_id, token)
-        root.attributes("-topmost", False)
-        root.destroy()
+        # 弹出成功窗口（共享同一个 Tk 主循环）
+        _show_success_window(root, company_name, agent_id, token)
     else:
         agent_id = config["agent_id"]
         company_name = config.get("company_name", "")
