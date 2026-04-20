@@ -605,11 +605,10 @@ def setup_tray(agent_id, company_name):
 
 def update_tray_status(is_online):
     """线程安全地更新托盘状态（通过队列）"""
-    log.info("[托盘] update_tray_status called: is_online=%s", is_online)
     try:
         _status_queue.put_nowait(("status", is_online))
-    except Exception as e:
-        log.error("[托盘] 放入队列失败: %s", e)
+    except Exception:
+        pass
 
 
 def _poll_status_queue():
@@ -619,7 +618,6 @@ def _poll_status_queue():
     while True:
         try:
             op, data = _status_queue.get(timeout=1)
-            log.info("[托盘] 收到状态更新: op=%s, data=%s", op, data)
             if op == "status":
                 color = "#34c759" if data else "#ff3b30"
                 if color != current_color:
@@ -1148,7 +1146,7 @@ def _run_monitoring(agent_id, company_name):
             result = report(data, agent_id)
             if result:
                 consecutive_errors = 0
-                update_tray_status(data.get("ping_ok", False))
+                update_tray_status(data.get("target_reachable", False))
                 log.info("[探测] 网关:%sms DNS:%sms",
                     f"{data.get('ping_rtt_ms', 0):.1f}" if data.get('ping_rtt_ms') else "-",
                     f"{data.get('dns_ms', 0):.1f}" if data.get('dns_ms') else "-")
