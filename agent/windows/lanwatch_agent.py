@@ -681,18 +681,24 @@ def _on_uninstall():
     config = load_config()
     agent_id = config.get("agent_id") if config else None
 
-    # 后台异步通知服务端（不阻塞卸载流程）
-    if agent_id:
-        threading.Thread(target=lambda aid=agent_id: report_uninstall(aid),
-                         daemon=True, name="uninstall-notify").start()
+    # 1. 删除自启动
+    set_autostart(False)
+    log.info("[卸载] 自启已删除")
 
+    # 2. 删除配置文件
     try:
         if os.path.exists(CONFIG_FILE):
             os.remove(CONFIG_FILE)
             log.info("[卸载] 配置已删除")
     except Exception as e:
         log.error("[卸载] 删除配置失败: %s", e)
-    set_autostart(False)
+
+    # 3. 后台通知服务端（不阻塞）
+    if agent_id:
+        threading.Thread(target=lambda aid=agent_id: report_uninstall(aid),
+                         daemon=True, name="uninstall-notify").start()
+
+    # 4. 关进程
     log.info("[卸载] 完成")
     os._exit(0)
 

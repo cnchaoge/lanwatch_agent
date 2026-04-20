@@ -661,21 +661,28 @@ def _show_settings_window():
                     "确定要卸载网络守护吗？\n\n将删除所有配置并停止监控。"):
                 return
             log.info("[卸载] 开始卸载...")
-            # 后台异步通知服务端（不阻塞卸载流程）
+            # 1. 删除自启动
+            set_autostart(False)
+            log.info("[卸载] 自启已删除")
+
+            # 2. 删除配置文件
             cfg = load_config()
             agent_id = cfg.get("agent_id") if cfg else None
-            if agent_id:
-                threading.Thread(target=lambda aid=agent_id: report_uninstall(aid),
-                                 daemon=True, name="uninstall-notify").start()
             try:
                 if os.path.exists(CONFIG_FILE):
                     os.remove(CONFIG_FILE)
                     log.info("[卸载] 配置已删除")
             except Exception as e:
                 log.error("[卸载] 删除配置失败: %s", e)
-            set_autostart(False)
+
+            # 3. 后台通知服务端（不阻塞）
+            if agent_id:
+                threading.Thread(target=lambda aid=agent_id: report_uninstall(aid),
+                                 daemon=True, name="uninstall-notify").start()
+
+            # 4. 关进程
             win.destroy()
-            time.sleep(1)
+            time.sleep(0.5)
             os._exit(0)
 
         def on_close():
