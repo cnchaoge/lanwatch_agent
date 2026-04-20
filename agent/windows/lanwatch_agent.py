@@ -665,9 +665,11 @@ def _poll_action_queue():
 
 def _do_uninstall_confirm():
     """显示卸载确认对话框（在主 Tk 线程中调用）"""
-    import tkinter as tk
     from tkinter import messagebox
-    if not messagebox.askyesno("卸载确认", "确定要卸载 lanwatch 吗？\n\n将删除所有配置并停止监控。"):
+    # 明确指定 parent，避免 messagebox 内部创建新的 Tk 嵌套 mainloop 导致卡死
+    if not messagebox.askyesno("卸载确认",
+                               "确定要卸载 lanwatch 吗？\n\n将删除所有配置并停止监控。",
+                               parent=_tk_root):
         return
     log.info("[卸载] 开始卸载...")
     config = load_config()
@@ -705,18 +707,15 @@ def _open_log(icon=None):
 
 def _show_about(icon=None):
     """显示关于对话框"""
+    from tkinter import messagebox
     try:
-        import tkinter as tk
-        from tkinter import messagebox
-        root = tk.Tk()
-        root.withdraw()
         messagebox.showinfo(
             "关于 lanwatch_agent",
             f"lanwatch_agent v{__version__}\n"
             f"企业网络监控客户端\n\n"
-            f"服务端: {SERVER_URL}"
+            f"服务端: {SERVER_URL}",
+            parent=_tk_root
         )
-        root.destroy()
     except Exception:
         pass
 
