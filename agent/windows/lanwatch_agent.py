@@ -93,11 +93,24 @@ def get_subnet_prefix():
     if not ip:
         return ""
     parts = ip.rsplit(".", 1)
-    return parts[0] + "." + parts[1]
+    return parts[0]  # e.g. 192.168.1.23 → 192.168.1
 
 
 def get_gateway():
-    """获取本机默认网关"""
+    """获取本机默认网关，优先从 route print 读取，回退到 .1 规则"""
+    try:
+        if sys.platform == "win32":
+            import subprocess, re as _re
+            out = subprocess.check_output(
+                "route print -4", shell=True, stderr=subprocess.DEVNULL, text=True
+            )
+            for line in out.splitlines():
+                line = line.strip()
+                parts = _re.split(r"\s+", line)
+                if len(parts) >= 3 and parts[0] == "0.0.0.0" and _re.match(r"^\d+\.\d+\.\d+\.\d+$", parts[2]):
+                    return parts[2]
+    except Exception:
+        pass
     ip = get_local_ip()
     if not ip:
         return "192.168.1.1"
@@ -455,16 +468,19 @@ def report_topology(devices, agent_id):
 # 探测主函数
 # ═══════════════════════════════════════════════════════════════
 
-DEFAULT_TARGETS = [
-    {"name": "网关", "host": "192.168.1.1"},
-    {"name": "DNS", "host": "8.8.8.8"},
-]
+DEFAULT_TARGETS = None  # lazy init
 
 
 def get_targets():
+    global DEFAULT_TARGETS
     cfg = load_config()
     if cfg and cfg.get("targets"):
         return cfg["targets"]
+    if DEFAULT_TARGETS is None:
+        DEFAULT_TARGETS = [
+            {"name": "网关", "host": get_gateway()},
+            {"name": "DNS", "host": "8.8.8.8"},
+        ]
     return DEFAULT_TARGETS
 
 
@@ -524,16 +540,16 @@ def _create_tray_image(color_hex="#34c759"):
 
 def setup_tray(agent_id, company_name):
     """初始化系统托盘，返回 icon 对象"""
-    global _tray_icon_ref
+    global _tray_icon_ref, _status_thread_started
     try:
         from pystray import Icon, MenuItem, Menu
         create_img = _create_tray_image
 
         def make_menu():
             return Menu(
-                MenuItem("查看日志", _open_log, default=False),
-                MenuItem("关于", _show_about, default=False),
-                MenuItem("退出", _exit_app, default=False),
+                MenuItem("查看日志", lambda icon, item: _open_log(), default=False),
+                MenuItem("关于", lambda icon, item: _show_about(), default=False),
+                MenuItem("退出", lambda icon, item: _exit_app(), default=False),
             )
 
         icon = Icon(
@@ -543,6 +559,12 @@ def setup_tray(agent_id, company_name):
             make_menu()
         )
         _tray_icon_ref = icon
+
+        # 启动托盘状态轮询线程（只启动一次）
+        if not globals().get("_status_thread_started", False):
+            t = threading.Thread(target=_poll_status_queue, daemon=True, name="tray_status")
+            t.start()
+            _status_thread_started = True
 
         def run_tray():
             icon.run()
@@ -633,11 +655,20 @@ def set_autostart(enable=True):
         key_path = r"Software\Microsoft\Windows\CurrentVersion\Run"
         key = _winreg.OpenKey(_winreg.HKEY_CURRENT_USER, key_path, 0, _winreg.KEY_ALL_ACCESS)
         if enable:
-            exe_path = sys.executable
-            script_path = os.path.abspath(__file__)
-            cmd = f'"{exe_path}" "{script_path}"'
+            if getattr(sys, "frozen", False):
+                # PyInstaller 打包后直接运行 exe
+                cmd = f'"{sys.executable}"'
+            else:
+                exe_path = sys.executable
+                # python.exe → pythonw.exe（无窗口）
+                if exe_path.lower().endswith("python.exe"):
+                    pythonw = exe_path[:-10] + "pythonw.exe"
+                    if os.path.exists(pythonw):
+                        exe_path = pythonw
+                script_path = os.path.abspath(__file__)
+                cmd = f'"{exe_path}" "{script_path}"'
             _winreg.SetValueEx(key, "lanwatch_agent", 0, _winreg.REG_SZ, cmd)
-            log.info("[自启] 已开启")
+            log.info("[自启] 已开启: %s", cmd)
         else:
             try:
                 _winreg.DeleteValue(key, "lanwatch_agent")
