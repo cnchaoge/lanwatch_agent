@@ -408,7 +408,7 @@ def register_agent(company_name, phone="", location=""):
             headers={"Content-Type": "application/json"},
             method="POST"
         )
-        with urllib.request.urlopen(req, timeout=10) as resp:
+        with urllib.request.urlopen(req, timeout=8) as resp:
             result = json.loads(resp.read())
             log.info("注册成功: agent_id=%s, token=%s", result.get("agent_id"), result.get("token"))
             return result
@@ -569,7 +569,7 @@ def setup_tray(agent_id, company_name):
             _status_thread_started = True
 
         def run_tray():
-            icon.run()
+            icon.run()   # blocks until icon.stop() is called
 
         t = threading.Thread(target=run_tray, daemon=True, name="tray")
         t.start()
@@ -853,28 +853,37 @@ def _show_setup_window(root):
 
         # 在后台线程执行注册（不阻塞 Tk 主循环）
         def _do_register():
-            reg = register_agent(company_name, phone, location)
-            if not reg:
-                root.after(0, lambda: _show_err("注册失败，请检查网络后重试。"))
-                root.after(0, lambda: status_lbl.config(text="注册失败", fg="#EF4444"))
-                root.after(0, lambda: [w.config(state="normal") for w in btn_frame.winfo_children()])
-                return
-            agent_id = reg["agent_id"]
-            token    = reg["token"]
-            log.info("注册成功，Agent ID: %s", agent_id)
-            cfg = {
-                "agent_id": agent_id, "company_name": company_name,
-                "phone": phone, "location": location,
-                "subnets": [subnet] if subnet and subnet != "无法检测" else [],
-                "targets": [{"name": "网关", "host": "192.168.1.1"}],
-            }
-            save_config(cfg)
-            global _tray_icon_ref
-            _tray_icon_ref = setup_tray(agent_id, company_name)
-            threading.Thread(target=_run_probe_loop, args=(agent_id,), daemon=True, name="probe").start()
-            threading.Thread(target=_run_topo_loop, args=(agent_id,), daemon=True, name="topology").start()
-            # 在 Tk 主线程弹出成功窗口
-            root.after(0, lambda a=agent_id, t=token: _show_success_window(root, company_name, a, t))
+            try:
+                reg = register_agent(company_name, phone, location)
+                if not reg:
+                    root.after(0, lambda: _show_err("注册失败，请检查网络后重试。"))
+                    root.after(0, lambda: status_lbl.config(text="注册失败", fg="#EF4444"))
+                    root.after(0, lambda: [w.config(state="normal") for w in btn_frame.winfo_children()])
+                    return
+                agent_id = reg["agent_id"]
+                token    = reg["token"]
+                log.info("注册成功，Agent ID: %s", agent_id)
+                cfg = {
+                    "agent_id": agent_id, "company_name": company_name,
+                    "phone": phone, "location": location,
+                    "subnets": [subnet] if subnet and subnet != "无法检测" else [],
+                    "targets": [{"name": "网关", "host": "192.168.1.1"}],
+                }
+                save_config(cfg)
+                # 启动托盘（在后台线程，不阻塞）
+                global _tray_icon_ref
+                def _start_tray():
+                    _tray_icon_ref = setup_tray(agent_id, company_name)
+                threading.Thread(target=_start_tray, daemon=True, name="tray").start()
+                # 启动探测和拓扑线程
+                threading.Thread(target=_run_probe_loop, args=(agent_id,), daemon=True, name="probe").start()
+                threading.Thread(target=_run_topo_loop, args=(agent_id,), daemon=True, name="topology").start()
+                # 在 Tk 主线程弹出成功窗口
+                root.after(0, lambda a=agent_id, t=token: _show_success_window(root, company_name, a, t))
+            except Exception as e:
+                log.error("注册异常: %s", e)
+                root.after(0, lambda: _show_err(f"注册异常: {e}"))
+                root.after(0, lambda: status_lbl.config(text="注册异常", fg="#EF4444"))
 
         def _show_err(msg):
             try:
