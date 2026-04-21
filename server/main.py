@@ -420,6 +420,13 @@ class TopologyDevice(BaseModel):
     vendor: Optional[str] = ""
     device_type: Optional[str] = "unknown"  # router / switch / server / printer / pc / unknown
 
+class DiagReport(BaseModel):
+    time: str
+    target: Optional[str] = None
+    hops: Optional[list] = None
+    error: Optional[str] = None
+
+
 class TopologyReport(BaseModel):
     devices: list[TopologyDevice]
 
@@ -913,10 +920,14 @@ def report_probe(agent_id: str, data: ProbeReport):
         conn.execute(
             """INSERT OR REPLACE INTO probes
                (agent_id, timestamp, ping_ok, ping_rtt_ms, ping_loss_pct,
-                dns_ms, gateway_reachable, target_reachable, target_name, target_rtt_ms)
+                dns_ms, dns_ms_ali, dns_ms_tencent, dns_ms_163,
+                gateway_reachable, target_reachable, target_name, target_rtt_ms)
                VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)""",
             (agent_id, now, int(data.ping_ok), data.ping_rtt_ms,
              data.ping_loss_pct, data.dns_ms,
+             getattr(data, 'dns_ms_ali', None),
+             getattr(data, 'dns_ms_tencent', None),
+             getattr(data, 'dns_ms_163', None),
              int(data.gateway_reachable), int(data.target_reachable),
              data.target_name, data.target_rtt_ms)
         )
@@ -994,6 +1005,23 @@ def report_topology(agent_id: str, data: TopologyReport):
         return {"ok": True, "count": len(data.devices)}
     finally:
         close_db(conn)
+
+@app.post("/api/{agent_id}/diag")
+def report_diag(agent_id: str, data: DiagReport):
+    """接收离线诊断结果，写入日志文件"""
+    conn = get_db()
+    try:
+        c = conn.execute("SELECT id FROM agents WHERE id=?", (agent_id,))
+        if not c.fetchone():
+            raise HTTPException(status_code=404, detail="Agent not found")
+        log_path = f"/tmp/lanwatch_diag_{agent_id}.json"
+        with open(log_path, 'w', encoding='utf-8') as f:
+            json.dump(data.dict(), f, ensure_ascii=False)
+        print(f"[诊断] 收到 {agent_id} 诊断报告: {data.time} -> {data.target or data.error}")
+        return {"ok": True}
+    finally:
+        close_db(conn)
+
 
 @app.get("/api/{agent_id}/topology")
 def get_topology(agent_id: str):
