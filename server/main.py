@@ -1,5 +1,5 @@
 """
-企业网络监控平台 - FastAPI 服务端 v0.4 SNMP 支持
+企业网络监控平台 - FastAPI 服务端 v0.6.3 SNMP 支持
 """
 import sqlite3
 import json
@@ -1141,7 +1141,7 @@ def startup():
     init_db()
     start_snmp_poller()
     start_snmp_trap_receiver()
-    print("[Server] 企业网络监控平台启动 v0.4")
+    print("[Server] 企业网络监控平台启动 v0.6.3")
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8000)
