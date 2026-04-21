@@ -1,7 +1,7 @@
 @echo off
-:: lanwatch_agent v0.5 打包脚本
+:: lanwatch_agent v0.6.3 打包脚本
 chcp 65001 >nul
-echo 开始打包 lanwatch_agent v0.5...
+echo 开始打包 lanwatch_agent v0.6.3...
 
 cd /d %~dp0
 

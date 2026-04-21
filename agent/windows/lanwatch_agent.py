@@ -1,13 +1,6 @@
 #!/usr/bin/env python3
 """
-lanwatch_agent - 企业网络监控客户端 v0.5
-- 多线程并行拓扑扫描（快速发现内网设备）
-- 正确的 ICMP/ARP 探测（不再只扫 80 端口）
-- 线程安全的托盘状态更新
-- 启动/关闭通知服务端
-- 修复 v0.4 所有已知问题
-"""
-__version__ = "0.5.0"
+__version__ = "0.6.3"
 
 import socket
 from time import sleep
@@ -407,7 +400,7 @@ def register_agent(company_name, phone="", location=""):
             "name": company_name,
             "phone": phone,
             "location": location,
-            "remark": "lanwatch_agent_v0.5"
+            "remark": "lanwatch_agent_v0.6.3"
         }).encode()
         req = urllib.request.Request(
             SERVER_URL + "/api/register",
