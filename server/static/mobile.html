@@ -1,167 +1,126 @@
 <!DOCTYPE html>
-<html lang="zh">
+<html lang="zh" data-theme="dark">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>网络监控</title>
+<title>LANWatch - 手机端</title>
+<link rel="stylesheet" href="/theme.css">
 <style>
-* { margin: 0; padding: 0; box-sizing: border-box; }
 body {
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  background: #f5f5f7;
-  color: #1d1d1f;
+  background: var(--bg);
+  color: var(--text);
   padding: 16px 12px;
   min-height: 100vh;
+  font-size: 15px;
 }
-.header {
-  margin-bottom: 16px;
+[data-theme="dark"] body {
+  background: #0a0c14;
 }
-.header h1 {
-  font-size: 18px;
-  font-weight: 600;
-  margin-bottom: 2px;
+[data-theme="light"] body {
+  background: #f4f6fb;
 }
-.header .sub {
-  font-size: 12px;
-  color: #86868b;
-}
+.page-header { margin-bottom: 16px; }
+.page-header h1 { font-size: 20px; font-weight: 800; letter-spacing: -0.02em; margin-bottom: 2px; }
+.page-header p { font-size: 13px; color: var(--muted); }
+
 .card {
-  background: #fff;
-  border-radius: 16px;
-  padding: 20px 16px;
-  margin-bottom: 12px;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius-lg); padding: 18px 16px;
+  margin-bottom: 12px; backdrop-filter: blur(12px);
 }
-.status-row {
-  display: flex;
-  align-items: center;
-  margin-bottom: 12px;
-}
-.status-dot {
-  width: 10px; height: 10px;
-  border-radius: 50%;
-  margin-right: 8px;
-  flex-shrink: 0;
-}
-.online { background: #34c759; box-shadow: 0 0 6px rgba(52,199,89,0.5); }
-.offline { background: #ff3b30; }
-.status-text {
-  font-size: 16px;
-  font-weight: 600;
-}
-.status-text.online { color: #34c759; }
-.status-text.offline { color: #ff3b30; }
-.ago {
-  font-size: 11px;
-  color: #86868b;
-  margin-left: auto;
-}
-.divider { height: 1px; background: #f0f0f0; margin: 12px 0; }
-.stat {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 6px 0;
-}
-.stat-label { font-size: 13px; color: #86868b; }
-.stat-value { font-size: 14px; font-weight: 500; }
-.last-update {
-  text-align: center;
-  font-size: 11px;
-  color: #aeaeb2;
-  margin-top: 8px;
-}
+[data-theme="dark"] .card { background: rgba(255,255,255,0.05); }
+[data-theme="light"] .card { background: #fff; }
+
+.status-row { display: flex; align-items: center; margin-bottom: 14px; }
+.status-dot { width: 10px; height: 10px; border-radius: 50%; margin-right: 10px; flex-shrink: 0; }
+.status-dot.online { background: var(--green); box-shadow: 0 0 8px rgba(74,222,128,0.6); }
+.status-dot.offline { background: var(--red); }
+.status-text { font-size: 18px; font-weight: 800; }
+.status-text.online { color: var(--green); }
+.status-text.offline { color: var(--red); }
+.ago { font-size: 12px; color: var(--muted); margin-left: auto; }
+
+.divider { height: 1px; background: var(--border); margin: 14px 0; }
+
+.stat { display: flex; justify-content: space-between; align-items: center; padding: 7px 0; font-size: 14px; }
+.stat-label { color: var(--muted); }
+.stat-value { font-weight: 600; }
+
+.last-update { text-align: center; font-size: 12px; color: var(--muted); margin-top: 10px; }
+
 .refresh-btn {
-  display: block;
-  width: 100%;
-  background: #007aff;
-  color: #fff;
-  border: none;
-  border-radius: 12px;
-  padding: 14px;
-  font-size: 15px;
-  font-weight: 500;
-  cursor: pointer;
-  margin-top: 8px;
+  display: block; width: 100%;
+  background: var(--primary); color: #fff;
+  border: none; border-radius: 12px;
+  padding: 14px; font-size: 15px; font-weight: 600;
+  cursor: pointer; margin-bottom: 10px;
+  box-shadow: 0 6px 20px rgba(79,142,247,0.25);
 }
-.refresh-btn:active { background: #0064d0; }
-.error-msg {
-  text-align: center;
-  padding: 32px 16px;
-  color: #86868b;
-  font-size: 14px;
-}
-.loading {
-  text-align: center;
-  padding: 32px;
-  color: #aeaeb2;
-  font-size: 14px;
-}
-.error-card {
-  background: #fff;
-  border-radius: 16px;
-  padding: 32px 24px;
-  text-align: center;
-}
+.refresh-btn:active { opacity: 0.85; }
+
+.error-msg { text-align: center; padding: 28px 16px; color: var(--muted); font-size: 14px; }
+.loading { text-align: center; padding: 32px; color: var(--muted); font-size: 14px; }
+
 .token-input {
-  width: 100%;
-  padding: 12px 14px;
-  font-size: 15px;
-  border: 1px solid #d2d2d7;
-  border-radius: 10px;
-  outline: none;
-  margin: 12px 0;
-  font-family: monospace;
-  letter-spacing: 1px;
+  width: 100%; padding: 12px 14px;
+  font-size: 15px; text-align: center;
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 10px; color: var(--text);
+  outline: none; margin: 12px 0;
+  font-family: monospace; letter-spacing: 1px;
 }
-.token-input:focus { border-color: #007aff; }
-.agent-list {
-  list-style: none;
-}
+.token-input:focus { border-color: var(--primary); }
+.token-input::placeholder { color: var(--muted); }
+
+.agent-list { list-style: none; }
 .agent-item {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 14px 0;
-  border-bottom: 1px solid #f0f0f0;
-  cursor: pointer;
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 14px 0; border-bottom: 1px solid var(--border); cursor: pointer;
 }
 .agent-item:last-child { border-bottom: none; }
-.agent-item:active { background: #f5f5f7; }
-.agent-name { font-size: 15px; font-weight: 500; }
-.agent-id { font-size: 11px; color: #86868b; margin-top: 2px; }
-.agent-arrow { color: #aeaeb2; font-size: 18px; }
+.agent-item:active { opacity: 0.7; }
+.agent-name { font-size: 15px; font-weight: 600; }
+.agent-id { font-size: 11px; color: var(--muted); margin-top: 2px; }
+.agent-arrow { color: var(--muted); font-size: 20px; font-weight: 300; }
+
 .logout-btn {
   display: inline-block;
-  background: none;
-  border: 1px solid #d2d2d7;
-  border-radius: 8px;
-  padding: 6px 14px;
-  font-size: 13px;
-  cursor: pointer;
-  color: #86868b;
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 8px; padding: 7px 14px;
+  font-size: 13px; cursor: pointer; color: var(--muted);
 }
+.logout-btn:active { background: var(--surface-hover); }
+
+.qr-row { display: flex; align-items: center; gap: 14px; }
+.qr-img { width: 72px; height: 72px; border-radius: 8px; border: 1px solid var(--border); flex-shrink: 0; }
+.qr-label { font-size: 13px; color: var(--muted); margin-bottom: 4px; }
+.qr-hint { font-size: 11px; color: var(--muted); }
+
+.text-link { color: var(--primary); font-weight: 600; }
+
+.footer-text { text-align: center; font-size: 11px; color: var(--muted); padding: 16px 0; border-top: 1px solid var(--border); margin-top: 20px; line-height: 1.8; }
+.footer-text a { color: var(--muted); }
+
+.hidden { display: none; }
 </style>
 </head>
 <body>
 
-<div class="header">
-  <h1 id="page-title">网络监控</h1>
-  <p class="sub" id="page-sub"></p>
+<div class="page-header">
+  <h1 id="page-title">LANWatch</h1>
+  <p id="page-sub">网络监控系统</p>
 </div>
 
 <!-- 登录视图 -->
 <div id="view-login">
   <div class="card">
-    <div class="error-card" style="padding:16px 0;">
-      <p style="font-size:14px;color:#86868b;margin-bottom:16px;">请输入您的登录凭证</p>
-      <input type="text" class="token-input" id="input-token" placeholder="请粘贴登录凭证" style="text-align:center;">
-      <button class="refresh-btn" onclick="doLogin()">登录</button>
-    </div>
+    <p style="font-size:14px;color:var(--muted);text-align:center;margin-bottom:14px;">请输入您的登录凭证</p>
+    <input type="text" class="token-input" id="input-token" placeholder="请粘贴登录凭证">
+    <button class="refresh-btn" onclick="doLogin()">登录</button>
   </div>
   <div class="card">
-    <p style="font-size:13px;color:#86868b;line-height:1.7;">
-      还没有账号？<a href="/setup" style="color:#007aff;">点击这里注册</a>
+    <p style="font-size:13px;color:var(--muted);line-height:1.7;text-align:center;">
+      还没有账号？<a href="/setup" class="text-link">点击这里注册</a>
     </p>
   </div>
 </div>
@@ -169,7 +128,7 @@ body {
 <!-- 设备选择视图 -->
 <div id="view-agents" class="hidden">
   <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
-    <span style="font-size:13px;color:#86868b;">选择要查看的设备</span>
+    <span style="font-size:13px;color:var(--muted);">选择要查看的设备</span>
     <button class="logout-btn" onclick="logout()">切换账号</button>
   </div>
   <div class="card">
@@ -181,31 +140,34 @@ body {
 
 <!-- 设备监控视图 -->
 <div id="view-monitor" class="hidden">
-  <button class="refresh-btn" onclick="loadData()">刷新状态</button>
+  <button class="refresh-btn" onclick="loadData()">🔄 刷新状态</button>
   <div id="content">
     <div class="loading">加载中...</div>
   </div>
   <div id="qr-section" style="display:none;" class="card">
-    <div style="display:flex;align-items:center;gap:14px;">
-      <img id="dev-qr" src="" style="width:72px;height:72px;border-radius:8px;border:1px solid #f0f0f0;" alt="二维码">
+    <div class="qr-row">
+      <img id="dev-qr" class="qr-img" src="" alt="二维码">
       <div>
-        <div style="font-size:13px;color:#86868b;margin-bottom:4px;">手机扫码查看</div>
-        <div style="font-size:11px;color:#aeaeb2;">截图保存，转发给他人</div>
+        <div class="qr-label">手机扫码查看</div>
+        <div class="qr-hint">截图保存，转发给他人</div>
       </div>
     </div>
   </div>
   <div class="last-update" id="last-update"></div>
-  <button class="logout-btn" onclick="showAgents()" style="display:block;margin:12px auto 0;">← 返回设备列表</button>
+  <div style="text-align:center;">
+    <button class="logout-btn" onclick="showAgents()">← 返回设备列表</button>
+  </div>
+</div>
+
+<div class="footer-text">
+  <a href="/">www.lanwatch.net</a> · LANWatch 企业网络监控<br>
+  © 2026 · 所有权利保留
 </div>
 
 <script>
 var SERVER = location.origin;
 var TOKEN = localStorage.getItem("nm_token") || null;
 var CURRENT_AGENT = null;
-
-function getHeaders() {
-  return TOKEN ? {"Authorization": "Bearer " + TOKEN} : {};
-}
 
 function showView(id) {
   document.getElementById('view-login').classList.add('hidden');
@@ -217,6 +179,7 @@ function showView(id) {
 function logout() {
   localStorage.removeItem("nm_token");
   localStorage.removeItem("nm_agent_id");
+  localStorage.removeItem("nm_user_name");
   TOKEN = null;
   CURRENT_AGENT = null;
   document.getElementById('input-token').value = '';
@@ -297,24 +260,48 @@ function loadData() {
   render(latest);
 }
 
+function fmt(v, dec) {
+  if (v === null || v === undefined) return '-';
+  return v.toFixed(dec);
+}
+
+function tag(cls, text) {
+  return '<span style="display:inline-flex;align-items:center;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:600;background:var(--' + (cls === 'green' ? 'green-dim' : cls === 'red' ? 'red-dim' : 'surface') + ');color:var(--' + (cls === 'green' ? 'green' : cls === 'red' ? 'red' : 'muted') + ');">' + text + '</span>';
+}
+
 function render(latest) {
-  document.getElementById('page-title').textContent = localStorage.getItem("nm_user_name") || '网络监控';
+  document.getElementById('page-title').textContent = localStorage.getItem("nm_user_name") || 'LANWatch';
   document.getElementById('page-sub').textContent = CURRENT_AGENT;
 
   if (!latest) {
-    document.getElementById('content').innerHTML = '<div class="error-msg">暂无数据，设备可能离线</div>';
+    document.getElementById('content').innerHTML = '<div class="card"><div class="error-msg">暂无数据，设备可能离线</div></div>';
     return;
   }
 
   var isOnline = (Date.now()/1000 - latest.timestamp) < 300;
   var statusText = isOnline ? '网络正常' : '网络异常';
   var ago = timeAgo(latest.timestamp);
-  var ping = fmt(latest.ping_rtt_ms, 1);
-  var loss = fmt(latest.ping_loss_pct, 0);
-  var dns = fmt(latest.dns_ms, 1);
-  var tgt = latest.target_name || '-';
-  var tgtRtt = latest.target_rtt_ms ? fmt(latest.target_rtt_ms, 1) : '-';
-  var gateway = latest.gateway_reachable ? '可达' : '不可达';
+
+  var dnsAli = latest.dns_ms_ali != null ? tag('green', '阿里 ' + fmt(latest.dns_ms_ali,1) + 'ms') : '';
+  var dnsTencent = latest.dns_ms_tencent != null ? tag('green', '腾讯 ' + fmt(latest.dns_ms_tencent,1) + 'ms') : '';
+  var dns163 = latest.dns_ms_163 != null ? tag('green', '网易 ' + fmt(latest.dns_ms_163,1) + 'ms') : '';
+  var dnsDefault = latest.dns_ms != null ? tag('green', '百度 ' + fmt(latest.dns_ms,1) + 'ms') : '';
+
+  var icmpTag;
+  if (latest.ping_rtt_ms == null && latest.dns_ms != null) {
+    icmpTag = tag('grey', 'ICMP不支持');
+  } else if (latest.ping_loss_pct > 0) {
+    icmpTag = tag('yellow', '丢包' + fmt(latest.ping_loss_pct,0) + '%');
+  } else if (latest.ping_rtt_ms != null) {
+    icmpTag = tag('green', 'ICMP ' + fmt(latest.ping_rtt_ms,0) + 'ms');
+  } else {
+    icmpTag = tag('grey', '不支持');
+  }
+
+  var tgt = latest.target_name || '目标';
+  var tgtTag = latest.target_reachable === false
+    ? tag('red', '不可达')
+    : (latest.target_rtt_ms != null ? tag('green', '可达 ' + fmt(latest.target_rtt_ms,0) + 'ms') : tag('grey', '-'));
 
   var html = '<div class="card">' +
     '<div class="status-row">' +
@@ -323,12 +310,13 @@ function render(latest) {
       '<span class="ago">' + ago + '</span>' +
     '</div>' +
     '<div class="divider"></div>' +
-    '<div class="stat"><span class="stat-label">网关延迟</span><span class="stat-value">' + ping + ' ms</span></div>' +
-    '<div class="stat"><span class="stat-label">丢包率</span><span class="stat-value">' + loss + '%</span></div>' +
-    '<div class="stat"><span class="stat-label">DNS延迟</span><span class="stat-value">' + dns + ' ms</span></div>' +
-    '<div class="stat"><span class="stat-label">网关可达</span><span class="stat-value">' + gateway + '</span></div>' +
+    '<div class="stat"><span class="stat-label">DNS 百度</span><span class="stat-value">' + dnsDefault + '</span></div>' +
+    '<div class="stat"><span class="stat-label">DNS 阿里</span><span class="stat-value">' + dnsAli + '</span></div>' +
+    '<div class="stat"><span class="stat-label">DNS 腾讯</span><span class="stat-value">' + dnsTencent + '</span></div>' +
+    '<div class="stat"><span class="stat-label">DNS 网易</span><span class="stat-value">' + dns163 + '</span></div>' +
     '<div class="divider"></div>' +
-    '<div class="stat"><span class="stat-label">' + tgt + '</span><span class="stat-value">' + (latest.target_reachable ? '✓ 可达 ' + tgtRtt + ' ms' : '✗ 不可达') + '</span></div>' +
+    '<div class="stat"><span class="stat-label">ICMP</span><span class="stat-value">' + icmpTag + '</span></div>' +
+    '<div class="stat"><span class="stat-label">' + tgt + '</span><span class="stat-value">' + tgtTag + '</span></div>' +
     '</div>';
 
   document.getElementById('content').innerHTML = html;
@@ -340,11 +328,6 @@ function showAgents() {
   else showView('view-login');
 }
 
-function fmt(v, dec) {
-  if (v === null || v === undefined) return '-';
-  return v.toFixed(dec);
-}
-
 function timeAgo(ts) {
   var s = Math.floor(Date.now()/1000 - ts);
   if (s < 60) return '刚刚';
@@ -353,30 +336,23 @@ function timeAgo(ts) {
   return Math.floor(s/86400) + '天前';
 }
 
-// 初始化
+// Init
 if (TOKEN) {
   showView('view-agents');
   loadMe();
-  // 检查 URL 是否有 agent 参数
   var urlParams = new URLSearchParams(location.search);
   var agentParam = urlParams.get('agent');
-  if (agentParam) {
-    selectAgent(agentParam);
-  }
+  if (agentParam) selectAgent(agentParam);
 } else {
   showView('view-login');
 }
 
-// 定期刷新
+// Auto refresh
 setInterval(function() {
-  if (CURRENT_AGENT && document.getElementById('view-monitor').classList.contains('hidden') === false) {
+  if (CURRENT_AGENT && !document.getElementById('view-monitor').classList.contains('hidden')) {
     loadData();
   }
 }, 30000);
 </script>
-<div style="text-align:center;font-size:11px;color:#aeaeb2;padding:16px 0;border-top:1px solid #e5e5ea;margin-top:24px;">
-  <a href="http://www.lanwatch.net" style="color:#aeaeb2;text-decoration:none;">www.lanwatch.net</a> · 企业网络值守服务<br>
-  © 2026 · 所有权利保留
-</div>
 </body>
 </html>
