@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>LANWatch - 企业网络值守服务</title>
+<title>LANWatch - 企业网络监控与离线诊断平台</title>
 <style>
 * { margin: 0; padding: 0; box-sizing: border-box; }
 :root {
@@ -191,17 +191,17 @@ a { color: inherit; text-decoration: none; }
   <div class="container hero">
     <div class="hero-grid">
       <div>
-        <div class="eyebrow">企业网络值守服务 · LANWatch</div>
-        <h1>让每一家中小企业的网络，都有人值守。</h1>
-        <p>安装一个客户端，持续监测企业网络质量。出现异常时自动告警，离线时自动记录断点诊断，帮助你快速判断问题发生在本地、路由器、运营商还是目标侧。</p>
+        <div class="eyebrow">企业网络监控平台 · LANWatch</div>
+        <h1>为中小企业提供持续在线的网络监控与离线诊断能力。</h1>
+        <p>LANWatch 将探测、告警、离线诊断与手机查看整合为一个轻量平台。安装客户端后，即可持续采集网络状态，并在异常发生时快速定位问题范围与可能断点。</p>
         <div class="hero-actions">
-          <a class="btn btn-primary" href="/download">立即下载 Windows 客户端</a>
-          <a class="btn btn-secondary" href="/monitor">查看监控面板</a>
+          <a class="btn btn-primary" href="/download">下载 Windows 客户端</a>
+          <a class="btn btn-secondary" href="/monitor">查看实时监控</a>
         </div>
         <div class="hero-meta">
           <span class="meta-pill">离线断点诊断</span>
-          <span class="meta-pill">多 DNS 延迟探测</span>
-          <span class="meta-pill">静默 ARP 拓扑发现</span>
+          <span class="meta-pill">多 DNS 质量检测</span>
+          <span class="meta-pill">静默拓扑发现</span>
         </div>
       </div>
 
@@ -209,7 +209,7 @@ a { color: inherit; text-decoration: none; }
         <div class="mock-header">
           <div>
             <div class="mock-title">实时监控预览</div>
-            <div class="mock-sub">像 openclaw.ai 一样克制的产品感，但聚焦企业网络值守</div>
+            <div class="mock-sub">面向企业网络值守场景的轻量监控界面</div>
           </div>
           <span class="live-dot"></span>
         </div>
@@ -260,15 +260,15 @@ a { color: inherit; text-decoration: none; }
   <div class="container section" id="features">
     <div class="section-head">
       <div class="section-kicker">核心能力</div>
-      <h2>不是只告诉你“断了”，而是告诉你“为什么断、断在哪里”。</h2>
-      <p>LANWatch 不是传统的在线率面板，它更像一个为中小企业准备的轻量网络值守产品。重点不是堆协议，而是让你在出问题时能快速判断、快速解释、快速处理。</p>
+      <h2>从“发现异常”到“判断原因”，把网络值守做成一套完整流程。</h2>
+      <p>LANWatch 不只是一个在线率面板，而是一套面向中小企业网络场景的轻量监控产品。重点不是展示更多图表，而是在故障发生时更快给出可执行判断。</p>
     </div>
 
     <div class="feature-grid">
       <div class="feature-card">
         <div class="feature-icon">🔍</div>
         <h3>离线断点诊断</h3>
-        <p>连续失败 3 次自动触发 traceroute，本地留档，也可上报服务端。客户断网时，不必再只听一句“就是上不了网”。</p>
+        <p>当客户端连续失败达到阈值后，自动触发 traceroute 并记录结果。帮助维护人员判断问题停留在本地、网关、运营商还是目标侧。</p>
         <div class="feature-points">
           <span>• 自动判断断在哪一跳</span>
           <span>• Windows 用 tracert，Linux 用 traceroute</span>
@@ -279,7 +279,7 @@ a { color: inherit; text-decoration: none; }
       <div class="feature-card">
         <div class="feature-icon">🌐</div>
         <h3>多 DNS 延迟探测</h3>
-        <p>同时测百度、阿里、腾讯、网易四个目标，不再只看“通不通”，而是看哪家 DNS 变慢、哪家出现异常。</p>
+        <p>同时测量百度、阿里、腾讯、网易四组 DNS 响应，帮助你区分“网络不可达”和“DNS 质量下降”这两类完全不同的问题。</p>
         <div class="feature-points">
           <span>• 百度 / 阿里 / 腾讯 / 网易 四组延迟</span>
           <span>• 卡片化展示，手机端也易读</span>
@@ -290,7 +290,7 @@ a { color: inherit; text-decoration: none; }
       <div class="feature-card">
         <div class="feature-icon">🗺️</div>
         <h3>静默 ARP 拓扑发现</h3>
-        <p>不再 ping 整个网段，而是直接读取本机 ARP 缓存表。秒级完成，零噪音，不刺激防火墙，不打扰客户网络。</p>
+        <p>通过读取本机 ARP 缓存发现局域网设备，不主动扫描整个网段。更安静、更轻量，也更适合在真实办公网络中长期运行。</p>
         <div class="feature-points">
           <span>• 不主动扫 254 个 IP</span>
           <span>• 自动识别 IP / MAC / hostname / 厂商</span>
@@ -303,28 +303,28 @@ a { color: inherit; text-decoration: none; }
   <div class="container section" id="scenarios">
     <div class="section-head">
       <div class="section-kicker">使用场景</div>
-      <h2>传统方式只能看见“现象”，LANWatch 直接帮你靠近原因。</h2>
-      <p>你不是在做一个漂亮的图表站，而是在做一个出问题时真的能派上用场的工具站。</p>
+      <h2>把“客户说网络有问题”变成一组可以快速判断的数据。</h2>
+      <p>对维护方来说，最重要的不是看到更多图，而是在更短时间内判断责任边界、沟通方向和下一步动作。</p>
     </div>
 
     <div class="comparison-grid">
       <div class="comparison-card">
-        <div class="compare-label compare-old">传统做法</div>
+        <div class="compare-label compare-old">传统方式</div>
         <div class="compare-list">
-          <div>客户说“断网了”，你只知道设备离线。</div>
-          <div>看得到在线率，看不到断点在哪里。</div>
-          <div>ICMP 被禁时，经常误报，解释成本很高。</div>
-          <div>拓扑靠全网 ping，慢而且吵。</div>
+          <div>客户反馈“网络异常”，后台通常只能显示设备离线。</div>
+          <div>可以看到现象，但很难判断故障停留在哪一段链路。</div>
+          <div>ICMP 被禁时容易误判，维护沟通成本高。</div>
+          <div>依赖全网 ping 的拓扑扫描，对办公网络并不友好。</div>
         </div>
       </div>
 
       <div class="comparison-card">
         <div class="compare-label compare-new">LANWatch</div>
         <div class="compare-list">
-          <div>DNS、ICMP、目标状态一起看，先快速确认影响范围。</div>
-          <div>离线后自动触发 traceroute，留下“断在哪一跳”的证据。</div>
-          <div>ICMP 不支持时明确告诉你“不支持”，不再假装 100% 丢包。</div>
-          <div>ARP 静默发现，不影响客户网络体验。</div>
+          <div>DNS、ICMP 与目标状态同时展示，先快速确认问题范围。</div>
+          <div>离线后自动触发 traceroute，保留“断在哪一跳”的诊断结果。</div>
+          <div>ICMP 不支持时明确标注，避免把协议限制误读为网络故障。</div>
+          <div>ARP 静默发现更适合长期部署，不打扰客户网络环境。</div>
         </div>
       </div>
     </div>
@@ -333,14 +333,14 @@ a { color: inherit; text-decoration: none; }
   <div class="container section">
     <div class="section-head">
       <div class="section-kicker">产品界面</div>
-      <h2>三个界面就够讲清楚产品价值。</h2>
-      <p>不要堆截图，直接展示用户最关心的三个触点，桌面端、后台端、手机端。</p>
+      <h2>围绕三个核心触点，构建一套完整的监控体验。</h2>
+      <p>桌面端负责持续采集与本地诊断，后台负责统一查看与管理，手机端负责在移动场景下快速确认状态。</p>
     </div>
 
     <div class="shot-grid">
       <div class="shot-card">
         <h3>桌面端持续值守</h3>
-        <p>托盘后台运行，开机自启，不占任务栏。异常时本地先留诊断结果。</p>
+        <p>托盘后台运行，支持开机自启，不打扰日常使用。在异常发生时优先保留本地诊断结果。</p>
         <div class="shot-box">
           <div class="shot-mini-title">lanwatch_agent v0.6.3</div>
           <div>
@@ -353,7 +353,7 @@ a { color: inherit; text-decoration: none; }
 
       <div class="shot-card">
         <h3>后台统一查看</h3>
-        <p>企业卡片、设备卡片、DNS / ICMP / 目标状态一屏看清。更适合老板、网管和维护方共用。</p>
+        <p>企业卡片、设备卡片、DNS / ICMP / 目标状态统一呈现，适合老板、网管与维护方协同查看。</p>
         <div class="shot-box">
           <div class="shot-mini-title">企业后台</div>
           <div>
@@ -366,7 +366,7 @@ a { color: inherit; text-decoration: none; }
 
       <div class="shot-card">
         <h3>手机端随时查看</h3>
-        <p>二维码直达，无需安装 App。企业主、售后、维护人员都能在手机上快速看到结果。</p>
+        <p>二维码直达，无需安装 App。适合企业主、售后与维护人员在移动场景下快速确认当前状态。</p>
         <div class="shot-box">
           <div class="shot-mini-title">手机页</div>
           <div>
@@ -382,14 +382,14 @@ a { color: inherit; text-decoration: none; }
   <div class="container section" id="deploy">
     <div class="section-head">
       <div class="section-kicker">接入方式</div>
-      <h2>先装客户端，再考虑 SNMP。先解决问题，再扩展规模。</h2>
-      <p>落地时不需要一开始就做复杂架构，先把最有效的路径做出来。</p>
+      <h2>从客户端起步，再扩展到 SNMP，部署路径足够轻也足够稳。</h2>
+      <p>LANWatch 适合先从最容易落地的客户端安装开始，再根据网络规模补充企业级设备的 SNMP 接入。</p>
     </div>
 
     <div class="deploy-grid">
       <div class="deploy-card">
         <h3>客户端安装</h3>
-        <p>适合办公室电脑、值守主机、日常使用中的 Windows / Linux 终端。部署快，几分钟见效。</p>
+        <p>适合办公室电脑、值守主机以及日常运行中的 Windows / Linux 终端。部署门槛低，几分钟内即可开始采集。</p>
         <div class="deploy-bullets">
           <span>• 下载后直接运行，填写企业名称完成注册</span>
           <span>• 默认后台运行，支持开机自启</span>
@@ -399,7 +399,7 @@ a { color: inherit; text-decoration: none; }
 
       <div class="deploy-card">
         <h3>SNMP 接入</h3>
-        <p>适合企业级路由器、交换机、防火墙等无法安装 Agent 的设备。作为客户端之外的补充接入方式。</p>
+        <p>适合企业级路由器、交换机、防火墙等无法安装 Agent 的设备，作为客户端监控之外的补充接入层。</p>
         <div class="deploy-bullets">
           <span>• 支持 SNMP V2c</span>
           <span>• 默认 community: public</span>
@@ -413,8 +413,8 @@ a { color: inherit; text-decoration: none; }
     <div class="cta-wrap">
       <div class="cta-card">
         <div>
-          <h3>先把官网立起来，再把产品入口串起来。</h3>
-          <p>现在你已经有下载页、监控页、后台页。这个落地页会把它们连成一个完整的产品入口，更像一个真正的 SaaS 官网，而不是一组零散页面。</p>
+          <h3>为企业网络提供更清晰的可见性，也为维护方提供更可靠的判断依据。</h3>
+          <p>从下载、安装、监控到离线诊断，LANWatch 现在已经具备一套完整的产品入口。你可以直接从这里开始部署，也可以继续查看后台与实时监控页面。</p>
         </div>
         <div class="cta-actions">
           <a class="btn btn-primary" href="/download">下载客户端</a>
@@ -427,7 +427,7 @@ a { color: inherit; text-decoration: none; }
 
   <div class="container footer">
     <div class="footer-line">
-      <div>LANWatch · 企业网络值守服务</div>
+      <div>LANWatch · 企业网络监控与离线诊断平台</div>
       <div>
         <a href="https://lanwatch.net">lanwatch.net</a> ·
         <a href="https://lanwatch.cn">lanwatch.cn</a> ·
