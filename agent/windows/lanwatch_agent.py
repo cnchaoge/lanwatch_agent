@@ -356,50 +356,43 @@ def _resolve_hostname(ip):
         return ""
 
 
-def scan_topology(subnets=None):
-    """
-    并行扫描网段，发现所有在线设备
-    subnets: ["192.168.1", "192.168.2"] 或 None（自动探测本机网段）
-    返回 [{ip, mac, hostname, vendor, device_type}, ...]
-    """
-    global _executor
-    if _executor is None:
-        _executor = ThreadPoolExecutor(max_workers=30)
-
-    if not subnets:
-        prefix = get_subnet_prefix()
-        subnets = [prefix] if prefix else []
-
-    targets = []
-    for prefix in subnets:
-        for i in range(1, 255):
-            targets.append(f"{prefix}.{i}")
-
-    log.info("[拓扑] 开始扫描 %d 个目标...", len(targets))
-    start = time.time()
+def get_all_devices_from_arp():
+    """读取本机 ARP 缓存表，获取局域网已知设备（不发包，速度快）"""
     devices = []
-
-    futures = {_executor.submit(_probe_host, ip): ip for ip in targets}
-    for future in as_completed(futures, timeout=30):
-        try:
-            result = future.result()
-            if result:
-                ip, mac, hostname = result
+    try:
+        if sys.platform == "win32":
+            out, _ = _run_hidden('arp -a', timeout=5)
+        else:
+            out, _ = _run_hidden('arp -a -n', timeout=5)
+        for line in out.splitlines():
+            line = line.strip()
+            # Windows: 192.168.1.1    60:de:44:67:12:1a     动态
+            # Linux: 192.168.1.1                      (ether) 60:de:44:67:12:1a  eth0
+            m = re.search(r'(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})\s+([0-9a-fA-F:]{17})', line)
+            if not m:
+                m = re.search(r'(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})\s+([0-9a-fA-F]{2}[-:][0-9a-fA-F]{2}[:][0-9a-fA-F]{2}[:][0-9a-fA-F]{2}[:][0-9a-fA-F]{2}[:][0-9a-fA-F]{2})', line)
+            if m:
+                ip, mac = m.group(1), m.group(2).replace('-', ':').upper()
+                # 过滤广播/组播地址
+                if ip.endswith('.255') or mac.startswith('FF:FF'):
+                    continue
+                hostname = _resolve_hostname(ip) or ''
                 vendor = get_vendor(mac)
                 dtype = guess_device_type(hostname, vendor, mac)
-                devices.append({
-                    "ip": ip,
-                    "mac": mac,
-                    "hostname": hostname,
-                    "vendor": vendor,
-                    "device_type": dtype,
-                })
-                log.debug("[拓扑] 发现 %s (%s) %s", ip, mac or "?", vendor or "?")
-        except Exception:
-            pass
+                devices.append({"ip": ip, "mac": mac, "hostname": hostname, "vendor": vendor, "device_type": dtype})
+                log.debug("[拓扑] ARP 发现 %s (%s) %s", ip, mac, vendor or "?")
+    except Exception as e:
+        log.warning("[拓扑] ARP 读取失败: %s", e)
+    return devices
 
-    elapsed = time.time() - start
-    log.info("[拓扑] 扫描完成，发现 %d 台设备，耗时 %.1fs", len(devices), elapsed)
+
+def scan_topology(subnets=None):
+    """
+    读取本机 ARP 缓存表获取局域网设备（不发包，静默扫描）
+    仅在未配置 subnets 时自动检测本机所在网段的 ARP 条目
+    """
+    devices = get_all_devices_from_arp()
+    log.info("[拓扑] ARP 扫描完成，发现 %d 台设备", len(devices))
     return devices
 
 
