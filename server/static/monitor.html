@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>网络监控平台</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: #f5f5f7; color: #1d1d1f; padding: 32px; }
+h1 { font-size: 22px; font-weight: 600; margin-bottom: 4px; }
+.subtitle { font-size: 12px; color: #86868b; margin-bottom: 24px; }
+.card { background: #fff; border: 1px solid #e5e5ea; border-radius: 12px; padding: 20px; margin-bottom: 16px; }
+.card-title { font-size: 15px; font-weight: 600; margin-bottom: 4px; }
+.card-meta { font-size: 11px; color: #86868b; margin-bottom: 4px; }
+.online { color: #34c759; } .offline { color: #ff3b30; }
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 16px; }
+.refresh-btn { background: #007aff; color: #fff; border: none; border-radius: 8px; padding: 8px 16px; font-size: 13px; cursor: pointer; }
+.refresh-btn:hover { opacity: 0.8; }
+.empty { text-align: center; padding: 48px; color: #86868b; }
+.card-footer { display: flex; align-items: center; gap: 10px; margin-top: 10px; padding-top: 10px; border-top: 1px solid #f0f0f0; }
+.qr-img { width: 56px; height: 56px; border: 1px solid #f0f0f0; border-radius: 6px; flex-shrink: 0; }
+.qr-text { display: flex; flex-direction: column; gap: 2px; }
+.qr-label { font-size: 11px; color: #86868b; }
+.qr-btn { font-size: 11px; color: #007aff; cursor: pointer; }
+.qr-btn:hover { text-decoration: underline; }
+.metrics-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 12px; margin: 10px 0; }
+.metric-item { display: flex; align-items: center; gap: 6px; font-size: 12px; }
+.metric-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+.dot-green { background: #34c759; box-shadow: 0 0 5px rgba(52,199,89,0.5); }
+.dot-orange { background: #ff9500; box-shadow: 0 0 5px rgba(255,149,0,0.5); }
+.dot-red { background: #ff3b30; box-shadow: 0 0 5px rgba(255,59,48,0.5); }
+.dot-grey { background: #d2d2d7; }
+.metric-label { color: #86868b; min-width: 50px; }
+.metric-value { font-weight: 600; font-size: 12px; margin-left: auto; }
+.val-green { color: #34c759; }
+.val-orange { color: #ff9500; }
+.val-red { color: #ff3b30; }
+.val-gray { color: #aeaeb2; }
+.dot-gray { background: #aeaeb2; }
+.dot-yellow { background: #f59e0b; }
+.val-grey { color: #aeaeb2; }
+.footer { text-align: center; font-size: 11px; color: #aeaeb2; margin-top: 32px; padding-top: 16px; border-top: 1px solid #e5e5ea; }
+.footer a { color: #aeaeb2; text-decoration: none; }
+</style>
+</head>
+<body>
+<h1>网络监控平台</h1>
+<p class="subtitle">托管服务 · <span id="server-url"></span></p>
+<div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;">
+  <button class="refresh-btn" onclick="load()">刷新</button>
+  <a href="/download" style="background:#34c759;color:#fff;border:none;border-radius:8px;padding:8px 16px;font-size:13px;text-decoration:none;">📥 下载安装包</a>
+  <a href="/" style="background:#fff;color:#1d1d1f;border:1px solid #d2d2d7;border-radius:8px;padding:8px 16px;font-size:13px;text-decoration:none;">返回官网</a>
+</div>
+<hr style="margin:16px 0;border:none;border-top:1px solid #e5e5ea;">
+<div id="grid" class="grid"></div>
+<div class="footer">
+  <a href="/download">📥 下载安装包</a> · <a href="https://lanwatch.net">lanwatch.net</a> · 企业网络值守服务<br>
+  © 2026 · 所有权利保留
+</div>
+<script>
+var SERVER = location.origin;
+document.getElementById('server-url').textContent = SERVER;
+
+function metricDot(v, warn, crit) {
+  if (v === null || v === undefined || isNaN(v)) return { dot: 'dot-grey', val: 'val-grey', text: '-' };
+  var rounded = Math.round(v * 10) / 10;
+  if (v >= crit) return { dot: 'dot-red', val: 'val-red', text: rounded };
+  if (v >= warn) return { dot: 'dot-orange', val: 'val-orange', text: rounded };
+  return { dot: 'dot-green', val: 'val-green', text: rounded };
+}
+
+function metricItem(v, warn, crit, label, unit) {
+  var m = metricDot(v, warn, crit);
+  var text = m.text === '-' ? '-' : m.text + (unit || '');
+  return '<div class="metric-item">' +
+    '<span class="metric-dot ' + m.dot + '"></span>' +
+    '<span class="metric-label">' + label + '</span>' +
+    '<span class="metric-value ' + m.val + '">' + text + '</span>' +
+    '</div>';
+}
+
+function timeAgo(ts) {
+  var s = Math.floor(Date.now()/1000 - ts);
+  if (s < 60) return s + '秒前';
+  if (s < 3600) return Math.floor(s/60) + '分钟前';
+  return Math.floor(s/3600) + '小时前';
+}
+
+function copyText(text) {
+  if (navigator.clipboard) {
+    navigator.clipboard.writeText(text).then(function() { alert('链接已复制'); });
+  } else {
+    prompt('复制链接:', text);
+  }
+}
+
+function load() {
+  var grid = document.getElementById('grid');
+  grid.innerHTML = '<div class="empty">加载中...</div>';
+
+  var xhr = new XMLHttpRequest();
+  xhr.open('GET', SERVER + '/api/agents', true);
+  xhr.onload = function() {
+    try {
+      var agents = JSON.parse(xhr.responseText);
+      if (!agents.length) {
+        grid.innerHTML = '<div class="empty">暂无设备</div>';
+        return;
+      }
+      var html = '';
+      agents.forEach(function(agent) {
+        var xhr2 = new XMLHttpRequest();
+        xhr2.open('GET', SERVER + '/api/' + agent.id + '/latest', false);
+        xhr2.send(null);
+        var latest = null;
+        if (xhr2.status === 200) {
+          try { latest = JSON.parse(xhr2.responseText); } catch(e) {}
+        }
+        var isOnline = latest && (Date.now()/1000 - latest.timestamp) < 300;
+        var ago = latest ? timeAgo(latest.timestamp) : '无数据';
+        var status = isOnline ? '<span class="online">● 在线</span>' : '<span class="offline">● 离线</span>';
+        var pRtt = latest ? latest.ping_rtt_ms : null;
+        var pLoss = latest ? latest.ping_loss_pct : null;
+        var dns = latest ? latest.dns_ms : null;
+        var dnsAli = latest ? latest.dns_ms_ali : null;
+        var dnsTencent = latest ? latest.dns_ms_tencent : null;
+        var dns163 = latest ? latest.dns_ms_163 : null;
+        var tgtRtt = latest ? latest.target_rtt_ms : null;
+        var tgtOk = latest ? latest.target_reachable : null;
+        var tgtName = latest ? (latest.target_name || '目标') : '目标';
+        var mobileUrl = SERVER + '/mobile?id=' + agent.id;
+        var qrUrl = SERVER + '/api/qr?text=' + encodeURIComponent(mobileUrl);
+
+        html += '<div class="card">' +
+          '<div class="card-title">' + (agent.customer_name || agent.name) + ' ' + status + '</div>' +
+          '<div class="card-meta">' + agent.name + ' · ' + ago + '</div>' +
+          '<div class="metrics-grid">' +
+            (function(){
+              var icmpDot, icmpVal, icmpText;
+              if (pRtt == null && dns != null) {
+                icmpDot = 'dot-gray'; icmpVal = 'val-gray'; icmpText = '不支持';
+              } else if (pLoss > 0) {
+                icmpDot = 'dot-yellow'; icmpVal = 'val-yellow'; icmpText = '丢包' + pLoss + '%';
+              } else {
+                icmpDot = 'dot-green'; icmpVal = 'val-green'; icmpText = '支持';
+              }
+              return '<div class="metric-item"><span class="metric-dot ' + icmpDot + '"></span><span class="metric-label">ICMP</span><span class="metric-value ' + icmpVal + '">' + icmpText + '</span></div>';
+            })() +
+            (function(){
+              var items = [];
+              var servers = [['百度', dns], ['阿里', dnsAli], ['腾讯', dnsTencent], ['网易', dns163]];
+              for (var i = 0; i < servers.length; i++) {
+                var v = servers[i][1];
+                if (v == null) continue;
+                var m = v < 100 ? 'val-green' : (v < 300 ? 'val-orange' : 'val-red');
+                items.push('<span style="font-size:11px;color:#86868b;">' + servers[i][0] + ':</span><span class="metric-value ' + m + '" style="font-size:12px;">' + v.toFixed(0) + '</span>');
+              }
+              return '<div class="metric-item"><span class="metric-dot dot-green"></span><span class="metric-label" style="font-size:11px;">DNS</span>' + items.join(' <span style="color:#d2d2d7">|</span> ') + '</div>';
+            })() +
+            (tgtOk === false
+              ? '<div class="metric-item"><span class="metric-dot dot-red"></span><span class="metric-label">' + tgtName + '</span><span class="metric-value val-red">不可达</span></div>'
+              : metricItem(tgtRtt, 100, 300, tgtName, 'ms')) +
+          '</div>' +
+          '<div class="card-footer">' +
+            '<img class="qr-img" src="' + qrUrl + '" alt="二维码">' +
+            '<div class="qr-text">' +
+              '<span class="qr-label">手机查看专属</span>' +
+              '<span class="qr-btn" onclick="copyText(\'' + mobileUrl + '\')">复制链接</span>' +
+            '</div>' +
+            '<a class="qr-btn" href="/agent/' + agent.id + '" style="margin-left:auto;color:#007aff;font-size:12px;">详细信息 →</a>' +
+          '</div>' +
+          '</div>';
+      });
+      grid.innerHTML = html || '<div class="empty">无数据</div>';
+    } catch(e) {
+      grid.innerHTML = '<div class="empty">解析失败: ' + e.message + '</div>';
+    }
+  };
+  xhr.onerror = function() {
+    grid.innerHTML = '<div class="empty">网络请求失败</div>';
+  };
+  xhr.send(null);
+}
+
+load();
+var es = null;
+var esClosed = false;
+function connectSSE() {
+  if (esClosed) return;
+  es = new EventSource(SERVER + '/api/events');
+  es.onmessage = function(e) {
+    try {
+      var data = JSON.parse(e.data);
+      if (data.type === 'refresh') { load(); }
+    } catch(err) {}
+  };
+  es.onerror = function() {
+    es.close(); es = null;
+    if (!esClosed) { setTimeout(connectSSE, 3000); }
+  };
+}
+connectSSE();
+setInterval(load, 30000);
+</script>
+</body>
+</html>

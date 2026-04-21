@@ -1062,6 +1062,13 @@ def index():
         return FileResponse(str(static_path))
     return {"message": "网络监控平台"}
 
+@app.get("/monitor")
+def monitor_page():
+    monitor_path = Path(__file__).parent / "static" / "monitor.html"
+    if monitor_path.exists():
+        return FileResponse(str(monitor_path))
+    return {"message": "Not found"}
+
 @app.get("/mobile")
 def mobile():
     mobile_path = Path(__file__).parent / "static" / "mobile.html"
