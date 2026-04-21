@@ -474,6 +474,79 @@ def report_uninstall(agent_id):
         return None
 
 
+
+# ═══════════════════════════════════════════════════════════════
+# 离线断点诊断
+# ═══════════════════════════════════════════════════════════════
+
+TRACERT_TARGETS = ["www.baidu.com", "8.8.8.8"]
+DIAG_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "offline_diag.txt")
+
+
+def run_traceroute(target):
+    """执行 traceroute，返回跳列表或 None"""
+    cmd = 'tracert -h 15 ' + target if sys.platform == "win32" else 'traceroute -m 15 ' + target
+    try:
+        out, _ = _run_hidden(cmd, timeout=30)
+        hops = []
+        for line in out.splitlines():
+            m = re.search(r'^\s*(\d+)\s+.*?\s+([\d.]+)\s*ms', line)
+            if m:
+                hops.append({"hop": int(m.group(1)), "rtt": float(m.group(2))})
+            elif '*' in line:
+                hops.append({"hop": len(hops) + 1, "rtt": None})
+        return hops if hops else None
+    except Exception as e:
+        log.warning("[诊断] traceroute 失败: %s", e)
+        return None
+
+
+def run_offline_diag():
+    """执行离线诊断，保存本地文件"""
+    log.warning("[诊断] 网络异常，开始离线断点诊断...")
+    diag = {"time": time.strftime("%Y-%m-%d %H:%M:%S"), "target": None, "hops": None, "error": None}
+    for target in TRACERT_TARGETS:
+        hops = run_traceroute(target)
+        if hops:
+            diag["target"] = target
+            diag["hops"] = hops
+            break
+    if not diag["target"]:
+        diag["error"] = "所有目标均无法 traceroute"
+    try:
+        with open(DIAG_FILE, 'w', encoding='utf-8') as f:
+            f.write("=== LanWatch 离线断点诊断 ===\n")
+            f.write(f"时间: {diag['time']}\n")
+            if diag["target"]:
+                f.write(f"目标: {diag['target']}\n")
+                f.write("跳数 | 延迟\n")
+                for h in diag["hops"]:
+                    rtt_str = f"{h['rtt']:.1f} ms" if h['rtt'] else "超时"
+                    f.write(f"  {h['hop']:2d}   {rtt_str}\n")
+            else:
+                f.write(f"错误: {diag['error']}\n")
+        log.info("[诊断] 诊断结果已保存: %s", DIAG_FILE)
+    except Exception as e:
+        log.error("[诊断] 写入诊断文件失败: %s", e)
+    return diag
+
+
+def report_diag(diag_data, agent_id):
+    """上报诊断结果到服务端"""
+    try:
+        req = urllib.request.Request(
+            SERVER_URL + "/api/" + agent_id + "/diag",
+            data=json.dumps(diag_data).encode(),
+            headers={"Content-Type": "application/json"},
+            method="POST"
+        )
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            log.info("[诊断] 已上报服务端")
+            return json.loads(resp.read())
+    except Exception as e:
+        log.warning("[诊断] 上报失败: %s", e)
+        return None
+
 def report_topology(devices, agent_id):
     """上报拓扑数据"""
     try:
@@ -1168,6 +1241,9 @@ def _run_monitoring(agent_id, company_name):
             else:
                 consecutive_errors += 1
                 log.warning("[探测] 上报失败 (连续失败 %d 次)", consecutive_errors)
+                if consecutive_errors >= 3:
+                    diag = run_offline_diag()
+                    threading.Thread(target=lambda: report_diag(diag, agent_id), daemon=True, name="diag").start()
                 update_tray_status(False)
         except KeyboardInterrupt:
             log.info("收到停止信号")
