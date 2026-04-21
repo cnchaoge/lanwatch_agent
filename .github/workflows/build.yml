@@ -14,24 +14,41 @@ jobs:
       attestations: write
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: '3.11'
 
+      - name: Check files
+        run: |
+          Write-Host "=== repo root ==="
+          ls .
+          Write-Host "=== agent/windows ==="
+          ls ./agent/windows/
+
       - name: Install dependencies
         run: |
-          pip install -r requirements.txt
+          pip install --upgrade pip
+          pip install -r agent/windows/requirements.txt
           pip install pyinstaller
 
       - name: Build exe
         working-directory: agent/windows
+        shell: pwsh
         run: |
-          pyinstaller --clean lanwatch_agent.spec
+          Write-Host "=== Python version ==="
+          python --version
+          Write-Host "=== PyInstaller version ==="
+          pyinstaller --version
+          Write-Host "=== Building ==="
+          pyinstaller --clean lanwatch_agent.spec 2>&1
+          Write-Host "=== Exit code: $LASTEXITCODE ==="
+          ls dist/ 2>&1
 
       - name: Upload artifact
+        if: success()
         uses: actions/upload-artifact@v4
         with:
           name: lanwatch_agent-win
