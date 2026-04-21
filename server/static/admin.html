@@ -1,0 +1,520 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>管理后台</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: #f5f5f7; color: #1d1d1f; }
+.login-wrap { min-height: 100vh; display: flex; align-items: center; justify-content: center; }
+.login-box { background: #fff; border: 1px solid #e5e5ea; border-radius: 16px; padding: 40px; width: 360px; }
+.login-box h2 { font-size: 20px; margin-bottom: 8px; text-align: center; }
+.login-box p { font-size: 13px; color: #86868b; text-align: center; margin-bottom: 24px; }
+.login-box input { width: 100%; padding: 10px 14px; border: 1px solid #d2d2d7; border-radius: 8px; font-size: 14px; margin-bottom: 12px; outline: none; }
+.login-box input:focus { border-color: #007aff; }
+.login-box button { width: 100%; background: #007aff; color: #fff; border: none; border-radius: 8px; padding: 10px; font-size: 14px; cursor: pointer; }
+.login-box button:hover { opacity: 0.8; }
+.login-error { color: #ff3b30; font-size: 12px; text-align: center; margin-top: 8px; display: none; }
+.header { background: #fff; border-bottom: 1px solid #e5e5ea; padding: 16px 32px; display: flex; align-items: center; justify-content: space-between; }
+.header h1 { font-size: 18px; }
+.btn { background: #007aff; color: #fff; border: none; border-radius: 8px; padding: 7px 14px; font-size: 13px; cursor: pointer; }
+.btn:hover { opacity: 0.8; }
+.btn-secondary { background: #5856d6; }
+.btn-small { padding: 4px 10px; font-size: 12px; border-radius: 6px; border: none; cursor: pointer; }
+.btn-edit { background: #f0f0f0; color: #1d1d1f; }
+.btn-del { background: rgba(255,59,48,0.1); color: #ff3b30; }
+.content { padding: 24px 32px; }
+.panel { background: #fff; border: 1px solid #e5e5ea; border-radius: 12px; margin-bottom: 20px; overflow: hidden; }
+.panel-head { padding: 14px 20px; border-bottom: 1px solid #f0f0f0; display: flex; align-items: center; justify-content: space-between; font-size: 14px; font-weight: 600; }
+.panel-head span { font-size: 12px; color: #86868b; font-weight: 400; }
+.empty { text-align: center; padding: 40px; color: #86868b; font-size: 13px; }
+.mono { font-family: "Menlo", "Consolas", monospace; font-size: 11px; background: #f5f5f7; padding: 2px 6px; border-radius: 4px; word-break: break-all; }
+.tag { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 500; }
+.tag-green { background: rgba(52,199,89,0.12); color: #34c759; }
+.tag-red { background: rgba(255,59,48,0.12); color: #ff3b30; }
+.tag-grey { background: #f0f0f0; color: #86868b; }
+.status-dot { width: 6px; height: 6px; border-radius: 50%; display: inline-block; margin-right: 4px; }
+.status-on { background: #34c759; }
+.status-off { background: #ff3b30; }
+
+/* 企业卡片 */
+.corp-card { border-bottom: 1px solid #f0f0f0; }
+.corp-card:last-child { border-bottom: none; }
+.corp-main { padding: 16px 20px; display: flex; align-items: center; gap: 12px; cursor: pointer; }
+.corp-main:hover { background: #f9f9fb; }
+.corp-toggle { font-size: 14px; color: #86868b; width: 20px; text-align: center; flex-shrink: 0; transition: transform 0.2s; }
+.corp-toggle.open { transform: rotate(90deg); }
+.corp-info { flex: 1; min-width: 0; }
+.corp-name { font-size: 15px; font-weight: 600; margin-bottom: 2px; }
+.corp-meta { font-size: 11px; color: #86868b; display: flex; gap: 12px; flex-wrap: wrap; }
+.corp-actions { display: flex; gap: 6px; flex-shrink: 0; }
+.corp-actions .btn-small { background: none; border: 1px solid #d2d2d7; color: #1d1d1f; }
+
+/* 设备列表（嵌套在企业下方）*/
+.agent-list { background: #fafafa; border-top: 1px solid #f0f0f0; padding: 8px 20px 12px 48px; display: none; }
+.agent-list.open { display: block; }
+.agent-item { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-bottom: 1px solid #f0f0f0; font-size: 13px; }
+.agent-item:last-child { border-bottom: none; }
+.agent-name { font-weight: 500; min-width: 120px; }
+.agent-id { font-family: "Menlo", monospace; font-size: 10px; color: #86868b; }
+.agent-location { color: #86868b; min-width: 80px; }
+.agent-online { min-width: 60px; }
+.agent-last { font-size: 11px; color: #86868b; min-width: 70px; }
+.agent-actions { margin-left: auto; display: flex; gap: 6px; }
+
+/* 弹窗 */
+.modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.4); display: flex; align-items: center; justify-content: center; z-index: 100; display: none; }
+.modal { background: #fff; border-radius: 16px; padding: 28px; width: 420px; max-height: 80vh; overflow-y: auto; }
+.modal h3 { font-size: 16px; margin-bottom: 16px; }
+.form-row { margin-bottom: 12px; }
+.form-row label { display: block; font-size: 12px; color: #86868b; margin-bottom: 4px; }
+.form-row input { width: 100%; padding: 8px 12px; border: 1px solid #d2d2d7; border-radius: 8px; font-size: 13px; outline: none; }
+.form-row input:focus { border-color: #007aff; }
+.modal-btns { display: flex; gap: 8px; justify-content: flex-end; margin-top: 16px; }
+.modal-btns button { padding: 7px 16px; border-radius: 8px; font-size: 13px; cursor: pointer; border: none; }
+.modal-btns .cancel { background: #f0f0f0; color: #1d1d1f; }
+.modal-btns .confirm { background: #007aff; color: #fff; }
+.modal-btns .confirm.danger { background: #ff3b30; color: #fff; }
+.info-text { font-size: 11px; color: #86868b; margin-top: 4px; }
+.footer { text-align: center; font-size: 11px; color: #aeaeb2; padding: 16px 0; border-top: 1px solid #e5e5ea; margin-top: 24px; }
+</style>
+</head>
+<body>
+
+<!-- 登录页 -->
+<div id="login-page" class="login-wrap">
+  <div class="login-box">
+    <h2>管理后台</h2>
+    <p>请输入管理员密码</p>
+    <input type="password" id="pw" placeholder="密码" onkeydown="if(event.key==='Enter')doLogin()">
+    <button onclick="doLogin()">登录</button>
+    <div class="login-error" id="login-error">密码错误，请重试</div>
+  </div>
+</div>
+
+<!-- 管理后台 -->
+<div id="admin-page" style="display:none">
+  <div class="header">
+    <h1>企业网络监控 · 管理后台</h1>
+    <div style="display:flex;align-items:center;gap:12px;">
+      <span style="font-size:12px;color:#86868b;">www.lanwatch.net</span>
+      <a href="/download" style="background:#34c759;color:#fff;border:none;border-radius:8px;padding:7px 14px;font-size:13px;text-decoration:none;">📥 下载</a>
+      <button class="btn" onclick="showAddUser()">+ 新建企业</button>
+    </div>
+  </div>
+
+  <div class="content">
+    <div class="panel">
+      <div class="panel-head">
+        企业与设备
+        <span id="total-count"></span>
+      </div>
+      <div id="main-list"></div>
+    </div>
+
+    <div class="panel" style="margin-top:20px;">
+      <div class="panel-head">
+        🌐 SNMP 设备监控
+        <span id="snmp-count"></span>
+        <button class="btn" style="margin-left:12px;background:#5856d6;" onclick="showAddSnmp()">+ 添加设备</button>
+      </div>
+      <div id="snmp-list"></div>
+    </div>
+  </div>
+
+  <div class="footer">
+    <a href="http://www.lanwatch.net" style="color:#aeaeb2;text-decoration:none;">www.lanwatch.net</a> · 企业网络值守服务 · © 2026
+  </div>
+</div>
+
+<!-- 新建/编辑企业弹窗 -->
+<div class="modal-overlay" id="modal-user">
+  <div class="modal">
+    <h3 id="modal-user-title">新建企业</h3>
+    <div class="form-row">
+      <label>企业名称 *</label>
+      <input id="f-name" placeholder="例如：河北诚航科技">
+    </div>
+    <div class="form-row">
+      <label>联系电话</label>
+      <input id="f-phone" placeholder="可选">
+    </div>
+    <div class="modal-btns">
+      <button class="cancel" onclick="closeModal('modal-user')">取消</button>
+      <button class="confirm" onclick="submitUser()">保存</button>
+    </div>
+  </div>
+</div>
+
+<!-- 编辑设备弹窗 -->
+<div class="modal-overlay" id="modal-agent">
+  <div class="modal">
+    <h3>编辑设备</h3>
+    <div class="form-row">
+      <label>设备名称</label>
+      <input id="f-agent-name" placeholder="例如：财务室监控">
+    </div>
+    <div class="form-row">
+      <label>安装位置</label>
+      <input id="f-agent-location" placeholder="例如：机房">
+    </div>
+    <div class="form-row">
+      <label>备注</label>
+      <input id="f-agent-remark" placeholder="可选备注">
+    </div>
+    <input type="hidden" id="f-agent-id">
+    <div class="modal-btns">
+      <button class="cancel" onclick="closeModal('modal-agent')">取消</button>
+      <button class="confirm" onclick="submitAgent()">保存</button>
+    </div>
+  </div>
+</div>
+
+<!-- SNMP 添加/编辑弹窗 -->
+<div class="modal-overlay" id="modal-snmp">
+  <div class="modal">
+    <h3 id="modal-snmp-title">添加 SNMP 设备</h3>
+    <input type="hidden" id="f-snmp-id">
+    <div class="form-row">
+      <label>设备名称</label>
+      <input id="f-snmp-name" placeholder="例如：总部路由器">
+    </div>
+    <div class="form-row">
+      <label>IP地址 *</label>
+      <input id="f-snmp-ip" placeholder="例如：192.168.1.1">
+    </div>
+    <div class="form-row">
+      <label>Community 字符串</label>
+      <input id="f-snmp-community" value="public" placeholder="通常为 public">
+    </div>
+    <div class="form-row">
+      <label>设备类型</label>
+      <select id="f-snmp-type" style="width:100%;padding:8px 12px;border:1px solid #d2d2d7;border-radius:8px;font-size:13px;outline:none;">
+        <option value="router">路由器</option>
+        <option value="switch">交换机</option>
+        <option value="firewall">防火墙</option>
+        <option value="gateway">网关</option>
+      </select>
+    </div>
+    <div class="modal-btns">
+      <button class="cancel" onclick="closeModal('modal-snmp')">取消</button>
+      <button class="confirm" onclick="submitSnmp()">保存</button>
+    </div>
+  </div>
+</div>
+
+<script>
+var SERVER = location.origin;
+var allUsers = [];
+var editUserId = null;
+
+function doLogin() {
+  var pw = document.getElementById('pw').value;
+  fetch(SERVER + '/api/admin/login', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({password: pw})
+  }).then(function(r) {
+    if (r.ok) {
+      document.getElementById('login-page').style.display = 'none';
+      document.getElementById('admin-page').style.display = 'block';
+      loadData();
+    } else {
+      document.getElementById('login-error').style.display = 'block';
+    }
+  }).catch(function() {
+    document.getElementById('login-error').style.display = 'block';
+  });
+}
+
+function timeAgo(ts) {
+  if (!ts) return '-';
+  var s = Math.floor(Date.now()/1000 - ts);
+  if (s < 60) return s + '秒前';
+  if (s < 3600) return Math.floor(s/60) + '分钟前';
+  if (s < 86400) return Math.floor(s/3600) + '小时前';
+  return Math.floor(s/86400) + '天前';
+}
+
+function render(users) {
+  var totalAgents = 0;
+  var totalOnline = 0;
+  users.forEach(function(u) {
+    var agents = u.agents || [];
+    totalAgents += agents.length;
+    agents.forEach(function(a) {
+      if (a.last_seen && (Date.now()/1000 - a.last_seen) < 300) totalOnline++;
+    });
+  });
+  document.getElementById('total-count').textContent =
+    users.length + ' 个企业 · ' + totalAgents + ' 台设备 · ' + totalOnline + ' 在线';
+
+  if (!users.length) {
+    document.getElementById('main-list').innerHTML = '<div class="empty">暂无企业，点击右上角新建</div>';
+    return;
+  }
+
+  var html = '';
+  users.forEach(function(u) {
+    var agents = u.agents || [];
+    html += '<div class="corp-card" id="corp-' + u.id + '">';
+    html += '<div class="corp-main" onclick="toggleCorp(\'' + u.id + '\')">';
+    html += '<span class="corp-toggle" id="toggle-' + u.id + '">▶</span>';
+    html += '<div class="corp-info">';
+    html += '<div class="corp-name">' + u.name + '</div>';
+    html += '<div class="corp-meta">';
+    html += '<span>📞 ' + (u.phone || '-') + '</span>';
+    html += '<span>🔑 Token: <span class="mono" style="font-size:10px;">' + u.token + '</span></span>';
+    html += '<span>🖥️ ' + agents.length + ' 台设备</span>';
+    html += '</div></div>';
+    html += '<div class="corp-actions" onclick="event.stopPropagation()">';
+    html += '<button class="btn-small btn-edit" onclick="editUser(\'' + u.id + '\')">编辑</button>';
+    html += '<button class="btn-small btn-edit" onclick="resetToken(\'' + u.id + '\')">重置Token</button>';
+    html += '<button class="btn-small btn-del" onclick="deleteUser(\'' + u.id + '\',\'' + u.name + '\')">删除</button>';
+    html += '</div></div>';
+
+    html += '<div class="agent-list" id="agents-' + u.id + '">';
+    if (!agents.length) {
+      html += '<div style="padding:8px 0;color:#86868b;font-size:12px;">暂无设备</div>';
+    } else {
+      agents.forEach(function(a) {
+        var isOnline = a.last_seen && (Date.now()/1000 - a.last_seen) < 300;
+        html += '<div class="agent-item">';
+        html += '<span class="agent-name">' + a.name + '</span>';
+        html += '<span class="agent-id">' + a.id + '</span>';
+        html += '<span class="agent-location">' + (a.location || '-') + '</span>';
+        html += '<span class="agent-online">';
+        html += '<span class="status-dot ' + (isOnline ? 'status-on' : 'status-off') + '"></span>';
+        html += isOnline ? '<span class="tag tag-green">在线</span>' : '<span class="tag tag-red">离线</span>';
+        html += '</span>';
+        html += '<span class="agent-last">' + timeAgo(a.last_seen) + '</span>';
+        html += '<div class="agent-actions">';
+        html += '<button class="btn-small btn-edit" onclick="editAgent(\'' + a.id + '\')">编辑</button>';
+        html += '<a class="btn-small btn-edit" href="/agent/' + a.id + '" target="_blank" style="text-decoration:none;color:#1d1d1f;padding:4px 10px;border:1px solid #d2d2d7;border-radius:6px;font-size:12px;display:inline-block;">详情</a>';
+        html += '<button class="btn-small btn-del" onclick="deleteAgent(\'' + a.id + '\')">删除</button>';
+        html += '</div></div>';
+      });
+    }
+    html += '</div></div>';
+  });
+  document.getElementById('main-list').innerHTML = html;
+}
+
+function toggleCorp(id) {
+  var el = document.getElementById('agents-' + id);
+  var tog = document.getElementById('toggle-' + id);
+  if (el.classList.contains('open')) {
+    el.classList.remove('open');
+    tog.classList.remove('open');
+    tog.textContent = '▶';
+  } else {
+    el.classList.add('open');
+    tog.classList.add('open');
+    tog.textContent = '▼';
+  }
+}
+
+function showAddUser() {
+  editUserId = null;
+  document.getElementById('modal-user-title').textContent = '新建企业';
+  document.getElementById('f-name').value = '';
+  document.getElementById('f-phone').value = '';
+  document.getElementById('modal-user').style.display = 'flex';
+}
+
+function editUser(id) {
+  var u = allUsers.find(function(x){ return x.id === id; });
+  if (!u) return;
+  editUserId = id;
+  document.getElementById('modal-user-title').textContent = '编辑企业';
+  document.getElementById('f-name').value = u.name;
+  document.getElementById('f-phone').value = u.phone || '';
+  document.getElementById('modal-user').style.display = 'flex';
+}
+
+function submitUser() {
+  var name = document.getElementById('f-name').value.trim();
+  var phone = document.getElementById('f-phone').value.trim();
+  if (!name) { alert('请填写企业名称'); return; }
+  if (editUserId) {
+    fetch(SERVER + '/api/admin/users/' + editUserId, {
+      method: 'PATCH',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({name: name, phone: phone})
+    }).then(function(r){ return r.json(); }).then(function() {
+      closeModal('modal-user');
+      loadData();
+    });
+  } else {
+    fetch(SERVER + '/api/admin/users', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({name: name, phone: phone})
+    }).then(function(r){ return r.json(); }).then(function(d) {
+      closeModal('modal-user');
+      loadData();
+      if (d.token) alert('创建成功！\n企业：' + name + '\nToken：' + d.token + '\n请将此Token告知企业管理员');
+    });
+  }
+}
+
+function resetToken(id) {
+  if (!confirm('确定要重置该企业的登录Token吗？旧Token将失效。')) return;
+  fetch(SERVER + '/api/admin/users/' + id + '/reset-token', {method:'POST'}).then(function(r){ return r.json(); }).then(function(d) {
+    if (d.token) { alert('Token已重置！\n新Token：' + d.token); loadData(); }
+  });
+}
+
+function deleteUser(id, name) {
+  if (!confirm('确定删除企业「' + name + '」吗？该操作不可恢复，名下所有设备也将被删除。')) return;
+  fetch(SERVER + '/api/admin/users/' + id, {method:'DELETE'}).then(function(r){ return r.json(); }).then(function() { loadData(); });
+}
+
+function editAgent(id) {
+  var found = null;
+  allUsers.forEach(function(u) { (u.agents||[]).forEach(function(a) { if (a.id === id) found = a; }); });
+  if (!found) return;
+  document.getElementById('f-agent-id').value = id;
+  document.getElementById('f-agent-name').value = found.name || '';
+  document.getElementById('f-agent-location').value = found.location || '';
+  document.getElementById('f-agent-remark').value = found.remark || '';
+  document.getElementById('modal-agent').style.display = 'flex';
+}
+
+function submitAgent() {
+  var id = document.getElementById('f-agent-id').value;
+  fetch(SERVER + '/api/admin/agents/' + id, {
+    method: 'PATCH',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({
+      name: document.getElementById('f-agent-name').value.trim(),
+      location: document.getElementById('f-agent-location').value.trim(),
+      remark: document.getElementById('f-agent-remark').value.trim()
+    })
+  }).then(function(r){ return r.json(); }).then(function() {
+    closeModal('modal-agent');
+    loadData();
+  });
+}
+
+function deleteAgent(id) {
+  if (!confirm('确定删除该设备吗？')) return;
+  fetch(SERVER + '/api/admin/agents/' + id, {method:'DELETE'}).then(function(r){ return r.json(); }).then(function() { loadData(); });
+}
+
+function closeModal(id) {
+  document.getElementById(id).style.display = 'none';
+}
+
+// ─── SNMP 设备管理 ──────────────────────────────────────────────────────────
+var allSnmpDevices = [];
+
+function loadSnmp() {
+  fetch(SERVER + '/api/admin/snmp').then(function(r){ return r.json(); }).then(function(devs) {
+    allSnmpDevices = devs;
+    renderSnmp(devs);
+  });
+}
+
+function renderSnmp(devs) {
+  document.getElementById('snmp-count').textContent = devs.length + ' 台设备';
+  if (!devs.length) {
+    document.getElementById('snmp-list').innerHTML = '<div class="empty">暂无 SNMP 设备，点击右上角添加</div>';
+    return;
+  }
+  var html = '<div style="padding:12px 20px;">';
+  devs.forEach(function(d) {
+    var isOnline = d.status === 'online';
+    var lastPoll = timeAgo(d.last_poll);
+    html += '<div style="display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid #f0f0f0;font-size:13px;">';
+    html += '<span style="font-size:18px;">' + (d.device_type === 'switch' ? '🔃' : '📶') + '</span>';
+    html += '<div style="flex:1;min-width:0;">';
+    html += '<div style="font-weight:600;margin-bottom:2px;">' + (d.device_name || d.ip) + '</div>';
+    html += '<div style="font-size:11px;color:#86868b;">';
+    html += '<span class="mono">' + d.ip + '</span>';
+    html += '<span style="margin-left:8px;">社区: <span class="mono">' + d.community + '</span></span>';
+    html += '</div></div>';
+    html += '<span class="tag ' + (isOnline ? 'tag-green' : 'tag-red') + '">' + (isOnline ? '在线' : '离线') + '</span>';
+    html += '<span style="font-size:11px;color:#86868b;min-width:70px;">轮询:' + lastPoll + '</span>';
+    html += '<div style="display:flex;gap:6px;">';
+    html += '<button class="btn-small btn-edit" onclick="editSnmp(' + d.id + ')">编辑</button>';
+    html += '<button class="btn-small btn-edit" onclick="pollSnmpNow(' + d.id + ')">立即轮询</button>';
+    html += '<button class="btn-small btn-del" onclick="deleteSnmp(' + d.id + ')">删除</button>';
+    html += '</div></div>';
+  });
+  html += '</div>';
+  document.getElementById('snmp-list').innerHTML = html;
+}
+
+function showAddSnmp(id) {
+  document.getElementById('f-snmp-id').value = id || '';
+  document.getElementById('f-snmp-name').value = '';
+  document.getElementById('f-snmp-ip').value = '';
+  document.getElementById('f-snmp-community').value = 'public';
+  document.getElementById('f-snmp-type').value = 'router';
+  document.getElementById('modal-snmp-title').textContent = id ? '编辑设备' : '添加 SNMP 设备';
+  document.getElementById('modal-snmp').style.display = 'flex';
+}
+
+function editSnmp(id) {
+  var d = allSnmpDevices.find(function(x){ return x.id === id; });
+  if (!d) return;
+  document.getElementById('f-snmp-id').value = id;
+  document.getElementById('f-snmp-name').value = d.device_name || '';
+  document.getElementById('f-snmp-ip').value = d.ip;
+  document.getElementById('f-snmp-community').value = d.community || 'public';
+  document.getElementById('f-snmp-type').value = d.device_type || 'router';
+  document.getElementById('modal-snmp-title').textContent = '编辑设备';
+  document.getElementById('modal-snmp').style.display = 'flex';
+}
+
+function submitSnmp() {
+  var id = document.getElementById('f-snmp-id').value;
+  var data = {
+    ip: document.getElementById('f-snmp-ip').value.trim(),
+    community: document.getElementById('f-snmp-community').value.trim(),
+    device_name: document.getElementById('f-snmp-name').value.trim(),
+    device_type: document.getElementById('f-snmp-type').value
+  };
+  if (!data.ip) { alert('请填写 IP 地址'); return; }
+  var method = id ? 'PATCH' : 'POST';
+  var url = id ? SERVER + '/api/admin/snmp/' + id : SERVER + '/api/admin/snmp';
+  fetch(url, {
+    method: method,
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify(data)
+  }).then(function(r){ return r.json(); }).then(function() {
+    closeModal('modal-snmp');
+    loadSnmp();
+  });
+}
+
+function pollSnmpNow(id) {
+  fetch(SERVER + '/api/admin/snmp/' + id + '/poll', {method:'POST'}).then(function(r){ return r.json(); }).then(function(d) {
+    alert('轮询完成！\n状态: ' + (d.status || 'unknown'));
+    loadSnmp();
+  });
+}
+
+function deleteSnmp(id) {
+  if (!confirm('确定删除该 SNMP 设备吗？')) return;
+  fetch(SERVER + '/api/admin/snmp/' + id, {method:'DELETE'}).then(function(r){ return r.json(); }).then(function() { loadSnmp(); });
+}
+
+function loadData() {
+  fetch(SERVER + '/api/admin/users').then(function(r){ return r.json(); }).then(function(users) {
+    allUsers = users;
+    render(users);
+  });
+  loadSnmp();
+}
+
+document.querySelectorAll('.modal-overlay').forEach(function(el) {
+  el.addEventListener('click', function(e) {
+    if (e.target === el) el.style.display = 'none';
+  });
+});
+</script>
+</body>
+</html>
