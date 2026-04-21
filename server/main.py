@@ -2,6 +2,7 @@
 企业网络监控平台 - FastAPI 服务端 v0.4 SNMP 支持
 """
 import sqlite3
+import json
 import uuid
 import time
 import io
@@ -45,6 +46,20 @@ ADMIN_PASSWORD = "lanwatch2026"
 
 clients = set()  # 活跃的 SSE 连接
 _clients_lock = threading.Lock()
+
+def _schedule_notify():
+    """线程安全地调度 SSE 通知"""
+    try:
+        loop = asyncio.get_running_loop()
+    except RuntimeError:
+        loop = None
+    if loop and loop.is_running():
+        loop.call_soon_threadsafe(notify_agents_updated)
+    else:
+        try:
+            asyncio.get_event_loop().run_in_executor(None, notify_agents_updated)
+        except Exception:
+            pass
 
 def notify_agents_updated():
     """通知所有 SSE 客户端刷新设备列表（在独立线程中执行）"""
@@ -106,6 +121,22 @@ def init_db():
             )
         """)
 
+        # 创建 agents 表
+        c.execute("""
+            CREATE TABLE IF NOT EXISTS agents (
+                id TEXT PRIMARY KEY,
+                user_id TEXT NOT NULL,
+                name TEXT NOT NULL,
+                created_at REAL NOT NULL,
+                last_seen REAL DEFAULT 0,
+                customer_name TEXT DEFAULT '',
+                location TEXT DEFAULT '',
+                remark TEXT DEFAULT '',
+                subnets TEXT DEFAULT ''
+            )
+        """)
+        c.execute("CREATE INDEX IF NOT EXISTS idx_agents_user ON agents(user_id)")
+
         # 旧 agents 表可能没有 user_id，需要添加
         c.execute("PRAGMA table_info(agents)")
         cols = [row[1] for row in c.fetchall()]
@@ -113,6 +144,16 @@ def init_db():
             c.execute("ALTER TABLE agents ADD COLUMN user_id TEXT NOT NULL DEFAULT 'default'")
         if "subnets" not in cols:
             c.execute("ALTER TABLE agents ADD COLUMN subnets TEXT DEFAULT ''")
+        if "uninstalled" not in cols:
+            c.execute("ALTER TABLE agents ADD COLUMN uninstalled INTEGER DEFAULT 0")
+        if "last_alert_at" not in cols:
+            c.execute("ALTER TABLE agents ADD COLUMN last_alert_at REAL DEFAULT 0")
+        # probes table multi-DNS columns
+        c.execute("PRAGMA table_info(probes)")
+        probe_cols = [row[1] for row in c.fetchall()]
+        for col, dtype in [("dns_ms_ali", "REAL"), ("dns_ms_tencent", "REAL"), ("dns_ms_163", "REAL")]:
+            if col not in probe_cols:
+                c.execute("ALTER TABLE probes ADD COLUMN " + col + " " + dtype)
 
         c.execute("""
             CREATE TABLE IF NOT EXISTS probes (
@@ -123,6 +164,9 @@ def init_db():
                 ping_rtt_ms REAL,
                 ping_loss_pct REAL,
                 dns_ms REAL,
+                dns_ms_ali REAL,
+                dns_ms_tencent REAL,
+                dns_ms_163 REAL,
                 gateway_reachable INTEGER,
                 target_reachable INTEGER,
                 target_name TEXT,
@@ -287,24 +331,9 @@ def start_snmp_trap_receiver(port=10162):
     import socket
 
     def parse_trap(data):
-        """简单解析 SNMP Trap PDU"""
-        try:
-            # v2c Trap 格式: community + PDU
-            # PDU: request-id, error-status, error-index, varbinds
-            # varbinds: (OID, value) 列表
-            msg = {}
-            varbinds = []
-            # 简单解析：尝试提取 community 字符串和 varbind 对
-            # 格式大致是: community_string(压测) + 0x30(pdu) + ...
-            # 这里做简化：把 trap 里包含的字符串和 OID 提取出来
-            # 实际生产建议用 pysnmp 的 recvTrapIndication 回调
-            return {
-                'source': data[:20].hex() if len(data) >= 20 else data.hex(),
-                'raw_len': len(data),
-                'status': 'received'
-            }
-        except Exception as e:
-            return {'status': 'parse_error', 'error': str(e)}
+        # SNMP Trap 解析暂未实现，当前仅记录收到的事实
+        # TODO: 接入 pysnmp recvTrapIndication 回调
+        return {source: data[:20].hex() if len(data) >= 20 else data.hex(), raw_len: len(data), status: received}
 
     def handle_trap(sock):
         try:
@@ -375,6 +404,9 @@ class ProbeReport(BaseModel):
     ping_rtt_ms: Optional[float] = None
     ping_loss_pct: float = 0.0
     dns_ms: Optional[float] = None
+    dns_ms_ali: Optional[float] = None
+    dns_ms_tencent: Optional[float] = None
+    dns_ms_163: Optional[float] = None
     gateway_reachable: bool = True
     target_reachable: bool = True
     target_name: Optional[str] = ""
@@ -584,7 +616,7 @@ class AgentUpdate(BaseModel):
 def admin_login(data: LoginRequest):
     if data.password != ADMIN_PASSWORD:
         raise HTTPException(status_code=401, detail="密码错误")
-    return {"ok": True, "token": "admin-session"}
+    return {"ok": True, "token": secrets.token_hex(16)}
 
 @app.get("/api/admin/users")
 def list_all_users():
@@ -596,8 +628,31 @@ def list_all_users():
         for u in rows:
             udict = dict(u)
             agents = [dict(r) for r in conn.execute(
-                "SELECT * FROM agents WHERE user_id=? ORDER BY created_at", (udict["id"],)).fetchall()]
-            udict["agents"] = agents
+                "SELECT * FROM agents WHERE user_id=? AND uninstalled=0 ORDER BY created_at", (udict["id"],)).fetchall()]
+            # 每个 agent 带上最新的 probe 数据
+            agents_with_probes = []
+            for a in agents:
+                a_dict = dict(a)
+                latest = conn.execute(
+                    "SELECT * FROM probes WHERE agent_id=? ORDER BY timestamp DESC LIMIT 1",
+                    (a_dict["id"],)
+                ).fetchone()
+                if latest:
+                    a_dict["dns_ms"] = latest["dns_ms"]
+                    a_dict["dns_ms_ali"] = latest["dns_ms_ali"]
+                    a_dict["dns_ms_tencent"] = latest["dns_ms_tencent"]
+                    a_dict["dns_ms_163"] = latest["dns_ms_163"]
+                    a_dict["ping_loss_pct"] = latest["ping_loss_pct"]
+                    a_dict["ping_rtt_ms"] = latest["ping_rtt_ms"]
+                else:
+                    a_dict["dns_ms"] = None
+                    a_dict["dns_ms_ali"] = None
+                    a_dict["dns_ms_tencent"] = None
+                    a_dict["dns_ms_163"] = None
+                    a_dict["ping_loss_pct"] = None
+                    a_dict["ping_rtt_ms"] = None
+                agents_with_probes.append(a_dict)
+            udict["agents"] = agents_with_probes
             result.append(udict)
         return result
     finally:
@@ -695,8 +750,16 @@ def update_agent_admin(agent_id: str, data: AgentUpdate):
 def delete_agent_admin(agent_id: str):
     conn = get_db()
     try:
+        # 先查该 agent 关联的 SNMP 设备
+        snmp_devs = conn.execute("SELECT id FROM snmp_devices").fetchall()
+        for dev_row in snmp_devs:
+            conn.execute("DELETE FROM snmp_metrics WHERE device_id=?", (dev_row["id"],))
+        conn.execute("DELETE FROM snmp_devices")
+        conn.execute("DELETE FROM probes WHERE agent_id=?", (agent_id,))
+        conn.execute("DELETE FROM topology WHERE agent_id=?", (agent_id,))
         conn.execute("DELETE FROM agents WHERE id=?", (agent_id,))
         conn.commit()
+        _schedule_notify()
         return {"ok": True}
     finally:
         close_db(conn)
@@ -828,21 +891,30 @@ def report_probe(agent_id: str, data: ProbeReport):
         now = time.time()
         last_seen = row["last_seen"] or 0
 
-        # 离线报警
+        # 离线报警（已卸载的设备不报警，且同一设备5分钟内不重复报警）
+        row_dict = dict(row)
+        if row_dict.get('uninstalled'):
+            return {"ok": True, "note": "uninstalled"}
         offline_seconds = now - last_seen
-        if last_seen > 0 and offline_seconds > ALERT_THRESHOLD_SEC:
+        last_alert_at = row_dict.get('last_alert_at', 0)
+        if (last_seen > 0 and offline_seconds > ALERT_THRESHOLD_SEC
+                and (now - last_alert_at) > 300):
             customer = row["customer_name"] or row["name"]
             offline_min = int(offline_seconds / 60)
             send_alert(
                 f"⚠️ {customer} 网络离线 {offline_min} 分钟",
                 f"设备：{row['name']}\n离线时间：约 {offline_min} 分钟\n检测时间：{time.strftime('%H:%M:%S')}"
             )
+            conn.execute(
+                "UPDATE agents SET last_alert_at=? WHERE id=?",
+                (now, agent_id)
+            )
 
         conn.execute(
             """INSERT OR REPLACE INTO probes
                (agent_id, timestamp, ping_ok, ping_rtt_ms, ping_loss_pct,
                 dns_ms, gateway_reachable, target_reachable, target_name, target_rtt_ms)
-               VALUES (?,?,?,?,?,?,?,?,?,?)""",
+               VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)""",
             (agent_id, now, int(data.ping_ok), data.ping_rtt_ms,
              data.ping_loss_pct, data.dns_ms,
              int(data.gateway_reachable), int(data.target_reachable),
@@ -853,8 +925,24 @@ def report_probe(agent_id: str, data: ProbeReport):
             conn.execute("UPDATE agents SET subnets = ? WHERE id = ?", (data.subnets, agent_id))
         conn.commit()
         # 实时推送更新到所有浏览器
-        asyncio.get_event_loop().call_soon_threadsafe(notify_agents_updated)
+        _schedule_notify()
         return {"ok": True}
+    finally:
+        close_db(conn)
+
+@app.post("/api/{agent_id}/uninstall")
+def agent_uninstall(agent_id: str):
+    """客户端卸载时调用，标记该设备已卸载"""
+    conn = get_db()
+    try:
+        now = time.time()
+        conn.execute(
+            "UPDATE agents SET uninstalled=1, last_seen=? WHERE id=?",
+            (now, agent_id)
+        )
+        conn.commit()
+        _schedule_notify()
+        return {"ok": True, "agent_id": agent_id, "uninstalled": True}
     finally:
         close_db(conn)
 
@@ -1010,6 +1098,17 @@ async def events():
 # ─── 启动 ──────────────────────────────────────────────────────────────────
 
 @app.on_event("startup")
+def cleanup_old_probes():
+    """删除 7 天前的探测记录，控制数据量"""
+    conn = get_db()
+    try:
+        cutoff = time.time() - 7 * 24 * 3600
+        result = conn.execute("DELETE FROM probes WHERE timestamp < ?", (cutoff,))
+        conn.commit()
+        print(f"[DB] cleaned {result.rowcount} old probe records")
+    finally:
+        close_db(conn)
+
 def startup():
     init_db()
     start_snmp_poller()

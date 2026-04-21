@@ -37,6 +37,10 @@ body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; b
 .status-dot { width: 6px; height: 6px; border-radius: 50%; display: inline-block; margin-right: 4px; }
 .status-on { background: #34c759; }
 .status-off { background: #ff3b30; }
+.probe-metrics { display: flex; gap: 10px; font-size: 11px; color: #86868b; }
+.probe-metrics .ok { color: #34c759; }
+.probe-metrics .warn { color: #f59e0b; }
+.probe-metrics .muted { color: #aeaeb2; }
 
 /* 企业卡片 */
 .corp-card { border-bottom: 1px solid #f0f0f0; }
@@ -281,15 +285,15 @@ function render(users) {
       agents.forEach(function(a) {
         var isOnline = a.last_seen && (Date.now()/1000 - a.last_seen) < 300;
         html += '<div class="agent-item">';
+        var icmpInfo = (a.ping_rtt_ms == null && a.dns_ms != null) ? '<span class="muted">ICMP不支持</span>' : (a.ping_loss_pct != null && a.ping_loss_pct > 0 ? '<span class="warn">丢包' + a.ping_loss_pct + '%</span>' : '<span class="ok">ICMP正常</span>');
+        var dnsInfo = a.dns_ms != null ? '<span class="ok">DNS ' + a.dns_ms.toFixed(0) + 'ms</span>' : '<span class="muted">DNS -</span>';
         html += '<span class="agent-name">' + a.name + '</span>';
-        html += '<span class="agent-id">' + a.id + '</span>';
-        html += '<span class="agent-location">' + (a.location || '-') + '</span>';
+        html += '<div class="probe-metrics">' + dnsInfo + ' · ' + icmpInfo + '</div>';
         html += '<span class="agent-online">';
         html += '<span class="status-dot ' + (isOnline ? 'status-on' : 'status-off') + '"></span>';
         html += isOnline ? '<span class="tag tag-green">在线</span>' : '<span class="tag tag-red">离线</span>';
         html += '</span>';
         html += '<span class="agent-last">' + timeAgo(a.last_seen) + '</span>';
-        html += '<div class="agent-actions">';
         html += '<button class="btn-small btn-edit" onclick="editAgent(\'' + a.id + '\')">编辑</button>';
         html += '<a class="btn-small btn-edit" href="/agent/' + a.id + '" target="_blank" style="text-decoration:none;color:#1d1d1f;padding:4px 10px;border:1px solid #d2d2d7;border-radius:6px;font-size:12px;display:inline-block;">详情</a>';
         html += '<button class="btn-small btn-del" onclick="deleteAgent(\'' + a.id + '\')">删除</button>';
