@@ -189,14 +189,25 @@ def ping_multi(host, count=3, timeout=2):
     return bool(rtts), avg_rtt, loss
 
 
-def measure_dns(host="www.baidu.com"):
-    """测 DNS 解析延迟"""
+def measure_dns_single(host):
+    """测单个域名 DNS 解析延迟"""
     try:
         start = time.time()
         socket.gethostbyname(host)
         return (time.time() - start) * 1000
     except Exception:
         return None
+
+
+def measure_dns_multi():
+    """测多个 DNS 服务器质量（百度/阿里/腾讯/网易）"""
+    hosts = {
+        "dns_baidu": "www.baidu.com",
+        "dns_ali": "www.aliyun.com",
+        "dns_tencent": "www.qq.com",
+        "dns_163": "www.163.com",
+    }
+    return {k: measure_dns_single(h) for k, h in hosts.items()}
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -514,7 +525,8 @@ def run_probe(subnets=None):
     gw_ok, gw_rtt, gw_loss = ping_multi(gateway, count=3, timeout=2)
 
     # DNS 延迟
-    dns_ms = measure_dns()
+    dns_ms = measure_dns_single("www.baidu.com")
+    extra_dns = measure_dns_multi()
 
     # 探测目标列表（第一个可达的算目标）
     target_ok = False
@@ -539,6 +551,9 @@ def run_probe(subnets=None):
         "ping_rtt_ms": gw_rtt,
         "ping_loss_pct": gw_loss,
         "dns_ms": dns_ms,
+        "dns_ms_ali": extra_dns["dns_ali"],
+        "dns_ms_tencent": extra_dns["dns_tencent"],
+        "dns_ms_163": extra_dns["dns_163"],
         "gateway_reachable": gw_ok,
         "target_reachable": target_ok,
         "target_name": target_name,
