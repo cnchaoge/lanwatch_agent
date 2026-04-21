@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="zh" data-theme="dark">
+<html lang="zh" data-theme="light">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -11,7 +11,7 @@ body { background: var(--bg); }
 /* ─── Login ─── */
 .login-wrap {
   min-height: 100vh; display: flex; align-items: center; justify-content: center;
-  background: radial-gradient(circle at 50% 40%, rgba(79,142,247,0.10) 0%, transparent 60%);
+  background: radial-gradient(circle at 50% 40%, rgba(37,99,235,0.08) 0%, transparent 60%);
 }
 .login-box {
   background: var(--surface-solid); border: 1px solid var(--border);
@@ -250,7 +250,7 @@ var editUserId = null;
 /* Theme toggle */
 var toggle = document.getElementById('themeToggle');
 if (toggle) {
-  var stored = localStorage.getItem('lw-theme') || 'dark';
+  var stored = localStorage.getItem('lw-theme') || 'light';
   function applyTheme(t) {
     document.documentElement.setAttribute('data-theme', t);
     toggle.textContent = t === 'dark' ? '🌙' : '☀️';

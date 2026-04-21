@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="zh" data-theme="dark">
+<html lang="zh" data-theme="light">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -9,28 +9,6 @@
 <style>
 /* ─── Variables ─── */
 :root {
-  --bg: #0a0c14;
-  --bg-2: #0f1220;
-  --surface: rgba(255,255,255,0.05);
-  --surface-hover: rgba(255,255,255,0.08);
-  --border: rgba(255,255,255,0.09);
-  --text: #f0f2f8;
-  --muted: #8890a8;
-  --primary: #4f8ef7;
-  --primary-dim: rgba(79,142,247,0.14);
-  --green: #4ade80;
-  --green-dim: rgba(74,222,128,0.12);
-  --yellow: #fbbf24;
-  --red: #f87171;
-  --shadow: 0 24px 64px rgba(0,0,0,0.45);
-  --radius: 16px;
-  --radius-lg: 24px;
-  --font: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  --transition: 0.25s ease;
-}
-
-/* Light theme */
-[data-theme="light"] {
   --bg: #f4f6fb;
   --bg-2: #eaecf4;
   --surface: rgba(0,0,0,0.04);
@@ -40,7 +18,29 @@
   --muted: #6b7280;
   --primary: #2563eb;
   --primary-dim: rgba(37,99,235,0.10);
+  --green: #4ade80;
+  --green-dim: rgba(74,222,128,0.12);
+  --yellow: #fbbf24;
+  --red: #f87171;
   --shadow: 0 20px 60px rgba(0,0,0,0.08);
+  --radius: 16px;
+  --radius-lg: 24px;
+  --font: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --transition: 0.25s ease;
+}
+
+/* Dark theme */
+[data-theme="dark"] {
+  --bg: #0a0c14;
+  --bg-2: #0f1220;
+  --surface: rgba(255,255,255,0.05);
+  --surface-hover: rgba(255,255,255,0.08);
+  --border: rgba(255,255,255,0.09);
+  --text: #f0f2f8;
+  --muted: #8890a8;
+  --primary: #4f8ef7;
+  --primary-dim: rgba(79,142,247,0.14);
+  --shadow: 0 24px 64px rgba(0,0,0,0.45);
 }
 
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -66,11 +66,11 @@ button { cursor: pointer; font-family: inherit; }
   position: fixed; top: 0; left: 0; right: 0; z-index: 100;
   backdrop-filter: blur(20px) saturate(180%);
   -webkit-backdrop-filter: blur(20px) saturate(180%);
-  background: rgba(10,12,20,0.75);
+  background: rgba(244,246,251,0.80);
   border-bottom: 1px solid var(--border);
   transition: background var(--transition), border-color var(--transition);
 }
-[data-theme="light"] .nav { background: rgba(244,246,251,0.80); }
+[data-theme="dark"] .nav { background: rgba(10,12,20,0.80); }
 .nav-inner {
   display: flex; align-items: center; justify-content: space-between;
   height: 64px;
@@ -123,7 +123,7 @@ button { cursor: pointer; font-family: inherit; }
 .hero::before {
   content: ''; position: absolute; top: 0; left: 50%; transform: translateX(-50%);
   width: 900px; height: 600px;
-  background: radial-gradient(ellipse, rgba(79,142,247,0.12) 0%, transparent 70%);
+  background: radial-gradient(ellipse, rgba(37,99,235,0.10) 0%, transparent 70%);
   pointer-events: none;
 }
 .hero-grid {
@@ -317,7 +317,7 @@ button { cursor: pointer; font-family: inherit; }
 .cta-box::before {
   content: ''; position: absolute; top: -100px; left: 50%; transform: translateX(-50%);
   width: 500px; height: 300px;
-  background: radial-gradient(ellipse, rgba(79,142,247,0.20), transparent 70%);
+  background: radial-gradient(ellipse, rgba(37,99,235,0.18), transparent 70%);
   pointer-events: none;
 }
 .cta-box h2 {
@@ -746,7 +746,7 @@ button { cursor: pointer; font-family: inherit; }
 /* ─── Theme toggle ─── */
 const toggle = document.getElementById('themeToggle');
 const html = document.documentElement;
-const stored = localStorage.getItem('lw-theme') || 'dark';
+const stored = localStorage.getItem('lw-theme') || 'light';
 
 function applyTheme(theme) {
   html.setAttribute('data-theme', theme);
