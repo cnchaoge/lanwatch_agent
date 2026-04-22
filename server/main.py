@@ -16,6 +16,7 @@ from fastapi import FastAPI, HTTPException, Header
 from fastapi.responses import StreamingResponse
 from fastapi.responses import Response, FileResponse
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 import uvicorn
 import urllib.request
@@ -449,6 +450,9 @@ def get_current_user(authorization: Optional[str] = Header(None)):
 # ─── FastAPI ────────────────────────────────────────────────────────────────
 
 app = FastAPI(title="企业网络监控平台", version="0.1.0")
+
+app.mount("/static", StaticFiles(directory="static"), name="static")
+
 
 app.add_middleware(
     CORSMiddleware,
