@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="zh" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title id="page-title">新增客户 - LANWatch</title>
+<link rel="stylesheet" href="/static/theme.css">
+<style>
+body { background: var(--bg); min-height: 100vh; }
+.page-header { padding: 32px 0 24px; }
+.page-header h1 { font-size: 22px; font-weight: 800; letter-spacing: -0.03em; }
+.form-card { background: var(--surface-solid); border: 1px solid var(--border); border-radius: var(--radius-lg); box-shadow: var(--shadow); padding: 28px; max-width: 560px; }
+.form-row { margin-bottom: 18px; }
+.form-label { display: block; font-size: 12px; font-weight: 700; color: var(--muted); margin-bottom: 6px; }
+.form-label span { color: var(--red); margin-left: 2px; }
+.input { width: 100%; padding: 10px 13px; background: var(--bg); border: 1px solid var(--border); border-radius: 10px; color: var(--text); font-size: 14px; outline: none; transition: border-color 0.2s; }
+.input:focus { border-color: var(--primary); }
+.form-actions { display: flex; gap: 10px; margin-top: 24px; }
+.error-msg { color: var(--red); font-size: 13px; margin-top: 4px; display: none; }
+.loading { color: var(--muted); font-size: 14px; padding: 40px; text-align: center; }
+</style>
+</head>
+<body>
+
+<div class="nav">
+  <div class="container nav-inner">
+    <div class="nav-brand">
+      <div class="nav-icon">L</div>
+      <span>LANWatch</span>
+    </div>
+    <div class="nav-links">
+      <a href="/admin">设备</a>
+      <a href="/crm">客户</a>
+    </div>
+  </div>
+</div>
+
+<div class="container">
+  <div class="page-header">
+    <h1 id="form-title">新增客户</h1>
+  </div>
+
+  <div id="loading" class="form-card loading">加载中...</div>
+
+  <div class="form-card" id="form-card" style="display:none;">
+    <form id="form" method="post">
+      <input type="hidden" name="customer_id" id="customer_id">
+      <div class="form-row">
+        <label class="form-label">姓名 <span>*</span></label>
+        <input class="input" name="name" id="name" placeholder="请输入客户姓名" required>
+        <div class="error-msg" id="name-err">请输入姓名</div>
+      </div>
+      <div class="form-row">
+        <label class="form-label">公司</label>
+        <input class="input" name="company" id="company" placeholder="请输入公司名称">
+      </div>
+      <div class="form-row">
+        <label class="form-label">电话</label>
+        <input class="input" name="phone" id="phone" placeholder="请输入联系电话">
+      </div>
+      <div class="form-row">
+        <label class="form-label">邮箱</label>
+        <input class="input" name="email" id="email" type="email" placeholder="请输入邮箱地址">
+      </div>
+      <div class="form-row">
+        <label class="form-label">地址</label>
+        <input class="input" name="address" id="address" placeholder="请输入联系地址">
+      </div>
+      <div class="form-row">
+        <label class="form-label">备注</label>
+        <textarea class="input" name="notes" id="notes" rows="3" placeholder="客户备注信息，如项目背景、特殊需求等"></textarea>
+      </div>
+      <div class="form-actions">
+        <button type="submit" class="btn btn-primary" id="submit-btn">保存客户</button>
+        <a href="/crm" class="btn btn-ghost">取消</a>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+// 从路径 /customer/{id}/edit 中提取 id
+const pathParts = window.location.pathname.split('/');
+const isEdit = pathParts.includes('edit') && pathParts.length >= 3;
+const customerId = isEdit ? pathParts[2] : null;
+
+if (isEdit) {
+  document.getElementById('page-title').textContent = '编辑客户 - LANWatch';
+  document.getElementById('form-title').textContent = '编辑客户';
+  document.getElementById('submit-btn').textContent = '保存修改';
+  document.getElementById('form').action = `/customer/${customerId}/edit`;
+
+  // 加载客户数据
+  fetch(`/api/customers/${customerId}`)
+    .then(r => r.json())
+    .then(c => {
+      document.getElementById('name').value = c.name || '';
+      document.getElementById('company').value = c.company || '';
+      document.getElementById('phone').value = c.phone || '';
+      document.getElementById('email').value = c.email || '';
+      document.getElementById('address').value = c.address || '';
+      document.getElementById('notes').value = c.notes || '';
+      document.getElementById('loading').style.display = 'none';
+      document.getElementById('form-card').style.display = 'block';
+    })
+    .catch(() => {
+      document.getElementById('loading').textContent = '加载客户失败';
+    });
+} else {
+  document.getElementById('loading').style.display = 'none';
+  document.getElementById('form-card').style.display = 'block';
+}
+</script>
+
+</body>
+</html>
