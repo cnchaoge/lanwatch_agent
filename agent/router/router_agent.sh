@@ -172,7 +172,7 @@ ping_stats() {
     fi
 
     local rtt
-    rtt=$(echo "$output" | awk -F'/' '/min\/avg\/max/ {print $5}')
+    rtt=$(echo "$output" | awk -F'/' '/min\/avg\/max/ {gsub(/ ms/,"",$5); print $5}')
     local loss
     loss=$(echo "$output" | awk -F', ' '/packet loss/ {gsub(/%/ ,"", $3); print $3}' | awk '{print $1}')
     [ -n "$rtt" ] || rtt=""
@@ -188,13 +188,7 @@ measure_dns_domain() {
     local domain="$1"
     local start end
     start=$(now_ms)
-    if command_exists nslookup; then
-        nslookup "$domain" >/dev/null 2>&1 || return 1
-    elif command_exists ping; then
-        ping -c 1 -W 2 "$domain" >/dev/null 2>&1 || return 1
-    else
-        return 1
-    fi
+    ping -c 1 -W 3 "$domain" >/dev/null 2>&1 || return 1
     end=$(now_ms)
     echo $((end - start))
 }
