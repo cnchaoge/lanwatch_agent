@@ -1057,9 +1057,10 @@ def health():
 
 @app.get("/")
 def index():
-    # Root path served by nginx from /var/www/lanwatch.net/website/
-    # This fallback is for direct port access only
-    return {"message": "LANWatch 网络监控平台", "monitor": "/monitor"}
+    static_path = Path(__file__).parent / "static" / "index.html"
+    if static_path.exists():
+        return FileResponse(str(static_path))
+    return {"message": "Not found"}
 
 @app.get("/monitor")
 def monitor_page():
