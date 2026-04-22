@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
-"""
+# -*- coding: utf-8 -*-
+"""lanwatch_agent - 企业网络监控客户端 v0.6.3"""
+
 __version__ = "0.6.3"
 
 import socket
@@ -449,7 +451,7 @@ def report_offline(agent_id):
         pass
 
 
-def report_uninstall(agent_id):
+def report_uninstall(agent_id, timeout=10):
     """卸载时通知服务端，标记该设备已卸载"""
     try:
         req = urllib.request.Request(
@@ -458,7 +460,7 @@ def report_uninstall(agent_id):
             headers={"Content-Type": "application/json"},
             method="POST"
         )
-        with urllib.request.urlopen(req, timeout=10) as resp:
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
             result = json.loads(resp.read())
             log.info("[卸载] 通知服务端成功: %s", result)
             return result
@@ -753,18 +755,18 @@ def _do_uninstall_confirm():
     set_autostart(False)
     log.info("[卸载] 自启已删除")
 
-    # 2. 删除配置文件
+    # 2. 同步通知服务端（卸载时不能用 daemon 线程 + os._exit，否则线程会来不及发出请求）
+    if agent_id:
+        log.info("[卸载] 正在通知服务端...")
+        report_uninstall(agent_id, timeout=3)
+
+    # 3. 删除配置文件
     try:
         if os.path.exists(CONFIG_FILE):
             os.remove(CONFIG_FILE)
             log.info("[卸载] 配置已删除")
     except Exception as e:
         log.error("[卸载] 删除配置失败: %s", e)
-
-    # 3. 后台通知服务端（不阻塞）
-    if agent_id:
-        threading.Thread(target=lambda aid=agent_id: report_uninstall(aid),
-                         daemon=True, name="uninstall-notify").start()
 
     # 4. 关进程
     log.info("[卸载] 完成")

@@ -519,7 +519,7 @@ def list_agents_admin():
     """所有设备列表（管理员用，暂不认证）"""
     conn = get_db()
     try:
-        c = conn.execute("SELECT * FROM agents ORDER BY last_seen DESC")
+        c = conn.execute("SELECT * FROM agents WHERE uninstalled=0 ORDER BY last_seen DESC")
         rows = c.fetchall()
         return [dict(r) for r in rows]
     finally:
@@ -888,7 +888,7 @@ def report_probe(agent_id: str, data: ProbeReport):
     conn = get_db()
     try:
         c = conn.execute(
-            "SELECT id, name, customer_name, last_seen FROM agents WHERE id = ?",
+            "SELECT * FROM agents WHERE id = ?",
             (agent_id,)
         )
         row = c.fetchone()
