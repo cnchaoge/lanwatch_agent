@@ -258,6 +258,21 @@ button { cursor: pointer; font-family: inherit; }
   background: var(--bg-2); border: 1px solid var(--border);
   list-style: none;
 }
+
+/* ─── Pain points ─── */
+.pain-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 18px; }
+.pain-card {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius-lg); padding: 22px;
+  display: flex; flex-direction: column; align-items: flex-start; gap: 10px;
+  transition: background var(--transition), border-color var(--transition), transform 0.2s;
+}
+.pain-card:hover { background: var(--surface-hover); transform: translateY(-2px); }
+.pain-x { font-size: 20px; color: var(--red); }
+.pain-text { font-size: 13px; color: var(--muted); line-height: 1.7; flex: 1; }
+.pain-arrow { font-size: 16px; color: var(--muted); }
+.pain-check { font-size: 20px; color: var(--green); }
+.pain-solution { font-size: 13px; color: var(--text); line-height: 1.7; font-weight: 600; }
 .compare-list li::before { display: none; }
 
 /* ─── Screenshots ─── */
@@ -348,7 +363,7 @@ button { cursor: pointer; font-family: inherit; }
 }
 @media (max-width: 720px) {
   .section { padding: 64px 0; }
-  .feature-grid, .compare-grid, .shots-grid { grid-template-columns: 1fr; }
+  .feature-grid, .compare-grid, .shots-grid, .pain-grid { grid-template-columns: 1fr; }
   .nav-links { display: none; }
   .hero h1 { font-size: 34px; }
   .footer-inner { flex-direction: column; text-align: center; }
@@ -374,6 +389,7 @@ button { cursor: pointer; font-family: inherit; }
       <span>LANWatch</span>
     </a>
     <div class="nav-links">
+      <a href="#pain">运维困境</a>
       <a href="#features">核心能力</a>
       <a href="#compare">使用场景</a>
       <a href="#screens">产品界面</a>
@@ -459,6 +475,48 @@ button { cursor: pointer; font-family: inherit; }
           <span style="font-size:18px;">📶</span>
           <span>ARP 静默发现</span>
         </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ─── Pain points ─── -->
+<section class="section" id="pain" style="background:var(--bg-2);border-top:1px solid var(--border);border-bottom:1px solid var(--border);">
+  <div class="container">
+    <div class="reveal" style="text-align:center;">
+      <div class="section-label" style="justify-content:center;">运维困境</div>
+      <h2 class="section-title">您的网络运维，是否也在经历这些？</h2>
+      <p class="section-desc" style="margin-left:auto;margin-right:auto;">传统监控只告诉你"网络断了"，但从不告诉你"断在哪里"。LANWatch 把判断从现场挪到了远程。</p>
+    </div>
+
+    <div class="pain-grid reveal">
+      <div class="pain-card">
+        <div class="pain-x">❌</div>
+        <div class="pain-text">客户说"断网了"，你到现场发现路由器好好的，白跑一趟</div>
+        <div class="pain-arrow">↓</div>
+        <div class="pain-check">✓</div>
+        <div class="pain-solution">LANWatch 直接显示断在哪一跳，离线即告警，远程就能判断责任方</div>
+      </div>
+      <div class="pain-card">
+        <div class="pain-x">❌</div>
+        <div class="pain-text">ICMP 被禁，后台显示"100% 丢包"，其实网络完全正常</div>
+        <div class="pain-arrow">↓</div>
+        <div class="pain-check">✓</div>
+        <div class="pain-solution">ICMP 不支持时明确标注"不支持"，不再把协议限制误读为故障</div>
+      </div>
+      <div class="pain-card">
+        <div class="pain-x">❌</div>
+        <div class="pain-text">Traceroute 要手动跑，客户已经在催，维护体验很差</div>
+        <div class="pain-arrow">↓</div>
+        <div class="pain-check">✓</div>
+        <div class="pain-solution">离线自动触发 traceroute，结果本地留档并推送，手机直接看结论</div>
+      </div>
+      <div class="pain-card">
+        <div class="pain-x">❌</div>
+        <div class="pain-text">全网 ping 扫描被客户防火墙拦截，网络里留下一片噪音</div>
+        <div class="pain-arrow">↓</div>
+        <div class="pain-check">✓</div>
+        <div class="pain-solution">读本机 ARP 缓存，秒级完成，零发包，不打扰客户网络环境</div>
       </div>
     </div>
   </div>
