@@ -451,7 +451,8 @@ def get_current_user(authorization: Optional[str] = Header(None)):
 
 app = FastAPI(title="企业网络监控平台", version="0.1.0")
 
-app.mount("/static", StaticFiles(directory="static"), name="static")
+static_dir = Path(__file__).parent / "static"
+app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
 
 
 app.add_middleware(
