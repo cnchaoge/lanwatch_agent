@@ -52,30 +52,37 @@ http_post_json() {
     local url="$1"
     local payload="$2"
     local auth_token="$3"
+    local output code
 
     if command_exists curl; then
         if [ -n "$auth_token" ]; then
-            curl -fsS -m 10 -X POST "$url" \
+            output=$(curl -fsS -m 20 -X POST "$url" \
                 -H "Content-Type: application/json" \
                 -H "Authorization: Bearer $auth_token" \
-                -d "$payload"
+                -d "$payload" 2>&1)
         else
-            curl -fsS -m 10 -X POST "$url" \
+            output=$(curl -fsS -m 20 -X POST "$url" \
                 -H "Content-Type: application/json" \
-                -d "$payload"
+                -d "$payload" 2>&1)
         fi
+        code=$?
+        if [ $code -ne 0 ]; then
+            log "[curl失败] code=$code $url ${output}"
+            return $code
+        fi
+        echo "$output"
     elif command_exists wget; then
         if [ -n "$auth_token" ]; then
             wget -qO- \
                 --header="Content-Type: application/json" \
                 --header="Authorization: Bearer $auth_token" \
                 --post-data="$payload" \
-                "$url"
+                "$url" 2>/dev/null
         else
             wget -qO- \
                 --header="Content-Type: application/json" \
                 --post-data="$payload" \
-                "$url"
+                "$url" 2>/dev/null
         fi
     else
         log "[错误] 缺少 curl/wget，无法发送请求"
@@ -155,7 +162,11 @@ get_local_ip() {
 }
 
 get_subnets() {
-    ip -4 route show 2>/dev/null | awk '/scope link/ {print $1}' | paste -sd, -
+    local o=""
+    ip -4 route show 2>/dev/null | awk '/scope link/ {print $1}' | while read -r s; do
+        [ -n "$o" ] && o="$o,$s" || o="$s"
+    done
+    echo "$o"
 }
 
 get_uptime_seconds() {
@@ -165,7 +176,7 @@ get_uptime_seconds() {
 ping_stats() {
     local host="$1"
     local output
-    output=$(ping -c 3 -W 2 "$host" 2>/dev/null)
+    output=$(ping -c 1 -W 2 "$host" 2>/dev/null)
     if [ -z "$output" ]; then
         echo "0||100"
         return
@@ -188,7 +199,7 @@ measure_dns_domain() {
     local domain="$1"
     local start end
     start=$(now_ms)
-    ping -c 1 -W 3 "$domain" >/dev/null 2>&1 || return 1
+    ping -c 1 -W 2 "$domain" >/dev/null 2>&1 || return 1
     end=$(now_ms)
     echo $((end - start))
 }
@@ -213,10 +224,11 @@ build_probe_json() {
     target_rtt=$(echo "$target_line" | cut -d'|' -f2)
     target_loss=$(echo "$target_line" | cut -d'|' -f3)
 
-    dns_baidu=$(measure_dns_domain "www.baidu.com" 2>/dev/null || true)
-    dns_ali=$(measure_dns_domain "www.aliyun.com" 2>/dev/null || true)
-    dns_tencent=$(measure_dns_domain "www.qq.com" 2>/dev/null || true)
-    dns_163=$(measure_dns_domain "www.163.com" 2>/dev/null || true)
+    dns_baidu=$(measure_dns_domain "www.baidu.com" 2>/dev/null || true) &
+    dns_ali=$(measure_dns_domain "www.aliyun.com" 2>/dev/null || true) &
+    dns_tencent=$(measure_dns_domain "www.qq.com" 2>/dev/null || true) &
+    dns_163=$(measure_dns_domain "www.163.com" 2>/dev/null || true) &
+    wait
 
     [ -n "$dns_baidu" ] || dns_baidu=null
     [ -n "$dns_ali" ] || dns_ali=null
