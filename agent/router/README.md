@@ -1,6 +1,6 @@
 # OpenWrt / 路由器 Shell 客户端
 
-这是 LANWatch 的 **Shell 版路由器客户端 1.0 原型**，优先面向：
+> **设备支持备注**：本次更新（v0.6.4+）仅针对 **Xiaomi Redmi Router AX6000** 测试通过。
 
 - OpenWrt / LEDE
 - x86 软路由

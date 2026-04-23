@@ -1270,6 +1270,17 @@ def download_page():
         return FileResponse(str(download_path))
     return {"message": "Not found"}
 
+@app.get("/download/openwrt")
+def download_openwrt():
+    """OpenWRT 路由器客户端下载页"""
+    import os
+    agent_dir = Path(__file__).parent.parent / "agent" / "router"
+    html_path = agent_dir / "download.html"
+    if html_path.exists():
+        return FileResponse(str(html_path))
+    # 如果没有独立下载页，跳转到 github releases
+    return RedirectResponse(url="https://github.com/cnchaoge/lanwatch_agent/releases", status_code=302)
+
 @app.get("/api/qr")
 def generate_qr(text: str = ""):
     if not text:

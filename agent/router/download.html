@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LANWatch - OpenWRT 路由器客户端下载</title>
+<style>
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #0f172a; color: #e2e8f0; margin: 0; padding: 0; }
+.container { max-width: 680px; margin: 0 auto; padding: 40px 20px; }
+.header { text-align: center; margin-bottom: 36px; }
+.header h1 { font-size: 24px; font-weight: 700; color: #fff; margin-bottom: 8px; }
+.header p { color: #94a3b8; font-size: 14px; }
+.tested-badge { display: inline-block; background: #065f46; color: #6ee7b7; padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 600; margin-top: 8px; }
+.card { background: #1e293b; border: 1px solid #334155; border-radius: 16px; padding: 28px; margin-bottom: 20px; }
+.card h2 { font-size: 16px; font-weight: 600; color: #fff; margin: 0 0 6px 0; }
+.card p { color: #94a3b8; font-size: 13px; margin: 0 0 20px 0; line-height: 1.6; }
+.file-list { list-style: none; padding: 0; margin: 0; }
+.file-list li { display: flex; justify-content: space-between; align-items: center; padding: 12px 0; border-bottom: 1px solid #334155; }
+.file-list li:last-child { border-bottom: none; }
+.file-name { font-family: 'Menlo', monospace; font-size: 13px; color: #e2e8f0; }
+.file-desc { color: #64748b; font-size: 12px; margin-top: 2px; }
+.btn { display: inline-block; background: #3b82f6; color: #fff; text-decoration: none; padding: 8px 20px; border-radius: 8px; font-size: 13px; font-weight: 600; transition: background 0.2s; }
+.btn:hover { background: #2563eb; }
+.btn-outline { background: transparent; border: 1px solid #334155; color: #94a3b8; }
+.code-block { background: #0f172a; border: 1px solid #334155; border-radius: 10px; padding: 16px; margin: 16px 0; font-family: 'Menlo', monospace; font-size: 12px; color: #e2e8f0; line-height: 1.8; overflow-x: auto; }
+.code-block .comment { color: #64748b; }
+.code-block .cmd { color: #38bdf8; }
+.step { display: flex; gap: 12px; margin: 20px 0; }
+.step-num { width: 24px; height: 24px; background: #3b82f6; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700; flex-shrink: 0; }
+.step-content { font-size: 14px; line-height: 1.6; color: #cbd5e1; }
+.step-content strong { color: #fff; }
+.warn { background: #1c1917; border: 1px solid #44403c; border-radius: 8px; padding: 12px 16px; font-size: 12px; color: #a8a29e; line-height: 1.7; margin-top: 16px; }
+.warn strong { color: #f59e0b; }
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="header">
+    <h1>📡 OpenWRT 路由器客户端</h1>
+    <p>适用于 OpenWRT / LEDE 系统路由器</p>
+    <div class="tested-badge">✓ Xiaomi Redmi Router AX6000 测试通过</div>
+  </div>
+
+  <div class="card">
+    <h2>📦 下载文件包</h2>
+    <p>共 5 个文件，需要全部上传到路由器同一目录下执行安装。</p>
+    <ul class="file-list">
+      <li>
+        <div>
+          <div class="file-name">router_agent.sh</div>
+          <div class="file-desc">主程序脚本</div>
+        </div>
+        <a class="btn" href="https://raw.githubusercontent.com/cnchaoge/lanwatch_agent/master/agent/router/router_agent.sh">下载</a>
+      </li>
+      <li>
+        <div>
+          <div class="file-name">lanwatch.init</div>
+          <div class="file-desc">OpenWrt init.d 启动脚本</div>
+        </div>
+        <a class="btn" href="https://raw.githubusercontent.com/cnchaoge/lanwatch_agent/master/agent/router/lanwatch.init">下载</a>
+      </li>
+      <li>
+        <div>
+          <div class="file-name">install.sh</div>
+          <div class="file-desc">安装脚本（一键安装）</div>
+        </div>
+        <a class="btn" href="https://raw.githubusercontent.com/cnchaoge/lanwatch_agent/master/agent/router/install.sh">下载</a>
+      </li>
+      <li>
+        <div>
+          <div class="file-name">lanwatch.config</div>
+          <div class="file-desc">默认配置模板</div>
+        </div>
+        <a class="btn" href="https://raw.githubusercontent.com/cnchaoge/lanwatch_agent/master/agent/router/lanwatch.config">下载</a>
+      </li>
+      <li>
+        <div>
+          <div class="file-name">luci-app-lanwatch</div>
+          <div class="file-desc">LuCI 界面插件（可选）</div>
+        </div>
+        <a class="btn" href="https://github.com/cnchaoge/lanwatch_agent/tree/master/agent/router/luci-app-lanwatch">查看</a>
+      </li>
+    </ul>
+  </div>
+
+  <div class="card">
+    <h2>🚀 安装步骤</h2>
+    <div class="step">
+      <div class="step-num">1</div>
+      <div class="step-content"><strong>上传文件到路由器</strong><br>使用 scp 将整个 router 目录上传到路由器的 /tmp/lanwatch</div>
+    </div>
+    <div class="code-block">
+<span class="comment"># 在本地 Mac/Linux 执行</span>
+<span class="cmd">scp</span> -r agent/router root@192.168.8.1:/tmp/lanwatch
+<span class="comment"># 然后 SSH 登录路由器</span>
+<span class="cmd">ssh</span> root@192.168.8.1
+    </div>
+    <div class="step">
+      <div class="step-num">2</div>
+      <div class="step-content"><strong>执行安装脚本</strong></div>
+    </div>
+    <div class="code-block">
+<span class="cmd">cd /tmp/lanwatch</span>
+<span class="cmd">sh install.sh</span>
+    </div>
+    <div class="step">
+      <div class="step-num">3</div>
+      <div class="step-content"><strong>配置企业名称并启动</strong></div>
+    </div>
+    <div class="code-block">
+<span class="cmd">uci set lanwatch.main.company_name='我的企业'</span>
+<span class="cmd">uci commit lanwatch</span>
+<span class="cmd">/etc/init.d/lanwatch start</span>
+    </div>
+    <div class="warn">
+      <strong>⚠️ 注意：</strong>安装前请确保路由器已安装 <code>curl</code>。如未安装，执行 <code>opkg update && opkg install curl</code>
+    </div>
+  </div>
+
+  <div style="text-align:center; margin-top:24px;">
+    <a class="btn btn-outline" href="/download">← 返回下载中心</a>
+  </div>
+</div>
+</body>
+</html>
