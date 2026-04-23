@@ -52,7 +52,10 @@ h1 { font-size: 22px; font-weight: 600; margin-bottom: 4px; }
   <a href="/" style="background:#fff;color:#1d1d1f;border:1px solid #d2d2d7;border-radius:8px;padding:8px 16px;font-size:13px;text-decoration:none;">返回官网</a>
 </div>
 <hr style="margin:16px 0;border:none;border-top:1px solid #e5e5ea;">
+<h2 style="font-size:16px;font-weight:600;margin-bottom:12px;">🎯 客户端监控</h2>
 <div id="grid" class="grid"></div>
+<h2 style="font-size:16px;font-weight:600;margin:24px 0 12px;">📦 SNMP 设备监控</h2>
+<div id="snmp-grid" class="grid"></div>
 <div class="footer">
   <a href="/download">📥 下载安装包</a> · <a href="https://lanwatch.net">lanwatch.net</a> · 企业网络值守服务<br>
   © 2026 · 所有权利保留
@@ -180,6 +183,74 @@ function load() {
     grid.innerHTML = '<div class="empty">网络请求失败</div>';
   };
   xhr.send(null);
+
+  // 加载 SNMP 设备
+  loadSnmp();
+}
+
+function loadSnmp() {
+  var grid = document.getElementById('snmp-grid');
+  grid.innerHTML = '<div class="empty">加载中...</div>';
+  var xhr = new XMLHttpRequest();
+  xhr.open('GET', SERVER + '/api/snmp/latest', true);
+  xhr.onload = function() {
+    try {
+      var devices = JSON.parse(xhr.responseText);
+      if (!devices || !devices.length) {
+        grid.innerHTML = '<div class="empty">暂无 SNMP 设备</div>';
+        return;
+      }
+      var html = '';
+      devices.forEach(function(dev) {
+        var m = dev.metrics || {};
+        var status = dev.status === 1 ? '<span class="online">● 在线</span>' : '<span class="offline">● 离线</span>';
+        var ago = dev.last_poll ? timeAgo(dev.last_poll) : '无数据';
+        var typeIcon = {'router':'📡','switch':'🔌','server':'🖥','ap':'📶','other':'📦'}[dev.type] || '📦';
+        var ifIn = m['ifInOctets'] ? formatBytes(parseInt(m['ifInOctets'])) : '-';
+        var ifOut = m['ifOutOctets'] ? formatBytes(parseInt(m['ifOutOctets'])) : '-';
+        var uptime = m['sysUpTime'] ? formatUptime(parseInt(m['sysUpTime'])) : '-';
+        var cpu = m['hrProcessorLoad'] ? m['hrProcessorLoad'] + '%' : '-';
+        var memUsed = m['hrStorageUsed'] ? formatBytes(parseInt(m['hrStorageUsed'])) : '-';
+        var memTotal = m['hrStorageSize'] ? formatBytes(parseInt(m['hrStorageSize'])) : '-';
+        html += '<div class="card">' +
+          '<div class="card-title">' + typeIcon + ' ' + (dev.name || dev.ip) + ' ' + status + '</div>' +
+          '<div class="card-meta">' + dev.ip + ' · ' + ago + '</div>' +
+          '<div class="metrics-grid">' +
+            metricItem(ifIn !== '-' ? parseInt(m['ifInOctets']) : null, null, null, '入流量', '') +
+            metricItem(ifOut !== '-' ? parseInt(m['ifOutOctets']) : null, null, null, '出流量', '') +
+            metricItem(uptime !== '-' ? uptime : null, null, null, '运行时间', '') +
+            metricItem(cpu !== '-' ? parseInt(cpu) : null, 70, 90, 'CPU', '') +
+            metricItem(memUsed !== '-' ? memUsed : null, null, null, '存储已用', '') +
+            metricItem(memTotal !== '-' ? memTotal : null, null, null, '存储总量', '') +
+          '</div>' +
+          '</div>';
+      });
+      grid.innerHTML = html;
+    } catch(e) {
+      grid.innerHTML = '<div class="empty">解析失败: ' + e.message + '</div>';
+    }
+  };
+  xhr.onerror = function() {
+    grid.innerHTML = '<div class="empty">SNMP 数据获取失败</div>';
+  };
+  xhr.send(null);
+}
+
+function formatBytes(b) {
+  if (b == null || isNaN(b)) return '-';
+  if (b < 1024) return b + ' B';
+  if (b < 1048576) return (b/1024).toFixed(1) + ' KB';
+  if (b < 1073741824) return (b/1048576).toFixed(1) + ' MB';
+  return (b/1073741824).toFixed(2) + ' GB';
+}
+
+function formatUptime(ticks) {
+  if (!ticks || isNaN(ticks)) return '-';
+  var s = Math.floor(ticks / 100);
+  if (s < 60) return s + '秒';
+  if (s < 3600) return Math.floor(s/60) + '分';
+  if (s < 86400) return Math.floor(s/3600) + '小时';
+  return Math.floor(s/86400) + '天';
 }
 
 load();

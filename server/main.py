@@ -807,6 +807,36 @@ def list_snmp_devices():
     finally:
         close_db(conn)
 
+@app.get("/api/snmp/latest")
+def get_snmp_latest():
+    """获取所有SNMP设备的最新指标"""
+    conn = get_db()
+    try:
+        devices = conn.execute("SELECT * FROM snmp_devices").fetchall()
+        result = []
+        for dev in devices:
+            metrics = conn.execute(
+                "SELECT oid, value FROM snmp_metrics WHERE device_id=? ORDER BY timestamp DESC LIMIT 9",
+                (dev['id'],)
+            ).fetchall()
+            m = {}
+            for row in metrics:
+                if row['oid'] not in m:
+                    m[row['oid']] = row['value']
+            result.append({
+                'id': dev['id'],
+                'ip': dev['ip'],
+                'name': dev['device_name'],
+                'type': dev['device_type'],
+                'community': dev['community'],
+                'status': dev['status'],
+                'last_poll': dev['last_poll'],
+                'metrics': m
+            })
+        return result
+    finally:
+        close_db(conn)
+
 @app.post("/api/admin/snmp")
 def create_snmp_device(data: SNMPDeviceCreate):
     """添加 SNMP 监控设备"""
