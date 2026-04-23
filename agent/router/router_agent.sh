@@ -52,42 +52,38 @@ http_post_json() {
     local url="$1"
     local payload="$2"
     local auth_token="$3"
-    local output code
-
+    local ret
     if command_exists curl; then
         if [ -n "$auth_token" ]; then
-            output=$(curl -fsS -m 20 -X POST "$url" \
+            curl -fsS -m 20 -X POST "$url" \
                 -H "Content-Type: application/json" \
                 -H "Authorization: Bearer $auth_token" \
-                -d "$payload" 2>&1)
+                -d "$payload" 2>&1
         else
-            output=$(curl -fsS -m 20 -X POST "$url" \
+            curl -fsS -m 20 -X POST "$url" \
                 -H "Content-Type: application/json" \
-                -d "$payload" 2>&1)
+                -d "$payload" 2>&1
         fi
-        code=$?
-        if [ $code -ne 0 ]; then
-            log "[curl失败] code=$code $url ${output}"
-            return $code
-        fi
-        echo "$output"
+        ret=$?
     elif command_exists wget; then
         if [ -n "$auth_token" ]; then
-            wget -qO- \
+            wget -qO- -T 20 \
                 --header="Content-Type: application/json" \
                 --header="Authorization: Bearer $auth_token" \
                 --post-data="$payload" \
-                "$url" 2>/dev/null
+                "$url" 2>&1
         else
-            wget -qO- \
+            wget -qO- -T 20 \
                 --header="Content-Type: application/json" \
                 --post-data="$payload" \
-                "$url" 2>/dev/null
+                "$url" 2>&1
         fi
+        ret=$?
     else
         log "[错误] 缺少 curl/wget，无法发送请求"
         return 1
     fi
+    return $ret
 }
 
 save_uci_value() {
@@ -151,22 +147,18 @@ get_gateway() {
 }
 
 get_default_if() {
-    ip route 2>/dev/null | awk '/default/ {print $5; exit}'
+    ip -o route 2>/dev/null | awk '/default/ {print $5; exit}'
 }
 
 get_local_ip() {
     local iface
     iface=$(get_default_if)
     [ -n "$iface" ] || iface="br-lan"
-    ip -4 addr show "$iface" 2>/dev/null | awk '/inet / {print $2}' | head -1 | cut -d/ -f1
+    ip -o -4 addr show "$iface" 2>/dev/null | awk '/inet / {print $2}' | head -1 | cut -d/ -f1
 }
 
 get_subnets() {
-    local o=""
-    ip -4 route show 2>/dev/null | awk '/scope link/ {print $1}' | while read -r s; do
-        [ -n "$o" ] && o="$o,$s" || o="$s"
-    done
-    echo "$o"
+    ip -o -4 route show 2>/dev/null | awk '/scope link/ {print $1}' | awk 'BEGIN{s=""} {printf "%s%s",s,$1; s=","} END{print ""}'
 }
 
 get_uptime_seconds() {
@@ -176,14 +168,14 @@ get_uptime_seconds() {
 ping_stats() {
     local host="$1"
     local output
-    output=$(ping -c 1 -W 2 "$host" 2>/dev/null)
+    output=$(ping -c 3 -W 2 "$host" 2>/dev/null)
     if [ -z "$output" ]; then
         echo "0||100"
         return
     fi
 
     local rtt
-    rtt=$(echo "$output" | awk -F'/' '/min\/avg\/max/ {gsub(/ ms/,"",$5); print $5}')
+    rtt=$(echo "$output" | awk -F'/' '/min\/avg\/max/ {print $5}')
     local loss
     loss=$(echo "$output" | awk -F', ' '/packet loss/ {gsub(/%/ ,"", $3); print $3}' | awk '{print $1}')
     [ -n "$rtt" ] || rtt=""
@@ -199,55 +191,61 @@ measure_dns_domain() {
     local domain="$1"
     local start end
     start=$(now_ms)
-    ping -c 1 -W 2 "$domain" >/dev/null 2>&1 || return 1
+    if command_exists nslookup; then
+        nslookup "$domain" >/dev/null 2>&1 || return 1
+    elif command_exists ping; then
+        ping -c 1 -W 2 "$domain" >/dev/null 2>&1 || return 1
+    else
+        return 1
+    fi
     end=$(now_ms)
     echo $((end - start))
 }
 
 build_probe_json() {
-    local gateway local_ip subnets dns_baidu dns_ali dns_tencent dns_163
-    local ping_ok ping_rtt ping_loss target_ok target_rtt target_loss
-    local ping_line target_line router_name
+    local gateway local_ip subnets ping_ok ping_rtt ping_loss target_ok target_rtt
 
     gateway=$(get_gateway)
     local_ip=$(get_local_ip)
     subnets=$(get_subnets)
-    router_name=$(get_router_name)
 
-    ping_line=$(ping_stats "$gateway")
-    ping_ok=$(echo "$ping_line" | cut -d'|' -f1)
-    ping_rtt=$(echo "$ping_line" | cut -d'|' -f2)
-    ping_loss=$(echo "$ping_line" | cut -d'|' -f3)
+    # ping 网关（1次，2秒超时，快）
+    local ping_result
+    ping_result=$(ping -c 1 -W 2 "$gateway" 2>/dev/null)
+    if [ -z "$ping_result" ]; then
+        ping_ok=0; ping_rtt=null; ping_loss=100
+    else
+        local rtt_val loss_val
+        rtt_val=$(echo "$ping_result" | tail -1 | awk -F'/' '{print $5}' | sed 's/ ms//')
+        loss_val=$(echo "$ping_result" | grep -o "[0-9]*%" | head -1 | sed 's/%//')
+        [ -n "$rtt_val" ] && ping_ok=1 && ping_rtt="$rtt_val" || ping_ok=0 && ping_rtt=null
+        ping_loss=${loss_val:-100}
+    fi
 
-    target_line=$(ping_stats "$TARGET_HOST")
-    target_ok=$(echo "$target_line" | cut -d'|' -f1)
-    target_rtt=$(echo "$target_line" | cut -d'|' -f2)
-    target_loss=$(echo "$target_line" | cut -d'|' -f3)
+    # ping 目标（1次，2秒）
+    local target_result target_rtt_val target_loss_val
+    target_result=$(ping -c 1 -W 2 "$TARGET_HOST" 2>/dev/null)
+    if [ -z "$target_result" ]; then
+        target_ok=0; target_rtt=null
+    else
+        target_rtt_val=$(echo "$target_result" | tail -1 | awk -F'/' '{print $5}' | sed 's/ ms//')
+        [ -n "$target_rtt_val" ] && target_ok=1 && target_rtt="$target_rtt_val" || target_ok=0 && target_rtt=null
+    fi
 
-    dns_baidu=$(measure_dns_domain "www.baidu.com" 2>/dev/null || true) &
-    dns_ali=$(measure_dns_domain "www.aliyun.com" 2>/dev/null || true) &
-    dns_tencent=$(measure_dns_domain "www.qq.com" 2>/dev/null || true) &
-    dns_163=$(measure_dns_domain "www.163.com" 2>/dev/null || true) &
-    wait
-
-    [ -n "$dns_baidu" ] || dns_baidu=null
-    [ -n "$dns_ali" ] || dns_ali=null
-    [ -n "$dns_tencent" ] || dns_tencent=null
-    [ -n "$dns_163" ] || dns_163=null
     [ -n "$ping_rtt" ] || ping_rtt=null
     [ -n "$target_rtt" ] || target_rtt=null
 
     cat <<EOF
 {
-  "ping_ok": $( [ "$ping_ok" = "1" ] && echo true || echo false ),
+  "ping_ok": $([ "$ping_ok" = "1" ] && echo true || echo false),
   "ping_rtt_ms": $ping_rtt,
   "ping_loss_pct": ${ping_loss:-100},
-  "dns_ms": $dns_baidu,
-  "dns_ms_ali": $dns_ali,
-  "dns_ms_tencent": $dns_tencent,
-  "dns_ms_163": $dns_163,
-  "gateway_reachable": $( [ "$ping_ok" = "1" ] && echo true || echo false ),
-  "target_reachable": $( [ "$target_ok" = "1" ] && echo true || echo false ),
+  "dns_ms": null,
+  "dns_ms_ali": null,
+  "dns_ms_tencent": null,
+  "dns_ms_163": null,
+  "gateway_reachable": $([ "$ping_ok" = "1" ] && echo true || echo false),
+  "target_reachable": $([ "$target_ok" = "1" ] && echo true || echo false),
   "target_name": "$(json_escape "$TARGET_HOST")",
   "target_rtt_ms": $target_rtt,
   "subnets": "$(json_escape "$subnets")"
@@ -258,12 +256,19 @@ EOF
 build_topology_json() {
     local first=1
     printf '{"devices":['
-    ip neigh show 2>/dev/null | while read -r ip _ _ mac state _; do
+    ip neigh show 2>/dev/null | while read -r ip dev ifname lladdr mac state rest; do
         [ -n "$ip" ] || continue
-        [ -n "$mac" ] || continue
+        # 跳过 IPv6 链路本地地址
+        case "$ip" in
+            fe80:*) continue ;;
+        esac
+        # lladdr 表示有真实 MAC（state 字段实际是 REACHABLE/STALE/Failed 等）
+        # 跳过状态为 FAILED/INCOMPLETE 的条目（没有有效 MAC）
         case "$state" in
             FAILED|INCOMPLETE) continue ;;
         esac
+        # mac 必须是真实 MAC 地址（必须含冒号）
+        echo "$mac" | grep -q ":" || continue
         if [ $first -eq 0 ]; then
             printf ','
         fi
@@ -322,7 +327,17 @@ register_if_needed() {
 
 report_probe() {
     local payload="$1"
-    http_post_json "$SERVER_URL/api/$AGENT_ID/report" "$payload" "" >/dev/null 2>&1
+    local resp ret
+    resp=$(curl -fsS -m 20 -X POST "$SERVER_URL/api/$AGENT_ID/report" \
+        -H "Content-Type: application/json" \
+        -d "$payload" 2>&1)
+    ret=$?
+    if [ $ret -eq 0 ]; then
+        log "[上报] 成功 resp=$resp"
+    else
+        log "[上报] 失败 curl_exit=$ret resp=$resp"
+    fi
+    return $ret
 }
 
 report_topology_if_due() {

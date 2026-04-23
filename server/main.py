@@ -27,7 +27,7 @@ import socket
 
 # SNMP 支持
 try:
-    from pysnmp.hlapi import getCmd, SnmpEngine, CommunityData, UdpTransportTarget, ContextData, ObjectIdentity
+    from pysnmp.hlapi import getCmd, walkCmd, SnmpEngine, CommunityData, UdpTransportTarget, ContextData, ObjectIdentity, ObjectType
     SNMP_AVAILABLE = True
 except ImportError:
     SNMP_AVAILABLE = False
@@ -252,43 +252,53 @@ SNMP_OIDS = {
 
 SNMP_INTERVAL = 300  # 5分钟轮询一次
 
-def snmp_get(ips, community, oids):
-    """同步 SNMP GET，支持多个 OID"""
+def snmp_walk(ip, community, base_oid):
+    """SNMP WALK，返回 {index: value}"""
     results = {}
-    for oid_name, oid_obj in oids.items():
-        snmpEngine = SnmpEngine()
-        try:
-            g = getCmd(
-                snmpEngine,
-                CommunityData(community, mpModel=1),
-                UdpTransportTarget((ips, 161), timeout=3, retries=0),
-                ContextData(),
-                oid_obj
-            )
-            error_indication, error_status, error_index, var_binds = next(g)
-            snmpEngine.transportDispatcher.closeDispatcher()
-            if error_indication:
-                results[oid_name] = None
-            else:
-                for var_bind in var_binds:
-                    val = var_bind[1]
+    snmpEngine = SnmpEngine()
+    try:
+        g = walkCmd(
+            snmpEngine,
+            CommunityData(community, mpModel=1),
+            UdpTransportTarget((ip, 161), timeout=3, retries=0),
+            ContextData(),
+            ObjectType(ObjectIdentity(base_oid)),
+            lexicographicMode=False
+        )
+        for error_indication, error_status, error_index, var_binds in g:
+            if error_indication or error_status:
+                break
+            for var_bind in var_binds:
+                oid_str = str(var_bind[0])
+                val = var_bind[1]
+                idx = oid_str.rsplit('.', 1)[-1]
+                try:
+                    results[idx] = int(val)
+                except Exception:
                     try:
-                        results[oid_name] = int(val)
+                        results[idx] = float(val)
                     except Exception:
-                        try:
-                            results[oid_name] = float(val)
-                        except Exception:
-                            results[oid_name] = str(val)
-        except StopIteration:
-            results[oid_name] = None
-        except Exception as e:
-            results[oid_name] = None
-        finally:
-            try:
-                snmpEngine.transportDispatcher.closeDispatcher()
-            except Exception:
-                pass
+                        results[idx] = str(val)
+        snmpEngine.transportDispatcher.closeDispatcher()
+    except Exception:
+        pass
+    finally:
+        try:
+            snmpEngine.transportDispatcher.closeDispatcher()
+        except Exception:
+            pass
     return results
+
+
+SNMP_OIDS_WALK = [
+    ("ifInOctets",    "1.3.6.1.2.1.2.2.1.10"),
+    ("ifOutOctets",   "1.3.6.1.2.1.2.2.1.16"),
+    ("ifInUcastPkts", "1.3.6.1.2.1.2.2.1.11"),
+    ("ifOutUcastPkts","1.3.6.1.2.1.2.2.1.17"),
+    ("ifOperStatus",  "1.3.6.1.2.1.2.2.1.8"),
+    ("sysUpTime",     "1.3.6.1.2.1.1.3.0"),
+    ("hrProcessorLoad","1.3.6.1.2.1.25.3.3.1.2"),
+]
 
 def poll_snmp_devices():
     """轮询所有 SNMP 设备并写入指标"""
@@ -299,19 +309,26 @@ def poll_snmp_devices():
         devices = conn.execute("SELECT * FROM snmp_devices").fetchall()
         now = time.time()
         for dev in devices:
-            metrics = snmp_get(dev['ip'], dev['community'], SNMP_OIDS)
-            status = "online" if any(v is not None for v in metrics.values()) else "offline"
+            all_metrics = {}
+            online_count = 0
+            for oid_name, oid_str in SNMP_OIDS_WALK:
+                result = snmp_walk(dev['ip'], dev['community'], oid_str)
+                if result:
+                    online_count += 1
+                # 只存前6个接口（去重存储）
+                for idx, val in list(result.items())[:6]:
+                    all_metrics[f"{oid_name}.{idx}"] = val
+            status = "online" if online_count > 0 else "offline"
             conn.execute(
                 "UPDATE snmp_devices SET status=?, last_poll=? WHERE id=?",
                 (status, now, dev['id'])
             )
-            for oid_name, value in metrics.items():
-                if value is not None:
-                    conn.execute(
-                        "INSERT INTO snmp_metrics (device_id, oid, value, timestamp) VALUES (?,?,?,?)",
-                        (dev['id'], oid_name, float(value), now)
-                    )
-            print(f"[SNMP] polled {dev['ip']} status={status} metrics={sum(1 for v in metrics.values() if v is not None)}")
+            for key, value in all_metrics.items():
+                conn.execute(
+                    "INSERT INTO snmp_metrics (device_id, oid, value, timestamp) VALUES (?,?,?,?)",
+                    (dev['id'], key, float(value), now)
+                )
+            print(f"[SNMP] polled {dev['ip']} status={status} metrics={len(all_metrics)}")
         conn.commit()
         notify_agents_updated()
     finally:
@@ -908,18 +925,24 @@ def poll_snmp_device_now(device_id: int):
         device = conn.execute("SELECT * FROM snmp_devices WHERE id=?", (device_id,)).fetchone()
         if not device:
             raise HTTPException(status_code=404, detail="设备不存在")
-        metrics = snmp_get(device['ip'], device['community'], SNMP_OIDS)
+        all_metrics = {}
+        online_count = 0
+        for oid_name, oid_str in SNMP_OIDS_WALK:
+            result = snmp_walk(device['ip'], device['community'], oid_str)
+            if result:
+                online_count += 1
+            for idx, val in list(result.items())[:6]:
+                all_metrics[f"{oid_name}.{idx}"] = val
         now = time.time()
-        status = "online" if any(v is not None for v in metrics.values()) else "offline"
+        status = "online" if online_count > 0 else "offline"
         conn.execute("UPDATE snmp_devices SET status=?, last_poll=? WHERE id=?", (status, now, device_id))
-        for oid_name, value in metrics.items():
-            if value is not None:
-                conn.execute(
-                    "INSERT INTO snmp_metrics (device_id, oid, value, timestamp) VALUES (?,?,?,?)",
-                    (device_id, oid_name, float(value), now)
-                )
+        for key, value in all_metrics.items():
+            conn.execute(
+                "INSERT INTO snmp_metrics (device_id, oid, value, timestamp) VALUES (?,?,?,?)",
+                (device_id, key, float(value), now)
+            )
         conn.commit()
-        return {"ok": True, "status": status, "metrics": metrics}
+        return {"ok": True, "status": status, "metrics": all_metrics}
     finally:
         close_db(conn)
 
@@ -1160,7 +1183,7 @@ def customer_new_page():
     return {"message": "Not found"}
 
 @app.post("/customer/new")
-def customer_new_submit(request: Request):
+async def customer_new_submit(request: Request):
     """处理新增客户"""
     form = await request.form()
     name = form.get("name", "").strip()
@@ -1186,7 +1209,7 @@ def customer_edit_page(customer_id: int):
     return {"message": "Not found"}
 
 @app.post("/customer/{customer_id}/edit")
-def customer_edit_submit(customer_id: int, request: Request):
+async def customer_edit_submit(customer_id: int, request: Request):
     """处理编辑客户"""
     form = await request.form()
     name = form.get("name", "").strip()
@@ -1221,13 +1244,13 @@ def api_customer_get(customer_id: int):
     return get_customer(customer_id)
 
 @app.post("/api/customers")
-def api_customer_create(request: Request):
+async def api_customer_create(request: Request):
     """JSON 接口：创建客户"""
     data = await request.json()
     return create_customer(data)
 
 @app.put("/api/customers/{customer_id}")
-def api_customer_update(customer_id: int, request: Request):
+async def api_customer_update(customer_id: int, request: Request):
     """JSON 接口：更新客户"""
     data = await request.json()
     return update_customer(customer_id, data)
