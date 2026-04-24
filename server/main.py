@@ -361,12 +361,12 @@ def poll_snmp_devices():
             for oid_name, oid_str in SNMP_OIDS_WALK:
                 result = snmp_walk(
                     dev['ip'], dev['community'], oid_str,
-                    snmp_version=dev.get('snmp_version', 'v2c'),
-                    auth_user=dev.get('auth_user', ''),
-                    auth_protocol=dev.get('auth_protocol', 'SHA'),
-                    priv_protocol=dev.get('priv_protocol', 'AES'),
-                    auth_key=dev.get('auth_key', ''),
-                    priv_key=dev.get('priv_key', '')
+                    snmp_version=dict(dev).get('snmp_version', 'v2c'),
+                    auth_user=dict(dev).get('auth_user', ''),
+                    auth_protocol=dict(dev).get('auth_protocol', 'SHA'),
+                    priv_protocol=dict(dev).get('priv_protocol', 'AES'),
+                    auth_key=dict(dev).get('auth_key', ''),
+                    priv_key=dict(dev).get('priv_key', '')
                 )
                 if result:
                     online_count += 1
@@ -914,7 +914,7 @@ def get_snmp_latest():
                 'name': dev['device_name'],
                 'type': dev['device_type'],
                 'community': dev['community'],
-                'snmp_version': dev.get('snmp_version', 'v2c'),
+                'snmp_version': dict(dev).get('snmp_version', 'v2c'),
                 'status': dev['status'],
                 'last_poll': dev['last_poll'],
                 'metrics': m
@@ -1005,12 +1005,12 @@ def poll_snmp_device_now(device_id: int):
         for oid_name, oid_str in SNMP_OIDS_WALK:
             result = snmp_walk(
                 device['ip'], device['community'], oid_str,
-                snmp_version=device.get('snmp_version', 'v2c'),
-                auth_user=device.get('auth_user', ''),
-                auth_protocol=device.get('auth_protocol', 'SHA'),
-                priv_protocol=device.get('priv_protocol', 'AES'),
-                auth_key=device.get('auth_key', ''),
-                priv_key=device.get('priv_key', '')
+                snmp_version=dict(device).get('snmp_version', 'v2c'),
+                auth_user=dict(device).get('auth_user', ''),
+                auth_protocol=dict(device).get('auth_protocol', 'SHA'),
+                priv_protocol=dict(device).get('priv_protocol', 'AES'),
+                auth_key=dict(device).get('auth_key', ''),
+                priv_key=dict(device).get('priv_key', '')
             )
             if result:
                 online_count += 1
