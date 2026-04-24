@@ -35,6 +35,8 @@ except ImportError:
 
 from crm import init_crm_db, list_customers, get_customer, create_customer, update_customer, delete_customer
 
+# CRM 相关路由已移除（见 crm-system 仓库）
+
 # ─── 数据库 ─────────────────────────────────────────────────────────────────
 
 DB_PATH = Path(__file__).parent / "monitor.db"
@@ -232,8 +234,8 @@ def init_db():
         close_db(conn)
 
 def init_crm():
-    """初始化 CRM 客户表"""
-    init_crm_db()
+    """已迁移至 crm-system，保留函数避免启动报错"""
+    pass
 
 # ─── SNMP 轮询引擎 ──────────────────────────────────────────────────────────
 
@@ -1165,102 +1167,8 @@ def admin_page():
     return {"message": "Not found"}
 
 # ─── CRM 客户管理 ──────────────────────────────────────────────────────────
-
-@app.get("/crm")
-def crm_page():
-    """客户列表页"""
-    tpl = Path(__file__).parent / "crm_templates" / "list.html"
-    if tpl.exists():
-        return FileResponse(str(tpl))
-    return {"message": "Not found"}
-
-@app.get("/customer/new")
-def customer_new_page():
-    """新增客户表单页"""
-    tpl = Path(__file__).parent / "crm_templates" / "form.html"
-    if tpl.exists():
-        return FileResponse(str(tpl))
-    return {"message": "Not found"}
-
-@app.post("/customer/new")
-async def customer_new_submit(request: Request):
-    """处理新增客户"""
-    form = await request.form()
-    name = form.get("name", "").strip()
-    if not name:
-        raise HTTPException(status_code=400, detail="姓名为必填项")
-    create_customer({
-        "name": name,
-        "company": form.get("company", ""),
-        "phone": form.get("phone", ""),
-        "email": form.get("email", ""),
-        "address": form.get("address", ""),
-        "notes": form.get("notes", ""),
-    })
-    return RedirectResponse(url="/crm", status_code=302)
-
-@app.get("/customer/{customer_id}/edit")
-def customer_edit_page(customer_id: int):
-    """编辑客户表单页"""
-    tpl = Path(__file__).parent / "crm_templates" / "form.html"
-    if tpl.exists():
-        # 将 customer 数据注入到模板中（通过 URL 参数方式，实际用 JS 读取）
-        return FileResponse(str(tpl))
-    return {"message": "Not found"}
-
-@app.post("/customer/{customer_id}/edit")
-async def customer_edit_submit(customer_id: int, request: Request):
-    """处理编辑客户"""
-    form = await request.form()
-    name = form.get("name", "").strip()
-    if not name:
-        raise HTTPException(status_code=400, detail="姓名为必填项")
-    update_customer(customer_id, {
-        "name": name,
-        "company": form.get("company", ""),
-        "phone": form.get("phone", ""),
-        "email": form.get("email", ""),
-        "address": form.get("address", ""),
-        "notes": form.get("notes", ""),
-    })
-    return RedirectResponse(url="/crm", status_code=302)
-
-@app.get("/customer/{customer_id}/delete")
-def customer_delete(customer_id: int):
-    """删除客户"""
-    delete_customer(customer_id)
-    return RedirectResponse(url="/crm", status_code=302)
-
-# ─── CRM API ────────────────────────────────────────────────────────────────
-
-@app.get("/api/customers")
-def api_customers_list():
-    """JSON 接口：返回所有客户"""
-    return list_customers()
-
-@app.get("/api/customers/{customer_id}")
-def api_customer_get(customer_id: int):
-    """JSON 接口：返回单个客户"""
-    return get_customer(customer_id)
-
-@app.post("/api/customers")
-async def api_customer_create(request: Request):
-    """JSON 接口：创建客户"""
-    data = await request.json()
-    return create_customer(data)
-
-@app.put("/api/customers/{customer_id}")
-async def api_customer_update(customer_id: int, request: Request):
-    """JSON 接口：更新客户"""
-    data = await request.json()
-    return update_customer(customer_id, data)
-
-@app.delete("/api/customers/{customer_id}")
-def api_customer_delete(customer_id: int):
-    """JSON 接口：删除客户"""
-    return delete_customer(customer_id)
-
-# ─── 下载中心 ───────────────────────────────────────────────────────────────
+# 已迁移至 crm-system 仓库（https://github.com/cnchaoge/crm-system）
+# CRM 相关路由和 API 已移除 ───────────────────────────────────────────────────────────────
 
 @app.get("/download")
 def download_page():
