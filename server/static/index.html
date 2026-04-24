@@ -88,9 +88,30 @@ body {
   font-size: 13px; color: var(--primary); line-height: 1.7;
 }
 
-/* ─── Responsive ─── */
+/* ─── SNMP Card ─── */
+.snmp-card {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius-lg); padding: 18px 22px;
+  transition: background var(--transition), border-color var(--transition);
+}
+.snmp-card:hover { background: var(--surface-hover); }
+.snmp-card-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
+.snmp-card-name { font-size: 15px; font-weight: 700; }
+.snmp-card-ip { font-size: 11px; color: var(--muted); font-family: 'Menlo', monospace; margin-top: 2px; }
+.snmp-card-body { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 16px; }
+.snmp-metric { display: flex; align-items: center; gap: 6px; font-size: 12px; padding: 6px 0; border-top: 1px solid var(--border); }
+.snmp-metric:first-child { border-top: none; padding-top: 0; }
+.snmp-metric-label { color: var(--muted); min-width: 42px; }
+.snmp-metric-val { font-weight: 600; }
+.snmp-section { margin-top: 40px; }
+.snmp-section-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+.snmp-section-header h2 { font-size: 16px; font-weight: 700; color: var(--text); }
+.snmp-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 14px; }
+
 @media (max-width: 640px) {
   .metrics-grid { grid-template-columns: 1fr; }
+  .snmp-card-body { grid-template-columns: 1fr; }
+  .snmp-grid { grid-template-columns: 1fr; }
 }
 </style>
 </head>
@@ -133,6 +154,13 @@ body {
   </div>
 
   <div id="grid" class="cards-grid"></div>
+
+  <div class="snmp-section" id="snmp-section" style="display:none">
+    <div class="snmp-section-header">
+      <h2>📊 SNMP 监控设备</h2>
+    </div>
+    <div id="snmp-grid" class="snmp-grid"></div>
+  </div>
 </div>
 
 <div class="footer">
@@ -291,6 +319,76 @@ function load() {
 }
 
 load();
+loadSNMP();
+
+function loadSNMP() {
+  var snmpGrid = document.getElementById('snmp-grid');
+  var snmpSection = document.getElementById('snmp-section');
+  var xhr = new XMLHttpRequest();
+  xhr.open('GET', SERVER + '/api/snmp/latest', true);
+  xhr.onload = function() {
+    if (xhr.status !== 200) { snmpSection.style.display = 'none'; return; }
+    try {
+      var devices = JSON.parse(xhr.responseText);
+      if (!devices || devices.length === 0) { snmpSection.style.display = 'none'; return; }
+      snmpSection.style.display = 'block';
+      var html = '';
+      devices.forEach(function(dev) {
+        var m = dev.metrics || {};
+        var statusDot = dev.status === 'online'
+          ? '<span class="dot dot-green"></span>'
+          : (dev.status === 'offline' ? '<span class="dot dot-red"></span>' : '<span class="dot dot-grey"></span>');
+
+        var cpuKeys = Object.keys(m).filter(function(k) { return k.startsWith('hrProcessorLoad'); });
+        var cpuVal = cpuKeys.length ? m[cpuKeys[0]] : null;
+        var cpuTag = cpuVal != null
+          ? (cpuVal > 80 ? tagHTML('tag-red', cpuVal + '%') : cpuVal > 50 ? tagHTML('tag-yellow', cpuVal + '%') : tagHTML('tag-green', cpuVal + '%'))
+          : tagHTML('tag-grey', '-');
+
+        var ifIn = Object.keys(m).filter(function(k) { return k.startsWith('ifInOctets'); });
+        var ifCount = ifIn.length;
+
+        var upVal = m['sysUpTime'];
+        var upTag;
+        if (upVal != null) {
+          var secs = Math.floor(upVal / 100);
+          var days = Math.floor(secs / 86400);
+          var hrs = Math.floor((secs % 86400) / 3600);
+          upTag = tagHTML('tag-green', days > 0 ? days + '天' + hrs + '时' : hrs + '时');
+        } else {
+          upTag = tagHTML('tag-grey', '-');
+        }
+
+        var statusTag = dev.status === 'online'
+          ? tagHTML('tag-green', '在线')
+          : dev.status === 'offline'
+            ? tagHTML('tag-red', '离线')
+            : tagHTML('tag-grey', dev.status || '-');
+
+        var lastPoll = dev.last_poll ? timeAgo(dev.last_poll) : '-';
+
+        html += '<div class="snmp-card">' +
+          '<div class="snmp-card-header">' +
+            '<div>' +
+              '<div class="snmp-card-name">' + (dev.name || dev.ip) + '</div>' +
+              '<div class="snmp-card-ip">' + dev.ip + '</div>' +
+            '</div>' +
+            statusDot + ' ' + statusTag +
+          '</div>' +
+          '<div class="snmp-card-body">' +
+            '<div class="snmp-metric"><span class="snmp-metric-label">CPU</span><span class="snmp-metric-val">' + cpuTag + '</span></div>' +
+            '<div class="snmp-metric"><span class="snmp-metric-label">接口</span><span class="snmp-metric-val">' + tagHTML('tag-grey', ifCount + ' 个') + '</span></div>' +
+            '<div class="snmp-metric"><span class="snmp-metric-label">运行</span><span class="snmp-metric-val">' + upTag + '</span></div>' +
+            '<div class="snmp-metric"><span class="snmp-metric-label">轮询</span><span class="snmp-metric-val">' + tagHTML('tag-grey', lastPoll) + '</span></div>' +
+          '</div>' +
+        '</div>';
+      });
+      snmpGrid.innerHTML = html;
+    } catch(e) { snmpSection.style.display = 'none'; }
+  };
+  xhr.onerror = function() { snmpSection.style.display = 'none'; };
+  xhr.send(null);
+}
 
 var es = null;
 function connectSSE() {
