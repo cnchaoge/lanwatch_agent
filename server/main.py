@@ -192,25 +192,6 @@ def init_db():
         except Exception:
             pass
 
-        # SNMP 设备表（新建或升级）
-        c.execute("""
-            CREATE TABLE IF NOT EXISTS snmp_devices (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                ip TEXT UNIQUE NOT NULL,
-                community TEXT NOT NULL DEFAULT 'public',
-                snmp_version TEXT NOT NULL DEFAULT 'v2c',
-                auth_user TEXT DEFAULT '',
-                auth_protocol TEXT DEFAULT 'SHA',
-                priv_protocol TEXT DEFAULT 'AES',
-                auth_key TEXT DEFAULT '',
-                priv_key TEXT DEFAULT '',
-                device_name TEXT NOT NULL DEFAULT '',
-                device_type TEXT DEFAULT 'router',
-                status TEXT DEFAULT 'unknown',
-                last_poll REAL DEFAULT 0,
-                created_at REAL NOT NULL
-            )
-        """)
         # SNMP v3 列迁移（已有表补充 v3 字段）
         c.execute("PRAGMA table_info(snmp_devices)")
         snmp_cols = [row[1] for row in c.fetchall()]
@@ -222,7 +203,9 @@ def init_db():
             if col not in snmp_cols:
                 c.execute("ALTER TABLE snmp_devices ADD COLUMN " + col + " " + dtype)
 
-        # SNMP 指标数据表
+        # 拓扑数据表
+        c.execute("""
+            CREATE TABLE IF NOT EXISTS topology (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 agent_id TEXT NOT NULL,
                 ip TEXT NOT NULL,
@@ -946,12 +929,15 @@ def create_snmp_device(data: SNMPDeviceCreate):
     conn = get_db()
     try:
         now = time.time()
-        conn.execute(
-            "INSERT INTO snmp_devices (ip, community, snmp_version, auth_user, auth_protocol, priv_protocol, auth_key, priv_key, device_name, device_type, created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
-            (data.ip, data.community, data.snmp_version, data.auth_user,
-             data.auth_protocol, data.priv_protocol, data.auth_key, data.priv_key,
-             data.device_name, data.device_type, now)
-        )
+        try:
+            conn.execute(
+                "INSERT INTO snmp_devices (ip, community, snmp_version, auth_user, auth_protocol, priv_protocol, auth_key, priv_key, device_name, device_type, created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+                (data.ip, data.community, data.snmp_version, data.auth_user,
+                 data.auth_protocol, data.priv_protocol, data.auth_key, data.priv_key,
+                 data.device_name, data.device_type, now)
+            )
+        except sqlite3.IntegrityError:
+            raise HTTPException(status_code=409, detail="该 IP 已存在，请先删除再重新添加")
         conn.commit()
         device = conn.execute("SELECT * FROM snmp_devices WHERE ip=?", (data.ip,)).fetchone()
         return dict(device)
@@ -993,6 +979,39 @@ def delete_snmp_device(device_id: int):
         conn.execute("DELETE FROM snmp_devices WHERE id=?", (device_id,))
         conn.commit()
         return {"ok": True}
+    finally:
+        close_db(conn)
+
+@app.get("/api/snmp/{device_id}")
+def get_snmp_device_detail(device_id: int):
+    """获取 SNMP 设备详情（含最新指标）"""
+    conn = get_db()
+    try:
+        dev = conn.execute("SELECT * FROM snmp_devices WHERE id=?", (device_id,)).fetchone()
+        if not dev:
+            raise HTTPException(status_code=404, detail="设备不存在")
+        metrics = conn.execute(
+            "SELECT oid, value, timestamp FROM snmp_metrics WHERE device_id=? ORDER BY timestamp DESC",
+            (device_id,)
+        ).fetchall()
+        return {
+            "device": dict(dev),
+            "metrics": [dict(r) for r in metrics]
+        }
+    finally:
+        close_db(conn)
+
+@app.get("/api/snmp/{device_id}/history")
+def get_snmp_history(device_id: int, hours: int = 24):
+    """获取 SNMP 设备历史数据（用于画图）"""
+    conn = get_db()
+    try:
+        since = time.time() - hours * 3600
+        rows = conn.execute(
+            "SELECT oid, value, timestamp FROM snmp_metrics WHERE device_id=? AND timestamp>? ORDER BY timestamp ASC",
+            (device_id, since)
+        ).fetchall()
+        return [dict(r) for r in rows]
     finally:
         close_db(conn)
 
@@ -1254,6 +1273,14 @@ def agent_detail(agent_id: str):
     detail_path = Path(__file__).parent / "static" / "agent_detail.html"
     if detail_path.exists():
         return FileResponse(str(detail_path))
+    return {"message": "Not found"}
+
+@app.get("/snmp/{device_id}")
+def snmp_detail_page(device_id: int):
+    """SNMP 设备详情页"""
+    path = Path(__file__).parent / "static" / "snmp_detail.html"
+    if path.exists():
+        return FileResponse(str(path))
     return {"message": "Not found"}
 
 @app.get("/admin")

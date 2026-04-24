@@ -1,0 +1,378 @@
+<!DOCTYPE html>
+<html lang="zh" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SNMP 设备详情 - LANWatch</title>
+<link rel="stylesheet" href="/static/theme.css">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+body { background: var(--bg); min-height: 100vh; }
+.container { max-width: 1100px; margin: 0 auto; padding: 24px 20px; }
+
+/* ─── Header ─── */
+.page-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px; }
+.page-header h1 { font-size: 20px; font-weight: 800; }
+.back-btn { font-size: 13px; color: var(--primary); text-decoration: none; }
+.back-btn:hover { text-decoration: underline; }
+
+/* ─── Device info card ─── */
+.info-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 12px; margin-bottom: 24px; }
+.info-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 16px; }
+.info-label { font-size: 11px; color: var(--muted); margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.05em; }
+.info-value { font-size: 16px; font-weight: 700; }
+
+/* ─── Status ─── */
+.status-online { color: var(--green); }
+.status-offline { color: var(--red); }
+
+/* ─── Charts ─── */
+.chart-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 20px; margin-bottom: 20px; }
+.chart-title { font-size: 15px; font-weight: 700; margin-bottom: 14px; }
+.chart-wrap { position: relative; height: 220px; }
+
+/* ─── Interfaces ─── */
+.interface-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.interface-table th { text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--border); color: var(--muted); font-size: 11px; text-transform: uppercase; }
+.interface-table td { padding: 10px 12px; border-bottom: 1px solid var(--border); }
+.interface-table tr:last-child td { border-bottom: none; }
+.if-up { color: var(--green); font-weight: 600; }
+.if-down { color: var(--red); font-weight: 600; }
+
+/* ─── Loading ─── */
+.loading { text-align: center; padding: 40px; color: var(--muted); }
+.empty { text-align: center; padding: 30px; color: var(--muted); font-size: 14px; }
+
+/* ─── Nav ─── */
+.nav { background: var(--surface-solid); border-bottom: 1px solid var(--border); padding: 0 20px; }
+.nav-inner { max-width: 1100px; margin: 0 auto; display: flex; align-items: center; gap: 20px; height: 52px; }
+.nav-brand { display: flex; align-items: center; gap: 8px; text-decoration: none; font-weight: 800; font-size: 15px; color: var(--text); }
+.nav-icon { width: 28px; height: 28px; background: var(--primary); border-radius: 8px; display: flex; align-items: center; justify-content: center; color: #fff; font-size: 13px; font-weight: 800; }
+.nav-links { display: flex; gap: 16px; margin-left: auto; }
+.nav-links a { font-size: 13px; color: var(--muted); text-decoration: none; }
+.nav-links a:hover { color: var(--text); }
+</style>
+</head>
+<body>
+
+<nav class="nav">
+  <div class="nav-inner">
+    <a href="/" class="nav-brand">
+      <span class="nav-icon">L</span>
+      <span>LANWatch</span>
+    </a>
+    <div class="nav-links">
+      <a href="/">首页</a>
+      <a href="/download">下载</a>
+      <a href="/admin">管理后台</a>
+    </div>
+  </div>
+</nav>
+
+<div class="container">
+  <div class="page-header">
+    <h1 id="pageTitle">SNMP 设备详情</h1>
+    <a class="back-btn" href="/">← 返回首页</a>
+  </div>
+
+  <div id="loading" class="loading">加载中...</div>
+
+  <!-- Device info -->
+  <div class="info-grid" id="infoGrid" style="display:none">
+    <div class="info-card">
+      <div class="info-label">设备名称</div>
+      <div class="info-value" id="devName">-</div>
+    </div>
+    <div class="info-card">
+      <div class="info-label">IP地址</div>
+      <div class="info-value" id="devIp">-</div>
+    </div>
+    <div class="info-card">
+      <div class="info-label">设备类型</div>
+      <div class="info-value" id="devType">-</div>
+    </div>
+    <div class="info-card">
+      <div class="info-label">SNMP版本</div>
+      <div class="info-value" id="devVersion">-</div>
+    </div>
+    <div class="info-card">
+      <div class="info-label">状态</div>
+      <div class="info-value" id="devStatus">-</div>
+    </div>
+    <div class="info-card">
+      <div class="info-label">运行时长</div>
+      <div class="info-value" id="devUptime">-</div>
+    </div>
+    <div class="info-card">
+      <div class="info-label">最后轮询</div>
+      <div class="info-value" id="devLastPoll">-</div>
+    </div>
+    <div class="info-card">
+      <div class="info-label">Community</div>
+      <div class="info-value" id="devCommunity">-</div>
+    </div>
+  </div>
+
+  <!-- CPU chart -->
+  <div class="chart-card" id="cpuCard" style="display:none">
+    <div class="chart-title">📊 CPU 负载趋势</div>
+    <div class="chart-wrap">
+      <canvas id="cpuChart"></canvas>
+    </div>
+  </div>
+
+  <!-- Interface status -->
+  <div class="chart-card" id="ifCard" style="display:none">
+    <div class="chart-title">🌐 接口状态</div>
+    <table class="interface-table">
+      <thead>
+        <tr>
+          <th>接口</th>
+          <th>状态</th>
+          <th>入流量</th>
+          <th>出流量</th>
+          <th>入包</th>
+          <th>出包</th>
+        </tr>
+      </thead>
+      <tbody id="ifBody"></tbody>
+    </table>
+  </div>
+
+  <!-- Traffic charts -->
+  <div class="chart-card" id="trafficCard" style="display:none">
+    <div class="chart-title">📈 接口流量趋势</div>
+    <div class="chart-wrap">
+      <canvas id="trafficChart"></canvas>
+    </div>
+  </div>
+</div>
+
+<script>
+var SERVER = location.origin;
+var deviceId = parseInt(location.pathname.split('/').pop());
+var cpuChart, trafficChart;
+var allMetrics = []; // for time-series data
+
+function fmtBytes(b) {
+  if (b == null || isNaN(b)) return '-';
+  b = parseFloat(b);
+  if (b < 1024) return b.toFixed(0) + ' B';
+  if (b < 1048576) return (b/1024).toFixed(1) + ' KB';
+  if (b < 1073741824) return (b/1048576).toFixed(1) + ' MB';
+  return (b/1073741824).toFixed(2) + ' GB';
+}
+
+function fmtUptime(ts) {
+  if (!ts || ts <= 0) return '-';
+  var s = Math.floor(ts / 100);
+  var d = Math.floor(s / 86400); s %= 86400;
+  var h = Math.floor(s / 3600); s %= 3600;
+  var m = Math.floor(s / 60); s %= 60;
+  if (d > 0) return d + '天' + h + '时';
+  if (h > 0) return h + '时' + m + '分';
+  return m + '分' + s + '秒';
+}
+
+function timeAgo(ts) {
+  if (!ts) return '从未';
+  var d = Date.now()/1000 - ts;
+  if (d < 60) return Math.floor(d) + '秒前';
+  if (d < 3600) return Math.floor(d/60) + '分钟前';
+  if (d < 86400) return Math.floor(d/3600) + '小时前';
+  return Math.floor(d/86400) + '天前';
+}
+
+function loadDetail() {
+  Promise.all([
+    fetch(SERVER + '/api/snmp/' + deviceId).then(function(r){ return r.json(); }),
+    fetch(SERVER + '/api/snmp/' + deviceId + '/history?hours=24').then(function(r){ return r.json(); })
+  ]).then(function(results) {
+    var detail = results[0];
+    var history = results[1];
+    allMetrics = history;
+
+    var dev = detail.device;
+    document.getElementById('pageTitle').textContent = dev.device_name || dev.ip;
+    document.getElementById('loading').style.display = 'none';
+    document.getElementById('infoGrid').style.display = 'grid';
+
+    document.getElementById('devName').textContent = dev.device_name || '-';
+    document.getElementById('devIp').textContent = dev.ip;
+    document.getElementById('devType').textContent = dev.device_type || 'router';
+    document.getElementById('devVersion').textContent = dev.snmp_version || 'v2c';
+    document.getElementById('devCommunity').textContent = dev.community || '-';
+    document.getElementById('devLastPoll').textContent = timeAgo(dev.last_poll);
+
+    var statusEl = document.getElementById('devStatus');
+    if (dev.status === 'online') {
+      statusEl.innerHTML = '<span class="status-online">● 在线</span>';
+    } else if (dev.status === 'offline') {
+      statusEl.innerHTML = '<span class="status-offline">● 离线</span>';
+    } else {
+      statusEl.textContent = dev.status || '-';
+    }
+
+    // Uptime
+    var metrics = detail.metrics;
+    var uptimeRow = metrics.find(function(m){ return m.oid === 'sysUpTime.0'; });
+    document.getElementById('devUptime').textContent = uptimeRow ? fmtUptime(uptimeRow.value) : '-';
+
+    renderCpuChart(history);
+    renderInterfaces(metrics, history);
+    renderTrafficChart(history);
+  }).catch(function(e) {
+    document.getElementById('loading').textContent = '加载失败: ' + e;
+  });
+}
+
+function renderCpuChart(history) {
+  var cpuRows = history.filter(function(m){ return m.oid && m.oid.startsWith('hrProcessorLoad.'); });
+  if (cpuRows.length === 0) return;
+  document.getElementById('cpuCard').style.display = 'block';
+
+  // Group by timestamp, average per time bucket
+  var buckets = {};
+  cpuRows.forEach(function(r) {
+    var t = new Date(r.timestamp * 1000).toLocaleTimeString('zh-CN', {hour:'2-digit', minute:'2-digit'});
+    if (!buckets[t]) buckets[t] = [];
+    buckets[t].push(r.value);
+  });
+  var labels = Object.keys(buckets);
+  var data = labels.map(function(l){ var arr = buckets[l]; return arr.reduce(function(a,b){return a+b;},0)/arr.length; });
+
+  var ctx = document.getElementById('cpuChart').getContext('2d');
+  cpuChart = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: labels,
+      datasets: [{
+        label: 'CPU %',
+        data: data,
+        borderColor: '#3b82f6',
+        backgroundColor: 'rgba(59,130,246,0.1)',
+        fill: true,
+        tension: 0.3,
+        pointRadius: 0
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      scales: {
+        y: { min: 0, max: 100, title: { display: true, text: '%' } },
+        x: { ticks: { maxTicksLimit: 8 } }
+      },
+      plugins: { legend: { display: false } }
+    }
+  });
+}
+
+function renderInterfaces(metrics, history) {
+  var ifRows = metrics.filter(function(m){ return m.oid && m.oid.match(/^(ifInOctets|ifOutOctets|ifInUcastPkts|ifOutUcastPkts|ifOperStatus)\.\d/); });
+  if (ifRows.length === 0) return;
+  document.getElementById('ifCard').style.display = 'block';
+
+  // Get unique interfaces
+  var ifIndexes = {};
+  ifRows.forEach(function(r){
+    var idx = r.oid.split('.')[1];
+    if (!ifIndexes[idx]) ifIndexes[idx] = {};
+  });
+
+  // Latest values per interface
+  ifRows.forEach(function(r){
+    var idx = r.oid.split('.')[1];
+    if (!ifIndexes[idx]) ifIndexes[idx] = {};
+    ifIndexes[idx][r.oid.split('.')[0]] = r.value;
+  });
+
+  var tbody = document.getElementById('ifBody');
+  tbody.innerHTML = '';
+  Object.keys(ifIndexes).sort().forEach(function(idx) {
+    var v = ifIndexes[idx];
+    var status = v['ifOperStatus'] === 1 ? '<span class="if-up">↑ UP</span>' : '<span class="if-down">↓ DOWN</span>';
+    var tr = document.createElement('tr');
+    tr.innerHTML = '<td>接口 ' + idx + '</td>' +
+      '<td>' + status + '</td>' +
+      '<td>' + fmtBytes(v['ifInOctets']) + '</td>' +
+      '<td>' + fmtBytes(v['ifOutOctets']) + '</td>' +
+      '<td>' + (v['ifInUcastPkts'] || 0) + '</td>' +
+      '<td>' + (v['ifOutUcastPkts'] || 0) + '</td>';
+    tbody.appendChild(tr);
+  });
+}
+
+function renderTrafficChart(history) {
+  var inRows = history.filter(function(m){ return m.oid && m.oid.startsWith('ifInOctets.'); });
+  var outRows = history.filter(function(m){ return m.oid && m.oid.startsWith('ifOutOctets.'); });
+  if (inRows.length === 0) return;
+  document.getElementById('trafficCard').style.display = 'block';
+
+  // Group by interface
+  var byIf = {};
+  inRows.forEach(function(r){
+    var idx = r.oid.split('.')[1];
+    if (!byIf[idx]) byIf[idx] = {in:[], out:[]};
+    byIf[idx].in.push(r);
+  });
+  outRows.forEach(function(r){
+    var idx = r.oid.split('.')[1];
+    if (!byIf[idx]) byIf[idx] = {in:[], out:[]};
+    byIf[idx].out.push(r);
+  });
+
+  var datasets = [];
+  var colors = ['#3b82f6','#10b981','#f59e0b','#ef4444','#8b5cf6','#ec4899'];
+  var i = 0;
+  Object.keys(byIf).sort().forEach(function(idx) {
+    var inn = byIf[idx].in.sort(function(a,b){return a.timestamp-b.timestamp;});
+    var out = byIf[idx].out.sort(function(a,b){return a.timestamp-b.timestamp;});
+    if (inn.length === 0) return;
+    var baseIn = Math.max(0, inn[0].value);
+    var baseOut = out.length > 0 ? Math.max(0, out[0].value) : 0;
+    datasets.push({
+      label: '接口' + idx + ' 入',
+      data: inn.map(function(r){ return {x: new Date(r.timestamp*1000).toLocaleTimeString('zh-CN',{hour:'2-digit',minute:'2-digit'}), y: Math.max(0,r.value-baseIn)}; }),
+      borderColor: colors[i % colors.length],
+      backgroundColor: 'transparent',
+      tension: 0.3,
+      pointRadius: 0
+    });
+    if (out.length > 0) {
+      datasets.push({
+        label: '接口' + idx + ' 出',
+        data: out.map(function(r){ return {x: new Date(r.timestamp*1000).toLocaleTimeString('zh-CN',{hour:'2-digit',minute:'2-digit'}), y: Math.max(0,r.value-baseOut)}; }),
+        borderColor: colors[i % colors.length],
+        backgroundColor: 'transparent',
+        borderDash: [4,4],
+        tension: 0.3,
+        pointRadius: 0
+      });
+    }
+    i++;
+  });
+
+  var ctx = document.getElementById('trafficChart').getContext('2d');
+  trafficChart = new Chart(ctx, {
+    type: 'line',
+    data: { datasets: datasets },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      scales: {
+        y: {
+          title: { display: true, text: 'Bytes' },
+          ticks: { callback: function(v){ return fmtBytes(v); } }
+        },
+        x: { ticks: { maxTicksLimit: 8 } }
+      },
+      plugins: { legend: { display: true, position: 'top' } }
+    }
+  });
+}
+
+loadDetail();
+</script>
+</body>
+</html>

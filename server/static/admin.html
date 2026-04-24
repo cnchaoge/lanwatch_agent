@@ -535,6 +535,7 @@ function renderSnmp(devs) {
     html += '<span style="font-size:11px;color:var(--muted);min-width:65px;">轮询:' + timeAgo(d.last_poll) + '</span>';
     html += '<div class="snmp-actions">';
     html += '<button class="btn btn-secondary btn-xs" onclick="editSnmp(' + d.id + ')">编辑</button>';
+    html += '<a class="btn btn-secondary btn-xs" href="/snmp/' + d.id + '" style="display:inline-block;text-align:center;line-height:1.4;">详情</a>';
     html += '<button class="btn btn-secondary btn-xs" onclick="pollSnmpNow(' + d.id + ')">轮询</button>';
     html += '<button class="btn btn-danger btn-xs" onclick="deleteSnmp(' + d.id + ')">删除</button>';
     html += '</div></div>';
@@ -612,10 +613,15 @@ function submitSnmp() {
     method: method,
     headers: {'Content-Type': 'application/json'},
     body: JSON.stringify(data)
-  }).then(function(r){ return r.json(); }).then(function() {
+  }).then(function(r){
+    if (!r.ok) {
+      return r.json().then(function(err) { throw new Error(err.detail || '保存失败'); });
+    }
+    return r.json();
+  }).then(function(d) {
     closeModal('modal-snmp');
     loadSnmp();
-  });
+  }).catch(function(e){ console.error('SNMP submit error:', e); alert('保存失败: ' + e.message); });
 }
 
 function pollSnmpNow(id) {

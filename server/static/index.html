@@ -367,7 +367,7 @@ function loadSNMP() {
 
         var lastPoll = dev.last_poll ? timeAgo(dev.last_poll) : '-';
 
-        html += '<div class="snmp-card">' +
+        html += '<a class="snmp-card" href="/snmp/' + dev.id + '" style="text-decoration:none;color:inherit;">' +
           '<div class="snmp-card-header">' +
             '<div>' +
               '<div class="snmp-card-name">' + (dev.name || dev.ip) + '</div>' +
@@ -381,7 +381,7 @@ function loadSNMP() {
             '<div class="snmp-metric"><span class="snmp-metric-label">运行</span><span class="snmp-metric-val">' + upTag + '</span></div>' +
             '<div class="snmp-metric"><span class="snmp-metric-label">轮询</span><span class="snmp-metric-val">' + tagHTML('tag-grey', lastPoll) + '</span></div>' +
           '</div>' +
-        '</div>';
+        '</a>';
       });
       snmpGrid.innerHTML = html;
     } catch(e) { snmpSection.style.display = 'none'; }
