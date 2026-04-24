@@ -156,6 +156,16 @@ body { background: var(--bg); }
       </div>
       <div id="snmp-list"></div>
     </div>
+
+    <!-- 掉线检测 -->
+    <div class="panel" style="margin-top:18px;">
+      <div class="panel-head">
+        掉线检测
+        <span class="sub" id="ping-count"></span>
+        <button class="btn btn-sm" style="margin-left:8px;background:var(--orange);color:#fff;" onclick="showAddPing()">+ 添加目标</button>
+      </div>
+      <div id="ping-list"></div>
+    </div>
   </div>
 
   <div class="admin-footer container">
@@ -273,6 +283,35 @@ body { background: var(--bg); }
     <div class="modal-btns">
       <button class="btn btn-secondary btn-sm" onclick="closeModal('modal-snmp')">取消</button>
       <button class="btn btn-primary btn-sm" onclick="submitSnmp()">保存</button>
+    </div>
+  </div>
+</div>
+
+<!-- 掉线检测弹窗 -->
+<div class="modal-overlay" id="modal-ping">
+  <div class="modal">
+    <div class="modal-title" id="modal-ping-title">添加掉线目标</div>
+    <input type="hidden" id="f-ping-id">
+    <div class="form-row">
+      <label class="form-label">名称</label>
+      <input class="input" id="f-ping-name" placeholder="例如：总公司路由器">
+    </div>
+    <div class="form-row">
+      <label class="form-label">IP地址 *</label>
+      <input class="input" id="f-ping-ip" placeholder="例如：1.2.3.4">
+    </div>
+    <div class="form-row">
+      <label class="form-label">检测间隔</label>
+      <select class="input" id="f-ping-interval">
+        <option value="60">每分钟</option>
+        <option value="180">每3分钟</option>
+        <option value="300">每5分钟</option>
+        <option value="600">每10分钟</option>
+      </select>
+    </div>
+    <div class="modal-btns">
+      <button class="btn btn-secondary btn-sm" onclick="closeModal('modal-ping')">取消</button>
+      <button class="btn btn-primary btn-sm" onclick="submitPing()">保存</button>
     </div>
   </div>
 </div>
@@ -636,12 +675,100 @@ function deleteSnmp(id) {
   fetch(SERVER + '/api/admin/snmp/' + id, {method:'DELETE'}).then(function(r){ return r.json(); }).then(function() { loadSnmp(); });
 }
 
+// ─── 掉线检测 ───────────────────────────────────────────────────
+var allPingMonitors = [];
+
+function loadPing() {
+  fetch(SERVER + '/api/admin/ping').then(function(r){ return r.json(); }).then(function(devs) {
+    allPingMonitors = devs;
+    document.getElementById('ping-count').textContent = devs.length + ' 个目标';
+    var html = '';
+    if (devs.length === 0) {
+      html = '<div class="empty">暂无监控目标，点击右上角添加</div>';
+    }
+    devs.forEach(function(d) {
+      var isOnline = d.status === 'online';
+      html += '<div class="snmp-row">';
+      html += '<span class="snmp-icon">🌐</span>';
+      html += '<div class="snmp-info">';
+      html += '<div class="snmp-name">' + (d.name || d.ip) + '</div>';
+      html += '<div class="snmp-meta">';
+      html += '<span class="mono">' + d.ip + '</span>';
+      html += '<span>间隔: ' + d.interval_sec + '秒</span>';
+      html += '</div></div>';
+      html += '<span class="tag ' + (isOnline ? 'tag-green' : 'tag-red') + '">' + (isOnline ? '在线' : '离线') + '</span>';
+      html += '<span style="font-size:11px;color:var(--muted)">' + (d.last_seen ? timeAgo(d.last_seen) : '从未') + '</span>';
+      html += '<div class="snmp-actions">';
+      html += '<button class="btn btn-secondary btn-xs" onclick="editPing(' + d.id + ')">编辑</button>';
+      html += '<button class="btn btn-secondary btn-xs" onclick="testPing(' + d.id + ')">测试</button>';
+      html += '<button class="btn btn-danger btn-xs" onclick="deletePing(' + d.id + ')">删除</button>';
+      html += '</div></div>';
+    });
+    document.getElementById('ping-list').innerHTML = html;
+  });
+}
+
+function showAddPing() {
+  document.getElementById('f-ping-id').value = '';
+  document.getElementById('f-ping-name').value = '';
+  document.getElementById('f-ping-ip').value = '';
+  document.getElementById('f-ping-interval').value = '60';
+  document.getElementById('modal-ping-title').textContent = '添加掉线目标';
+  document.getElementById('modal-ping').style.display = 'flex';
+}
+
+function editPing(id) {
+  var d = allPingMonitors.find(function(x){ return x.id === id; });
+  if (!d) return;
+  document.getElementById('f-ping-id').value = id;
+  document.getElementById('f-ping-name').value = d.name || '';
+  document.getElementById('f-ping-ip').value = d.ip;
+  document.getElementById('f-ping-interval').value = d.interval_sec || 60;
+  document.getElementById('modal-ping-title').textContent = '编辑掉线目标';
+  document.getElementById('modal-ping').style.display = 'flex';
+}
+
+function submitPing() {
+  var id = document.getElementById('f-ping-id').value;
+  var data = {
+    name: document.getElementById('f-ping-name').value.trim(),
+    ip: document.getElementById('f-ping-ip').value.trim(),
+    interval_sec: parseInt(document.getElementById('f-ping-interval').value)
+  };
+  if (!data.ip) { alert('请填写 IP 地址'); return; }
+  var method = id ? 'PATCH' : 'POST';
+  var url = id ? SERVER + '/api/admin/ping/' + id : SERVER + '/api/admin/ping';
+  fetch(url, {
+    method: method,
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify(data)
+  }).then(function(r){
+    if (!r.ok) { return r.json().then(function(err){ throw new Error(err.detail || '保存失败'); }); }
+    return r.json();
+  }).then(function() {
+    closeModal('modal-ping');
+    loadPing();
+  }).catch(function(e){ alert('保存失败: ' + e.message); });
+}
+
+function testPing(id) {
+  fetch(SERVER + '/api/admin/ping/' + id + '/test', {method:'POST'}).then(function(r){ return r.json(); }).then(function(d) {
+    alert('Ping ' + d.ip + ': ' + (d.online ? '✅ 在线' : '❌ 离线'));
+  });
+}
+
+function deletePing(id) {
+  if (!confirm('确定删除该监控目标吗？')) return;
+  fetch(SERVER + '/api/admin/ping/' + id, {method:'DELETE'}).then(function(r){ return r.json(); }).then(function() { loadPing(); });
+}
+
 function loadData() {
   fetch(SERVER + '/api/admin/users').then(function(r){ return r.json(); }).then(function(users) {
     allUsers = users;
     render(users);
   });
   loadSnmp();
+  loadPing();
 }
 
 loadData();

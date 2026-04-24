@@ -251,6 +251,21 @@ def init_db():
             )
         """)
         c.execute("CREATE INDEX IF NOT EXISTS idx_snmp_metrics_device ON snmp_metrics(device_id, timestamp DESC)")
+
+        # 掉线检测表
+        c.execute("""
+            CREATE TABLE IF NOT EXISTS ping_monitors (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL DEFAULT '',
+                ip TEXT NOT NULL,
+                enabled INTEGER DEFAULT 1,
+                interval_sec INTEGER DEFAULT 60,
+                status TEXT DEFAULT 'unknown',
+                last_seen REAL DEFAULT 0,
+                last_alert_at REAL DEFAULT 0,
+                created_at REAL NOT NULL
+            )
+        """)
         conn.commit()
         print("[DB] initialized at", DB_PATH)
     finally:
@@ -387,6 +402,76 @@ def poll_snmp_devices():
         notify_agents_updated()
     finally:
         close_db(conn)
+
+def ping_host(ip, timeout=3):
+    """ping 一个 IP，返回 True/False"""
+    import subprocess
+    try:
+        result = subprocess.run(
+            ['ping', '-c', '1', '-W', str(timeout), ip],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            timeout=timeout + 1
+        )
+        return result.returncode == 0
+    except Exception:
+        return False
+
+def poll_ping_monitors():
+    """检测所有掉线监控目标"""
+    conn = get_db()
+    try:
+        monitors = conn.execute("SELECT * FROM ping_monitors WHERE enabled=1").fetchall()
+        now = time.time()
+        for m in monitors:
+            online = ping_host(m['ip'])
+            status = 'online' if online else 'offline'
+            was_online = m['status'] == 'online'
+
+            # 状态变化：从在线变离线 → 发告警
+            if was_online and not online:
+                msg = "[掉线告警] %s（%s）离线了！" % (m['name'] or m['ip'], m['ip'])
+                print("[Ping] " + msg)
+                send_alert(msg, m['ip'])
+                conn.execute(
+                    "UPDATE ping_monitors SET status=?, last_alert_at=? WHERE id=?",
+                    (status, now, m['id'])
+                )
+            # 状态变化：从离线恢复 → 发恢复通知
+            elif not was_online and online:
+                msg = "[恢复通知] %s（%s）恢复在线" % (m['name'] or m['ip'], m['ip'])
+                print("[Ping] " + msg)
+                send_alert(msg, m['ip'])
+                conn.execute(
+                    "UPDATE ping_monitors SET status=?, last_seen=? WHERE id=?",
+                    (status, now, m['id'])
+                )
+            # 在线：更新时间
+            elif online:
+                conn.execute(
+                    "UPDATE ping_monitors SET status=?, last_seen=? WHERE id=?",
+                    (status, now, m['id'])
+                )
+            else:
+                conn.execute(
+                    "UPDATE ping_monitors SET status=? WHERE id=?",
+                    (status, m['id'])
+                )
+        conn.commit()
+    finally:
+        close_db(conn)
+
+PING_INTERVAL = 60  # 每60秒检测一次
+
+def start_ping_poller():
+    """启动后台掉线检测线程"""
+    def loop():
+        while True:
+            poll_ping_monitors()
+            time.sleep(PING_INTERVAL)
+    t = threading.Thread(target=loop, daemon=True)
+    t.start()
+    print("[Ping] poller started, interval=%ds" % PING_INTERVAL)
 
 def start_snmp_poller():
     """启动后台 SNMP 轮询线程"""
@@ -982,6 +1067,97 @@ def delete_snmp_device(device_id: int):
     finally:
         close_db(conn)
 
+# ─── 掉线检测（Ping）API ────────────────────────────────────────────────
+
+class PingMonitorCreate(BaseModel):
+    name: str = ""
+    ip: str
+    enabled: int = 1
+    interval_sec: int = 60
+
+class PingMonitorUpdate(BaseModel):
+    name: Optional[str] = None
+    ip: Optional[str] = None
+    enabled: Optional[int] = None
+    interval_sec: Optional[int] = None
+
+@app.get("/api/admin/ping")
+def list_ping_monitors():
+    """列出所有掉线监控目标"""
+    conn = get_db()
+    try:
+        return [dict(r) for r in conn.execute("SELECT * FROM ping_monitors ORDER BY created_at DESC").fetchall()]
+    finally:
+        close_db(conn)
+
+@app.post("/api/admin/ping")
+def create_ping_monitor(data: PingMonitorCreate):
+    """添加掉线监控目标"""
+    conn = get_db()
+    try:
+        now = time.time()
+        conn.execute(
+            "INSERT INTO ping_monitors (name, ip, enabled, interval_sec, created_at) VALUES (?,?,?,?,?)",
+            (data.name, data.ip, data.enabled, data.interval_sec, now)
+        )
+        conn.commit()
+        row = conn.execute("SELECT * FROM ping_monitors WHERE ip=?", (data.ip,)).fetchone()
+        return dict(row)
+    finally:
+        close_db(conn)
+
+@app.patch("/api/admin/ping/{monitor_id}")
+def update_ping_monitor(monitor_id: int, data: PingMonitorUpdate):
+    """更新掉线监控目标"""
+    conn = get_db()
+    try:
+        fields, values = [], []
+        for key, val in {"name": data.name, "ip": data.ip,
+                         "enabled": data.enabled, "interval_sec": data.interval_sec}.items():
+            if val is not None:
+                fields.append(f"{key}=?"); values.append(val)
+        if not fields:
+            return {"ok": True}
+        values.append(monitor_id)
+        conn.execute("UPDATE ping_monitors SET " + ",".join(fields) + " WHERE id=?", values)
+        conn.commit()
+        return {"ok": True}
+    finally:
+        close_db(conn)
+
+@app.delete("/api/admin/ping/{monitor_id}")
+def delete_ping_monitor(monitor_id: int):
+    """删除掉线监控目标"""
+    conn = get_db()
+    try:
+        conn.execute("DELETE FROM ping_monitors WHERE id=?", (monitor_id,))
+        conn.commit()
+        return {"ok": True}
+    finally:
+        close_db(conn)
+
+@app.post("/api/admin/ping/{monitor_id}/test")
+def test_ping_monitor(monitor_id: int):
+    """手动测试一次 ping"""
+    conn = get_db()
+    try:
+        row = conn.execute("SELECT * FROM ping_monitors WHERE id=?", (monitor_id,)).fetchone()
+        if not row:
+            raise HTTPException(status_code=404, detail="目标不存在")
+        result = ping_host(row['ip'])
+        return {"ip": row['ip'], "online": result}
+    finally:
+        close_db(conn)
+
+@app.get("/api/ping/latest")
+def get_ping_latest():
+    """获取所有掉线监控状态（首页用）"""
+    conn = get_db()
+    try:
+        return [dict(r) for r in conn.execute("SELECT * FROM ping_monitors WHERE enabled=1").fetchall()]
+    finally:
+        close_db(conn)
+
 @app.get("/api/snmp/{device_id}")
 def get_snmp_device_detail(device_id: int):
     """获取 SNMP 设备详情（含最新指标）"""
@@ -1354,6 +1530,7 @@ def cleanup_old_probes():
 def startup():
     init_db()
     init_crm()
+    start_ping_poller()
     start_snmp_poller()
     start_snmp_trap_receiver()
     print("[Server] 企业网络监控平台启动 v0.6.3")
