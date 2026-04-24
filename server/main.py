@@ -727,6 +727,8 @@ def update_user(user_id: str, data: UserUpdate):
         fields, values = [], []
         if data.name is not None:
             fields.append("name=?"); values.append(data.name)
+            # 同步更新 agents 表的 customer_name
+            conn.execute("UPDATE agents SET customer_name=? WHERE user_id=?", (data.name, user_id))
         if data.phone is not None:
             fields.append("phone=?"); values.append(data.phone)
         if not fields:
