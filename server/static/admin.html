@@ -223,8 +223,43 @@ body { background: var(--bg); }
       <input class="input" id="f-snmp-ip" placeholder="例如：192.168.1.1">
     </div>
     <div class="form-row">
+      <label class="form-label">SNMP 版本</label>
+      <select class="input" id="f-snmp-version" onchange="toggleSnmpV3(this.value)">
+        <option value="v2c">v2c（社区字符串）</option>
+        <option value="v3">v3（用户名+加密）</option>
+      </select>
+    </div>
+    <div class="form-row" id="row-snmp-community">
       <label class="form-label">Community</label>
       <input class="input" id="f-snmp-community" value="public" placeholder="通常为 public">
+    </div>
+    <div id="snmp-v3-fields" style="display:none">
+      <div class="form-row">
+        <label class="form-label">用户名</label>
+        <input class="input" id="f-snmp-auth-user" placeholder="v3 用户名">
+      </div>
+      <div class="form-row">
+        <label class="form-label">认证协议</label>
+        <select class="input" id="f-snmp-auth-protocol">
+          <option value="SHA">SHA（推荐）</option>
+          <option value="MD5">MD5</option>
+        </select>
+      </div>
+      <div class="form-row">
+        <label class="form-label">加密协议</label>
+        <select class="input" id="f-snmp-priv-protocol">
+          <option value="AES">AES（推荐）</option>
+          <option value="DES">DES</option>
+        </select>
+      </div>
+      <div class="form-row">
+        <label class="form-label">认证密钥</label>
+        <input class="input" id="f-snmp-auth-key" type="password" placeholder="认证密码">
+      </div>
+      <div class="form-row">
+        <label class="form-label">加密密钥</label>
+        <input class="input" id="f-snmp-priv-key" type="password" placeholder="加密密码（可选）">
+      </div>
     </div>
     <div class="form-row">
       <label class="form-label">设备类型</label>
@@ -496,6 +531,7 @@ function renderSnmp(devs) {
     html += '<span>社区: <span class="mono">' + d.community + '</span></span>';
     html += '</div></div>';
     html += '<span class="tag ' + (isOnline ? 'tag-green' : 'tag-red') + '">' + (isOnline ? '在线' : '离线') + '</span>';
+    html += '<span style="font-size:11px;color:var(--muted)">v' + (d.snmp_version || 'v2c') + '</span>';
     html += '<span style="font-size:11px;color:var(--muted);min-width:65px;">轮询:' + timeAgo(d.last_poll) + '</span>';
     html += '<div class="snmp-actions">';
     html += '<button class="btn btn-secondary btn-xs" onclick="editSnmp(' + d.id + ')">编辑</button>';
@@ -506,12 +542,31 @@ function renderSnmp(devs) {
   document.getElementById('snmp-list').innerHTML = html;
 }
 
+function toggleSnmpV3(version) {
+  var v3fields = document.getElementById('snmp-v3-fields');
+  var communityRow = document.getElementById('row-snmp-community');
+  if (version === 'v3') {
+    v3fields.style.display = 'block';
+    communityRow.style.display = 'none';
+  } else {
+    v3fields.style.display = 'none';
+    communityRow.style.display = 'flex';
+  }
+}
+
 function showAddSnmp() {
   document.getElementById('f-snmp-id').value = '';
   document.getElementById('f-snmp-name').value = '';
   document.getElementById('f-snmp-ip').value = '';
+  document.getElementById('f-snmp-version').value = 'v2c';
   document.getElementById('f-snmp-community').value = 'public';
+  document.getElementById('f-snmp-auth-user').value = '';
+  document.getElementById('f-snmp-auth-protocol').value = 'SHA';
+  document.getElementById('f-snmp-priv-protocol').value = 'AES';
+  document.getElementById('f-snmp-auth-key').value = '';
+  document.getElementById('f-snmp-priv-key').value = '';
   document.getElementById('f-snmp-type').value = 'router';
+  toggleSnmpV3('v2c');
   document.getElementById('modal-snmp-title').textContent = '添加 SNMP 设备';
   document.getElementById('modal-snmp').style.display = 'flex';
 }
@@ -522,8 +577,16 @@ function editSnmp(id) {
   document.getElementById('f-snmp-id').value = id;
   document.getElementById('f-snmp-name').value = d.device_name || '';
   document.getElementById('f-snmp-ip').value = d.ip;
+  var ver = d.snmp_version || 'v2c';
+  document.getElementById('f-snmp-version').value = ver;
   document.getElementById('f-snmp-community').value = d.community || 'public';
+  document.getElementById('f-snmp-auth-user').value = d.auth_user || '';
+  document.getElementById('f-snmp-auth-protocol').value = d.auth_protocol || 'SHA';
+  document.getElementById('f-snmp-priv-protocol').value = d.priv_protocol || 'AES';
+  document.getElementById('f-snmp-auth-key').value = d.auth_key || '';
+  document.getElementById('f-snmp-priv-key').value = d.priv_key || '';
   document.getElementById('f-snmp-type').value = d.device_type || 'router';
+  toggleSnmpV3(ver);
   document.getElementById('modal-snmp-title').textContent = '编辑设备';
   document.getElementById('modal-snmp').style.display = 'flex';
 }
@@ -533,6 +596,12 @@ function submitSnmp() {
   var data = {
     ip: document.getElementById('f-snmp-ip').value.trim(),
     community: document.getElementById('f-snmp-community').value.trim(),
+    snmp_version: document.getElementById('f-snmp-version').value,
+    auth_user: document.getElementById('f-snmp-auth-user').value.trim(),
+    auth_protocol: document.getElementById('f-snmp-auth-protocol').value,
+    priv_protocol: document.getElementById('f-snmp-priv-protocol').value,
+    auth_key: document.getElementById('f-snmp-auth-key').value,
+    priv_key: document.getElementById('f-snmp-priv-key').value,
     device_name: document.getElementById('f-snmp-name').value.trim(),
     device_type: document.getElementById('f-snmp-type').value
   };

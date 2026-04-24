@@ -27,7 +27,13 @@ import socket
 
 # SNMP 支持
 try:
-    from pysnmp.hlapi import getCmd, walkCmd, SnmpEngine, CommunityData, UdpTransportTarget, ContextData, ObjectIdentity, ObjectType
+    from pysnmp.hlapi import (
+        getCmd, walkCmd, SnmpEngine, CommunityData, UdpTransportTarget,
+        ContextData, ObjectIdentity, ObjectType,
+        UsmUserData,
+        usmHMACSHAAuthProtocol, usmHMACMD5AuthProtocol,
+        usmAesCfb128Protocol, usmDESPrivProtocol,
+    )
     SNMP_AVAILABLE = True
 except ImportError:
     SNMP_AVAILABLE = False
@@ -186,6 +192,17 @@ def init_db():
         except Exception:
             pass
 
+        # SNMP v3 列迁移（已有表补充 v3 字段）
+        c.execute("PRAGMA table_info(snmp_devices)")
+        snmp_cols = [row[1] for row in c.fetchall()]
+        for col, dtype in [
+            ("snmp_version", "TEXT"), ("auth_user", "TEXT"),
+            ("auth_protocol", "TEXT"), ("priv_protocol", "TEXT"),
+            ("auth_key", "TEXT"), ("priv_key", "TEXT"),
+        ]:
+            if col not in snmp_cols:
+                c.execute("ALTER TABLE snmp_devices ADD COLUMN " + col + " " + dtype)
+
         # 拓扑数据表
         c.execute("""
             CREATE TABLE IF NOT EXISTS topology (
@@ -209,6 +226,12 @@ def init_db():
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 ip TEXT UNIQUE NOT NULL,
                 community TEXT NOT NULL DEFAULT 'public',
+                snmp_version TEXT NOT NULL DEFAULT 'v2c',
+                auth_user TEXT DEFAULT '',
+                auth_protocol TEXT DEFAULT 'SHA',
+                priv_protocol TEXT DEFAULT 'AES',
+                auth_key TEXT DEFAULT '',
+                priv_key TEXT DEFAULT '',
                 device_name TEXT NOT NULL DEFAULT '',
                 device_type TEXT DEFAULT 'router',
                 status TEXT DEFAULT 'unknown',
@@ -254,14 +277,36 @@ SNMP_OIDS = {
 
 SNMP_INTERVAL = 300  # 5分钟轮询一次
 
-def snmp_walk(ip, community, base_oid):
+def snmp_walk(ip, community, base_oid, snmp_version="v2c",
+               auth_user="", auth_protocol="", priv_protocol="",
+               auth_key="", priv_key=""):
     """SNMP WALK，返回 {index: value}"""
     results = {}
+    if not SNMP_AVAILABLE:
+        return results
     snmpEngine = SnmpEngine()
     try:
+        # 构建认证对象
+        if snmp_version == "v3":
+            authProto = usmHMACSHAAuthProtocol if auth_protocol == "SHA" else usmHMACMD5AuthProtocol
+            privProto = usmAesCfb128Protocol if priv_protocol == "AES" else usmDESPrivProtocol
+            if auth_user and auth_key:
+                if priv_key:
+                    # authPriv
+                    authData = UsmUserData(auth_user, authKey=auth_key, authProtocol=authProto,
+                                           privKey=priv_key, privProtocol=privProto)
+                else:
+                    # authNoPriv
+                    authData = UsmUserData(auth_user, authKey=auth_key, authProtocol=authProto)
+            else:
+                # 无认证密钥，使用 authNoPriv 空密钥（仅限测试）
+                authData = UsmUserData(auth_user, authKey="", authProtocol=authProto)
+        else:
+            authData = CommunityData(community, mpModel=1)
+
         g = walkCmd(
             snmpEngine,
-            CommunityData(community, mpModel=1),
+            authData,
             UdpTransportTarget((ip, 161), timeout=3, retries=0),
             ContextData(),
             ObjectType(ObjectIdentity(base_oid)),
@@ -314,10 +359,17 @@ def poll_snmp_devices():
             all_metrics = {}
             online_count = 0
             for oid_name, oid_str in SNMP_OIDS_WALK:
-                result = snmp_walk(dev['ip'], dev['community'], oid_str)
+                result = snmp_walk(
+                    dev['ip'], dev['community'], oid_str,
+                    snmp_version=dev.get('snmp_version', 'v2c'),
+                    auth_user=dev.get('auth_user', ''),
+                    auth_protocol=dev.get('auth_protocol', 'SHA'),
+                    priv_protocol=dev.get('priv_protocol', 'AES'),
+                    auth_key=dev.get('auth_key', ''),
+                    priv_key=dev.get('priv_key', '')
+                )
                 if result:
                     online_count += 1
-                # 只存前6个接口（去重存储）
                 for idx, val in list(result.items())[:6]:
                     all_metrics[f"{oid_name}.{idx}"] = val
             status = "online" if online_count > 0 else "offline"
@@ -809,12 +861,24 @@ def delete_agent_admin(agent_id: str):
 class SNMPDeviceCreate(BaseModel):
     ip: str
     community: str = "public"
+    snmp_version: str = "v2c"
+    auth_user: str = ""
+    auth_protocol: str = "SHA"
+    priv_protocol: str = "AES"
+    auth_key: str = ""
+    priv_key: str = ""
     device_name: str = ""
     device_type: str = "router"
 
 class SNMPDeviceUpdate(BaseModel):
     ip: Optional[str] = None
     community: Optional[str] = None
+    snmp_version: Optional[str] = None
+    auth_user: Optional[str] = None
+    auth_protocol: Optional[str] = None
+    priv_protocol: Optional[str] = None
+    auth_key: Optional[str] = None
+    priv_key: Optional[str] = None
     device_name: Optional[str] = None
     device_type: Optional[str] = None
 
@@ -850,6 +914,7 @@ def get_snmp_latest():
                 'name': dev['device_name'],
                 'type': dev['device_type'],
                 'community': dev['community'],
+                'snmp_version': dev.get('snmp_version', 'v2c'),
                 'status': dev['status'],
                 'last_poll': dev['last_poll'],
                 'metrics': m
@@ -865,8 +930,10 @@ def create_snmp_device(data: SNMPDeviceCreate):
     try:
         now = time.time()
         conn.execute(
-            "INSERT INTO snmp_devices (ip, community, device_name, device_type, created_at) VALUES (?,?,?,?,?)",
-            (data.ip, data.community, data.device_name, data.device_type, now)
+            "INSERT INTO snmp_devices (ip, community, snmp_version, auth_user, auth_protocol, priv_protocol, auth_key, priv_key, device_name, device_type, created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+            (data.ip, data.community, data.snmp_version, data.auth_user,
+             data.auth_protocol, data.priv_protocol, data.auth_key, data.priv_key,
+             data.device_name, data.device_type, now)
         )
         conn.commit()
         device = conn.execute("SELECT * FROM snmp_devices WHERE ip=?", (data.ip,)).fetchone()
@@ -883,8 +950,12 @@ def update_snmp_device(device_id: int, data: SNMPDeviceUpdate):
         if not c.fetchone():
             raise HTTPException(status_code=404, detail="设备不存在")
         fields, values = [], []
-        for key, val in {"ip": data.ip, "community": data.community,
-                         "device_name": data.device_name, "device_type": data.device_type}.items():
+        for key, val in {
+            "ip": data.ip, "community": data.community, "snmp_version": data.snmp_version,
+            "auth_user": data.auth_user, "auth_protocol": data.auth_protocol,
+            "priv_protocol": data.priv_protocol, "auth_key": data.auth_key, "priv_key": data.priv_key,
+            "device_name": data.device_name, "device_type": data.device_type
+        }.items():
             if val is not None:
                 fields.append(f"{key}=?"); values.append(val)
         if not fields:
@@ -932,7 +1003,15 @@ def poll_snmp_device_now(device_id: int):
         all_metrics = {}
         online_count = 0
         for oid_name, oid_str in SNMP_OIDS_WALK:
-            result = snmp_walk(device['ip'], device['community'], oid_str)
+            result = snmp_walk(
+                device['ip'], device['community'], oid_str,
+                snmp_version=device.get('snmp_version', 'v2c'),
+                auth_user=device.get('auth_user', ''),
+                auth_protocol=device.get('auth_protocol', 'SHA'),
+                priv_protocol=device.get('priv_protocol', 'AES'),
+                auth_key=device.get('auth_key', ''),
+                priv_key=device.get('priv_key', '')
+            )
             if result:
                 online_count += 1
             for idx, val in list(result.items())[:6]:
