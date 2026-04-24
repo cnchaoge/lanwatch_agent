@@ -192,6 +192,25 @@ def init_db():
         except Exception:
             pass
 
+        # SNMP 设备表（新建或升级）
+        c.execute("""
+            CREATE TABLE IF NOT EXISTS snmp_devices (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                ip TEXT UNIQUE NOT NULL,
+                community TEXT NOT NULL DEFAULT 'public',
+                snmp_version TEXT NOT NULL DEFAULT 'v2c',
+                auth_user TEXT DEFAULT '',
+                auth_protocol TEXT DEFAULT 'SHA',
+                priv_protocol TEXT DEFAULT 'AES',
+                auth_key TEXT DEFAULT '',
+                priv_key TEXT DEFAULT '',
+                device_name TEXT NOT NULL DEFAULT '',
+                device_type TEXT DEFAULT 'router',
+                status TEXT DEFAULT 'unknown',
+                last_poll REAL DEFAULT 0,
+                created_at REAL NOT NULL
+            )
+        """)
         # SNMP v3 列迁移（已有表补充 v3 字段）
         c.execute("PRAGMA table_info(snmp_devices)")
         snmp_cols = [row[1] for row in c.fetchall()]
@@ -203,9 +222,7 @@ def init_db():
             if col not in snmp_cols:
                 c.execute("ALTER TABLE snmp_devices ADD COLUMN " + col + " " + dtype)
 
-        # 拓扑数据表
-        c.execute("""
-            CREATE TABLE IF NOT EXISTS topology (
+        # SNMP 指标数据表
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 agent_id TEXT NOT NULL,
                 ip TEXT NOT NULL,
