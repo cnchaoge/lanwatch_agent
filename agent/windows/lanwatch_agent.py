@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""lanwatch_agent - 企业网络监控客户端 v0.6.3"""
+"""lanwatch_agent - 企业网络监控客户端 v0.7.0"""
 
-__version__ = "0.6.3"
+__version__ = "0.7.0"
 
 import socket
 from time import sleep
@@ -351,6 +351,102 @@ def _resolve_hostname(ip):
         return ""
 
 
+
+# ═══════════════════════════════════════════════════════════════
+# 端口扫描（常见服务识别）
+# ═══════════════════════════════════════════════════════════════
+
+# 常见端口及服务名（按实用频率排序）
+COMMON_PORTS = [
+    (21, "ftp"),
+    (22, "ssh"),
+    (23, "telnet"),
+    (25, "smtp"),
+    (53, "dns"),
+    (80, "http"),
+    (110, "pop3"),
+    (111, "rpcbind"),
+    (135, "msrpc"),
+    (139, "netbios"),
+    (143, "imap"),
+    (443, "https"),
+    (445, "smb"),
+    (465, "smtps"),
+    (502, "modbus"),
+    (503, "abbach"),
+    (543, "postgresql"),
+    (587, "smtp"),
+    (993, "imaps"),
+    (995, "pop3s"),
+    (1080, "socks"),
+    (1433, "mssql"),
+    (1521, "oracle"),
+    (1723, "pptp"),
+    (1883, "mqtt"),
+    (2375, "docker"),
+    (3000, "http"),
+    (3306, "mysql"),
+    (3389, "rdp"),
+    (4000, "http"),
+    (5000, "http"),
+    (5432, "postgresql"),
+    (5672, "rabbitmq"),
+    (5900, "vnc"),
+    (5901, "vnc"),
+    (6379, "redis"),
+    (7001, "weblogic"),
+    (8000, "http"),
+    (8008, "http"),
+    (8080, "http"),
+    (8443, "https"),
+    (8888, "http"),
+    (9000, "http"),
+    (9001, "http"),
+    (9090, "http"),
+    (9200, "elasticsearch"),
+    (9300, "elasticsearch"),
+    (11211, "memcached"),
+    (27017, "mongodb"),
+    (50000, "http"),
+]
+
+PORT_SCAN_TIMEOUT = 0.8  # 单端口超时（秒）
+PORT_SCAN_WORKERS = 20    # 并发线程数
+
+
+def scan_port(host, port, timeout=PORT_SCAN_TIMEOUT):
+    """尝试 TCP 连接，返回服务名或 None"""
+    try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        s.settimeout(timeout)
+        result = s.connect_ex((host, port))
+        s.close()
+        if result == 0:
+            # 找到对应服务名
+            for p, svc in COMMON_PORTS:
+                if p == port:
+                    return svc
+            return str(port)
+    except Exception:
+        pass
+    return None
+
+
+def scan_device_ports(host, timeout=PORT_SCAN_TIMEOUT, workers=PORT_SCAN_WORKERS):
+    """扫描设备常见端口，返回 [(port, service), ...]"""
+    open_ports = []
+    with ThreadPoolExecutor(max_workers=workers) as executor:
+        futures = {executor.submit(scan_port, host, port, timeout): port for port, _ in COMMON_PORTS}
+        for future in as_completed(futures):
+            svc = future.result()
+            if svc:
+                port = futures[future]
+                open_ports.append((port, svc))
+    # 按端口号排序
+    open_ports.sort(key=lambda x: x[0])
+    return open_ports
+
+
 def get_all_devices_from_arp():
     """读取本机 ARP 缓存表，获取局域网已知设备（不发包，速度快）"""
     devices = []
@@ -374,7 +470,12 @@ def get_all_devices_from_arp():
                 hostname = _resolve_hostname(ip) or ''
                 vendor = get_vendor(mac)
                 dtype = guess_device_type(hostname, vendor, mac)
-                devices.append({"ip": ip, "mac": mac, "hostname": hostname, "vendor": vendor, "device_type": dtype})
+                # 端口扫描（ARP 扫描完成后并发进行）
+                open_ports = scan_device_ports(ip)
+                port_strs = [f"{p}/{s}" for p, s in open_ports]
+                if port_strs:
+                    log.debug("[端口] %s 发现 %s", ip, ",".join(port_strs))
+                devices.append({"ip": ip, "mac": mac, "hostname": hostname, "vendor": vendor, "device_type": dtype, "open_ports": port_strs})
                 log.debug("[拓扑] ARP 发现 %s (%s) %s", ip, mac, vendor or "?")
     except Exception as e:
         log.warning("[拓扑] ARP 读取失败: %s", e)
@@ -402,7 +503,7 @@ def register_agent(company_name, phone="", location=""):
             "name": company_name,
             "phone": phone,
             "location": location,
-            "remark": "lanwatch_agent_v0.6.3"
+            "remark": "lanwatch_agent_v0.7.0"
         }).encode()
         req = urllib.request.Request(
             SERVER_URL + "/api/register",
@@ -817,9 +918,60 @@ def _on_uninstall():
 
 
 def _show_settings_window():
-    """显示设置窗口（托盘点击"设置"触发）"""
-    # TODO: 可扩展为设置编辑窗口
-    _show_about()
+    """显示设置窗口（托盘点击"设置"触发）：自启动开关"""
+    try:
+        from tkinter import Toplevel, Label, Checkbutton, IntVar, messagebox
+        cfg = load_config()
+        win = Toplevel(_tk_root)
+        win.title("设置")
+        win.geometry("340x180")
+        win.resizable(False, False)
+        win.attributes("-topmost", True)
+        # 居中
+        win.update_idletasks()
+        sw = win.winfo_screenwidth()
+        sh = win.winfo_screenheight()
+        ww, wh = 340, 180
+        win.geometry(f"{ww}x{wh}+{(sw-ww)//2}+{(sh-wh)//2}")
+
+        # 标题
+        Label(win, text="lanwatch_agent v" + __version__, font=("微软雅黑", 10, "bold")).place(x=20, y=16)
+        Label(win, text="企业网络监控客户端", font=("微软雅黑", 9), fg="#666").place(x=20, y=42)
+
+        # 自启动开关
+        auto_var = IntVar(value=1 if is_autostart_enabled() else 0)
+
+        def on_auto_toggle():
+            ok = set_autostart(bool(auto_var.get()))
+            if ok:
+                status = "已开启" if auto_var.get() else "已关闭"
+                log.info("[设置] 自启动: %s", status)
+            else:
+                # 回滚 UI
+                auto_var.set(1 if is_autostart_enabled() else 0)
+                messagebox.showwarning("设置失败", "无法修改自启动设置", parent=win)
+
+        cb = Checkbutton(
+            win, text="开机自启动",
+            variable=auto_var, command=on_auto_toggle,
+            font=("微软雅黑", 10),
+            onvalue=1, offvalue=0
+        )
+        cb.place(x=20, y=78)
+
+        # 服务器地址（只读）
+        Label(win, text="服务端: " + SERVER_URL, font=("微软雅黑", 8), fg="#888").place(x=20, y=130)
+
+        # 关闭按钮
+        def close():
+            win.destroy()
+        Label(win, text="  关闭  ", font=("微软雅黑", 9), fg="#888",
+              cursor="hand2").place(x=270, y=145)
+        win.bind("<Button-1>", lambda e: close() if e.x > 250 and e.y > 135 else None)
+        win.protocol("WM_DELETE_WINDOW", close)
+    except Exception as e:
+        log.warning("[设置] 窗口打开失败: %s", e)
+        _show_about()
 
 
 # ═══════════════════════════════════════════════════════════════
