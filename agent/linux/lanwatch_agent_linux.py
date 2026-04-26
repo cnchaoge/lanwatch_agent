@@ -330,7 +330,8 @@ def register_agent(company_name, location=""):
             "name": company_name,
             "customer_name": company_name,
             "location": location,
-            "remark": "linux-agent"
+            "remark": "linux-agent",
+            "platform": "openwrt"
         }).encode("utf-8")
         req = urllib.request.Request(
             SERVER_URL + "/api/register",
