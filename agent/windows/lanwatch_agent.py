@@ -467,21 +467,20 @@ def scan_device_ports(host, timeout=PORT_SCAN_TIMEOUT, workers=PORT_SCAN_WORKERS
 
 
 def _ping_subnet_fast(subnet_prefix, workers=30, timeout=0.5):
-    """快速 ping 网段所有 IP，填充 ARP 缓存（并发 workers 个线程）"""
+    """快速 ping 网段所有 IP，填充 ARP 缓存，返回可达 IP 列表"""
     def _ping1(ip):
         r = ping_once(ip, timeout=timeout)
         return ip if r is not None else None
+    reached = []
     try:
         ips = [f"{subnet_prefix}.{i}" for i in range(1, 255)]
-        reached = []
         import concurrent.futures
         with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as ex:
             future_to_ip = {ex.submit(_ping1, ip): ip for ip in ips}
-            # 不使用 as_completed，直接等全部完成（timeout 保护整个池）
             try:
                 concurrent.futures.wait(future_to_ip.keys(), timeout=workers * timeout + 2)
             except Exception:
-                pass  # 超时也继续收集结果
+                pass
             for fut in future_to_ip:
                 try:
                     res = fut.result(timeout=0)
@@ -491,9 +490,31 @@ def _ping_subnet_fast(subnet_prefix, workers=30, timeout=0.5):
                     pass
         log.info("[拓扑] ping 扫描完成，%d/%d 台可达", len(reached), len(ips))
         if reached:
-            log.info("[拓扑] 可达 IP 示例: %s", ",".join(reached[:5]))
+            log.info("[拓扑] 可达 IP: %s", ",".join(reached[:10]))
     except Exception as e:
         log.warning("[拓扑] ping 扫描异常: %s", e)
+    return reached
+
+def _get_mac_for_ip(ip):
+    """用 getmac 或 arp -a 获取指定 IP 的 MAC 地址"""
+    try:
+        # 先尝试 getmac
+        out, _ = _run_hidden(f'getmac /nh /fo csv /s {ip}', timeout=3)
+        for line in out.splitlines():
+            if ip in line or len(line) > 10:
+                parts = line.split(",")
+                if parts:
+                    mac = parts[0].strip().strip('"').replace("-", ":").upper()
+                    if len(mac) == 17 and mac.count(":") == 5:
+                        return mac
+        # 备用：arp -a 单 IP
+        out2, _ = _run_hidden(f"arp -a {ip}", timeout=3)
+        m = re.search(r"([0-9a-fA-F]{2}[:-]){5}[0-9a-fA-F]{2}", out2)
+        if m:
+            return m.group(0).replace("-", ":").upper()
+    except Exception:
+        pass
+    return ""
 
 def get_all_devices_from_arp():
     """读取本机 ARP 缓存表，获取局域网已知设备（先 ping 填充 ARP 缓存）"""
@@ -502,12 +523,14 @@ def get_all_devices_from_arp():
         # 先快速 ping 网段填充 ARP 缓存
         subnet = get_subnet_prefix()
         log.info("[拓扑] 本机网段: %s", subnet)
+        reached = []
         if subnet:
             log.info("[拓扑] 开始 ping 扫描...")
-            _ping_subnet_fast(subnet)
+            reached = _ping_subnet_fast(subnet)
         else:
             log.warning("[拓扑] 无法获取本机网段，跳过 ping 扫描")
-        # 再读 ARP 表
+        # 解析 ARP 表
+        ip_to_mac = {}
         if sys.platform == "win32":
             out, _ = _run_hidden('arp -a', timeout=5)
         else:
@@ -516,26 +539,34 @@ def get_all_devices_from_arp():
         log.info("[拓扑] ARP 表读取到 %d 行", len(arp_lines))
         for line in arp_lines:
             line = line.strip()
-            # Windows: 192.168.1.1    60:de:44:67:12:1a     动态
-            # Linux: 192.168.1.1                      (ether) 60:de:44:67:12:1a  eth0
             m = re.search(r'(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})\s+([0-9a-fA-F:]{17})', line)
             if not m:
                 m = re.search(r'(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})\s+([0-9a-fA-F]{2}[-:][0-9a-fA-F]{2}[:][0-9a-fA-F]{2}[:][0-9a-fA-F]{2}[:][0-9a-fA-F]{2}[:][0-9a-fA-F]{2})', line)
             if m:
                 ip, mac = m.group(1), m.group(2).replace('-', ':').upper()
-                # 过滤广播/组播地址
                 if ip.endswith('.255') or mac.startswith('FF:FF'):
                     continue
-                hostname = _resolve_hostname(ip) or ''
-                vendor = get_vendor(mac)
-                dtype = guess_device_type(hostname, vendor, mac)
-                # 端口扫描（ARP 扫描完成后并发进行）
-                open_ports = scan_device_ports(ip)
-                port_strs = [f"{p}/{s}" for p, s in open_ports]
-                if port_strs:
-                    log.debug("[端口] %s 发现 %s", ip, ",".join(port_strs))
-                devices.append({"ip": ip, "mac": mac, "hostname": hostname, "vendor": vendor, "device_type": dtype, "open_ports": port_strs})
-                log.debug("[拓扑] ARP 发现 %s (%s) %s", ip, mac, vendor or "?")
+                ip_to_mac[ip] = mac
+        # ARP 表为空时，用 getmac 逐个获取可达 IP 的 MAC
+        if not ip_to_mac and reached:
+            log.info("[拓扑] ARP 表为空，尝试 getmac 获取 %d 个 IP 的 MAC", len(reached))
+            for ip in reached[:20]:
+                mac = _get_mac_for_ip(ip)
+                if mac:
+                    ip_to_mac[ip] = mac
+                    log.debug("[拓扑] %s -> %s", ip, mac)
+        # 生成设备列表
+        for ip, mac in ip_to_mac.items():
+            hostname = _resolve_hostname(ip) or ""
+            vendor = get_vendor(mac)
+            dtype = guess_device_type(hostname, vendor, mac)
+            # 端口扫描（并发进行）
+            open_ports = scan_device_ports(ip)
+            port_strs = [f"{p}/{s}" for p, s in open_ports]
+            if port_strs:
+                log.debug("[端口] %s 发现 %s", ip, ",".join(port_strs))
+            devices.append({"ip": ip, "mac": mac, "hostname": hostname, "vendor": vendor, "device_type": dtype, "open_ports": port_strs})
+            log.debug("[拓扑] 发现 %s (%s) %s", ip, mac, vendor or "?")
     except Exception as e:
         log.warning("[拓扑] ARP 读取失败: %s", e)
     return devices
