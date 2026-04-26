@@ -460,12 +460,21 @@ def _ping_subnet_fast(subnet_prefix, workers=30, timeout=0.5):
     try:
         from concurrent.futures import ThreadPoolExecutor, ascompleted
         ips = [f"{subnet_prefix}.{i}" for i in range(1, 255)]
+        reached = []
         with ThreadPoolExecutor(max_workers=workers) as ex:
             futures = {ex.submit(_ping1, ip): ip for ip in ips}
             for fut in ascompleted(futures, timeout=timeout + 1):
-                pass  # 等待全部完成，不在乎结果
-    except Exception:
-        pass
+                try:
+                    res = fut.result()
+                    if res:
+                        reached.append(res)
+                except Exception:
+                    pass
+        log.debug("[拓扑] ping 扫描完成，%d/%d 台可达", len(reached), len(ips))
+        if reached:
+            log.debug("[拓扑] 可达 IP 示例: %s", ",".join(reached[:5]))
+    except Exception as e:
+        log.warning("[拓扑] ping 扫描异常: %s", e)
 
 def get_all_devices_from_arp():
     """读取本机 ARP 缓存表，获取局域网已知设备（先 ping 填充 ARP 缓存）"""
