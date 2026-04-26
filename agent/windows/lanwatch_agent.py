@@ -140,16 +140,36 @@ def check_and_upgrade():
     try:
         result = check_github_latest_version()
         if not result:
+            _show_upgrade_toast("检查失败", "无法连接到 GitHub，请稍后重试")
             return
         new_version, download_url = result
         if parse_version(new_version) <= parse_version(__version__):
-            log.debug("[升级] 当前已是最新版本 v%s", __version__)
+            _show_upgrade_toast("已是最新", f"当前 v{__version__} 已是最新版本")
             return
         log.info("[升级] 发现新版本 v%s（当前 v%s）", new_version, __version__)
-        # 通过托盘提示用户
         _notify_upgrade(new_version, download_url)
     except Exception as e:
         log.warning("[升级] 检查异常: %s", e)
+
+
+def _do_manual_upgrade_check():
+    """手动检查更新（托盘菜单调用）"""
+    threading.Thread(target=check_and_upgrade, daemon=True, name="upgrade_check_manual").start()
+
+
+def _show_upgrade_toast(title, msg):
+    """在托盘线程中弹出提示（无需用户交互的结果通知）"""
+    def _popup():
+        try:
+            from tkinter import messagebox
+            root = _tk_root
+            if root is None:
+                return
+            messagebox.showinfo(title, msg, parent=root)
+        except Exception:
+            pass
+    if _tk_root:
+        _tk_root.after(0, _popup)
 
 
 def _notify_upgrade(new_version, download_url):
@@ -1015,6 +1035,7 @@ def setup_tray(agent_id, company_name):
 
         def make_menu():
             return Menu(
+                MenuItem("检查更新", lambda icon, item: _do_manual_upgrade_check(), default=False),
                 MenuItem("查看日志", lambda icon, item: _open_log(), default=False),
                 MenuItem("设置", lambda icon, item: _show_settings_window(), default=False),
                 MenuItem("卸载", lambda icon, item: _on_uninstall(), default=False),
