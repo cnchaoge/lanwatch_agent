@@ -596,7 +596,8 @@ def register_agent(company_name, phone="", location=""):
             "name": company_name,
             "phone": phone,
             "location": location,
-            "remark": "lanwatch_agent_v0.7.0"
+            "remark": "lanwatch_agent_v0.7.0",
+            "platform": "windows"
         }).encode()
         req = urllib.request.Request(
             SERVER_URL + "/api/register",
