@@ -4,6 +4,165 @@
 
 __version__ = "0.7.0"
 
+# ═══════════════════════════════════════════════════════════════
+# 自动升级配置
+# ═══════════════════════════════════════════════════════════════
+UPDATE_CHECK_INTERVAL = 86400   # 检查频率：每天一次（秒）
+GITHUB_REPO = "cnchaoge/lanwatch_agent"
+UPDATE_MARKER_FILE = os.path.expanduser("~/.lanwatch_agent_update.json")
+UPDATE_HELPER = os.path.join(tempfile.gettempdir(), "lanwatch_update_helper.py")
+
+# ═══════════════════════════════════════════════════════════════
+# 自动升级功能
+# ═══════════════════════════════════════════════════════════════
+
+def check_github_latest_version():
+    """从 GitHub releases API 获取最新版本号，返回 (version, download_url) 或 None"""
+    try:
+        req = urllib.request.Request(
+            f"https://api.github.com/repos/{GITHUB_REPO}/releases/latest",
+            headers={"User-Agent": "lanwatch_agent"}
+        )
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            data = json.loads(resp.read())
+            tag = data.get("tag_name", "").strip()
+            if tag.startswith("v"):
+                version = tag[1:]
+            else:
+                version = tag
+            download_url = None
+            for asset in data.get("assets", []):
+                if asset.get("name") == "lanwatch_agent.exe":
+                    download_url = asset.get("browser_download_url")
+                    break
+            if download_url and version:
+                return version, download_url
+    except Exception as e:
+        log.debug("[升级] 检查失败: %s", e)
+    return None
+
+
+def parse_version(v):
+    """将版本字符串转为 (int, int, int) 元组，用于比较"""
+    try:
+        parts = v.strip().lstrip("v").split(".")
+        return tuple(int(p) for p in parts[:3]) + (0, 0, 0)[:3-len(parts)]
+    except Exception:
+        return (0, 0, 0)
+
+
+def _write_update_helper_script(exe_path):
+    """生成升级辅助脚本，用于复制新 exe 并重启"""
+    helper = UPDATE_HELPER
+    try:
+        with open(helper, "w", encoding="utf-8") as f:
+            f.write("""
+import sys, os, time, shutil
+src = sys.argv[1]
+dst = sys.argv[2]
+max_wait = 10
+for _ in range(max_wait):
+    try:
+        shutil.copy2(src, dst)
+        print("OK", flush=True)
+        break
+    except Exception:
+        time.sleep(1)
+# 重新启动本程序
+try:
+    os.system(f'"{dst}"')
+except Exception:
+    pass
+""".strip())
+        log.debug("[升级] 辅助脚本已写入: %s", helper)
+    except Exception as e:
+        log.warning("[升级] 写入辅助脚本失败: %s", e)
+
+
+def _do_upgrade(download_url, new_version):
+    """下载新版本 exe 并触发升级"""
+    log.info("[升级] 准备下载新版本 v%s ...", new_version)
+    try:
+        req = urllib.request.Request(download_url, headers={"User-Agent": "lanwatch_agent"})
+        with urllib.request.urlopen(req, timeout=60) as resp:
+            data = resp.read()
+        log.info("[升级] 下载完成，大小: %s", len(data))
+
+        # 写到 temp 目录
+        tmp_exe = os.path.join(tempfile.gettempdir(), "lanwatch_agent_new.exe")
+        with open(tmp_exe, "wb") as f:
+            f.write(data)
+        log.info("[升级] 临时文件: %s", tmp_exe)
+
+        # 生成辅助脚本
+        _write_update_helper_script(tmp_exe)
+
+        # 用辅助脚本替换并重启
+        dst_exe = sys.executable
+        log.info("[升级] 正在替换 exe ...")
+        try:
+            import subprocess
+            si = subprocess.STARTUPINFO()
+            si.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+            si.wShowWindow = subprocess.SW_HIDE
+            subprocess.Popen(
+                [sys.executable, UPDATE_HELPER, tmp_exe, dst_exe],
+                startupinfo=si
+            )
+        except Exception as e:
+            log.error("[升级] 启动辅助脚本失败: %s", e)
+            # 备用：直接替换
+            try:
+                import shutil as _sh
+                _sh.copy2(tmp_exe, dst_exe)
+                log.info("[升级] 替换完成，重启...")
+                os.system(f'"{dst_exe}"')
+            except Exception as e2:
+                log.error("[升级] 备用替换也失败: %s", e2)
+    except Exception as e:
+        log.error("[升级] 下载/替换失败: %s", e)
+
+
+def check_and_upgrade():
+    """检查新版本并提示用户升级"""
+    try:
+        result = check_github_latest_version()
+        if not result:
+            return
+        new_version, download_url = result
+        if parse_version(new_version) <= parse_version(__version__):
+            log.debug("[升级] 当前已是最新版本 v%s", __version__)
+            return
+        log.info("[升级] 发现新版本 v%s（当前 v%s）", new_version, __version__)
+        # 通过托盘提示用户
+        _notify_upgrade(new_version, download_url)
+    except Exception as e:
+        log.warning("[升级] 检查异常: %s", e)
+
+
+def _notify_upgrade(new_version, download_url):
+    """在托盘线程中弹出升级提示"""
+    def _popup():
+        try:
+            from tkinter import messagebox
+            root = _tk_root
+            if root is None:
+                return
+            if messagebox.askyesno(
+                "发现新版本",
+                f"发现新版本 v{new_version}（当前 v{__version__}）\n\n是否立即下载并升级？\n\n"
+                f"升级过程将自动重启客户端",
+                parent=root
+            ):
+                log.info("[升级] 用户确认，开始下载...")
+                threading.Thread(target=_do_upgrade, args=(download_url, new_version), daemon=True).start()
+            else:
+                log.info("[升级] 用户取消升级")
+        except Exception as e:
+            log.warning("[升级] 弹窗失败: %s", e)
+    if _tk_root:
+        _tk_root.after(0, _popup)
+
 import socket
 from time import sleep
 import time
@@ -18,6 +177,7 @@ import urllib.error
 import threading
 import ctypes
 import queue
+import tempfile
 import re
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
@@ -1476,6 +1636,7 @@ def _run_monitoring(agent_id, company_name):
     log.info("开始监控探测...")
     consecutive_errors = 0
     topo_next_in = TOPOLOGY_INTERVAL
+    upgrade_next_in = UPDATE_CHECK_INTERVAL  # 首次启动先等一会儿再检查
     while True:
         try:
             cfg = load_config()
@@ -1510,6 +1671,10 @@ def _run_monitoring(agent_id, company_name):
             threading.Thread(target=_do_topology_scan,
                            args=((cfg or {}).get("subnets", []), agent_id),
                            daemon=True, name="topology").start()
+        upgrade_next_in -= REPORT_INTERVAL
+        if upgrade_next_in <= 0:
+            upgrade_next_in = UPDATE_CHECK_INTERVAL
+            threading.Thread(target=check_and_upgrade, daemon=True, name="upgrade_check").start()
         sleep(REPORT_INTERVAL)
 
     report_offline(agent_id)
