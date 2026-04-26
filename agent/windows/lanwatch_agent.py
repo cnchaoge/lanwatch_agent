@@ -1174,15 +1174,30 @@ def _open_log(icon=None):
 
 def _show_about(icon=None):
     """显示关于对话框"""
-    from tkinter import messagebox
+    from tkinter import Toplevel, Label, Button, messagebox
     try:
-        messagebox.showinfo(
-            "关于 lanwatch_agent",
-            f"lanwatch_agent v{__version__}\n"
-            f"企业网络监控客户端\n\n"
-            f"服务端: {SERVER_URL}",
-            parent=_tk_root
-        )
+        win = Toplevel(_tk_root)
+        win.title("关于 lanwatch_agent")
+        win.geometry("320x180")
+        win.resizable(False, False)
+        win.attributes("-topmost", True)
+        win.update_idletasks()
+        sw = win.winfo_screenwidth()
+        sh = win.winfo_screenheight()
+        ww, wh = 320, 180
+        win.geometry(f"{ww}x{wh}+{(sw-ww)//2}+{(sh-wh)//2}")
+
+        Label(win, text=f"lanwatch_agent v{__version__}", font=("Arial", 12, "bold")).place(x=20, y=20)
+        Label(win, text="企业网络监控客户端", font=("Arial", 10)).place(x=20, y=50)
+        Label(win, text=f"服务端: {SERVER_URL}", font=("Arial", 9), fg="#666").place(x=20, y=75)
+
+        def do_check():
+            check_and_upgrade()
+
+        Button(win, text="检查更新", command=do_check, width=12).place(x=20, y=115)
+        Button(win, text="关闭", command=win.destroy, width=12).place(x=165, y=115)
+
+        win.protocol("WM_DELETE_WINDOW", win.destroy)
     except Exception:
         pass
 
