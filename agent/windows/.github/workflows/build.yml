@@ -26,21 +26,15 @@ jobs:
       - name: Build EXE
         run: |
           pyinstaller lanwatch_agent.spec --noconfirm
-          mv dist/lanwatch_agent.exe dist/lanwatch_agent.exe
 
-      - name: Upload to GitHub Release
-        if: startsWith(github.ref, 'refs/tags/v')
+      - name: Upload EXE to GitHub Release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           $tag = $env:GITHUB_REF -replace 'refs/tags/', ''
-          $version = $tag -replace '^v', ''
-          gh release edit $tag \
-            --repo cnchaoge/lanwatch_agent \
-            --asset dist/lanwatch_agent.exe \
-            --clobber || true
-          gh release create $tag \
-            --repo cnchaoge/lanwatch_agent \
-            --title "v$version" \
-            --notes "自动构建" \
-            dist/lanwatch_agent.exe
+          # 如果 release 已存在则追加 asset，否则创建 release
+          gh release view $tag --repo cnchaoge/lanwatch_agent 2>/dev/null && (
+            gh release upload $tag dist/lanwatch_agent.exe --repo cnchaoge/lanwatch_agent --clobber
+          ) || (
+            gh release create $tag dist/lanwatch_agent.exe --repo cnchaoge/lanwatch_agent --title "v$(echo $tag | sed 's/^v//')" --notes "自动构建"
+          )
