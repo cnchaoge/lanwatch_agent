@@ -10,7 +10,7 @@ import secrets
 import threading
 import asyncio
 from pathlib import Path
-from typing import Optional
+from typing import Optional, List
 
 from fastapi import FastAPI, HTTPException, Header, Request
 from fastapi.responses import StreamingResponse
@@ -215,6 +215,7 @@ def init_db():
                 device_type TEXT DEFAULT 'unknown',
                 last_seen REAL DEFAULT 0,
                 discovered_at REAL DEFAULT 0,
+                open_ports TEXT DEFAULT '',
                 UNIQUE(agent_id, ip)
             )
         """)
@@ -266,13 +267,24 @@ def init_db():
                 created_at REAL NOT NULL
             )
         """)
+        # 创建 ping_results 表（掉线检测历史）
+        c.execute("""
+            CREATE TABLE IF NOT EXISTS ping_results (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                monitor_id INTEGER NOT NULL,
+                timestamp REAL NOT NULL,
+                online INTEGER NOT NULL,
+                rtt_ms INTEGER,
+                FOREIGN KEY (monitor_id) REFERENCES ping_monitors(id)
+            )
+        """)
         conn.commit()
         print("[DB] initialized at", DB_PATH)
     finally:
         close_db(conn)
 
 def init_crm():
-    """已迁移至 crm-system，保留函数避免启动报错"""
+    """CRM已迁移至独立仓库，保留函数避免启动报错"""
     pass
 
 # ─── SNMP 轮询引擎 ──────────────────────────────────────────────────────────
@@ -404,18 +416,20 @@ def poll_snmp_devices():
         close_db(conn)
 
 def ping_host(ip, timeout=3):
-    """ping 一个 IP，返回 True/False"""
+    """ping 一个 IP，返回 (是否在线, 延迟秒) """
     import subprocess
     try:
+        start = time.time()
         result = subprocess.run(
             ['ping', '-c', '1', '-W', str(timeout), ip],
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
             timeout=timeout + 1
         )
-        return result.returncode == 0
+        elapsed = time.time() - start
+        return result.returncode == 0, elapsed
     except Exception:
-        return False
+        return False, None
 
 def poll_ping_monitors():
     """检测所有掉线监控目标"""
@@ -424,7 +438,7 @@ def poll_ping_monitors():
         monitors = conn.execute("SELECT * FROM ping_monitors WHERE enabled=1").fetchall()
         now = time.time()
         for m in monitors:
-            online = ping_host(m['ip'])
+            online, rtt = ping_host(m['ip'])
             status = 'online' if online else 'offline'
             was_online = m['status'] == 'online'
 
@@ -457,6 +471,11 @@ def poll_ping_monitors():
                     "UPDATE ping_monitors SET status=? WHERE id=?",
                     (status, m['id'])
                 )
+            # 记录历史（最近24小时）
+            conn.execute(
+                "INSERT INTO ping_results (monitor_id, timestamp, online, rtt_ms) VALUES (?, ?, ?, ?)",
+                (m['id'], now, 1 if online else 0, int(rtt * 1000) if online else None)
+            )
         conn.commit()
     finally:
         close_db(conn)
@@ -559,9 +578,11 @@ def start_snmp_trap_receiver(port=10162):
 class UserRegister(BaseModel):
     name: str
     phone: Optional[str] = ""
+    platform: Optional[str] = "linux"
 
 class AgentRegister(BaseModel):
     name: str
+    platform: Optional[str] = "windows"
 
 class ProbeReport(BaseModel):
     ping_ok: bool
@@ -583,6 +604,7 @@ class TopologyDevice(BaseModel):
     hostname: Optional[str] = ""
     vendor: Optional[str] = ""
     device_type: Optional[str] = "unknown"  # router / switch / server / printer / pc / unknown
+    open_ports: Optional[List[str]] = []  # ["80/http", "22/ssh", "3306/mysql"]
 
 class DiagReport(BaseModel):
     time: str
@@ -643,8 +665,8 @@ def register_user(data: UserRegister):
         # 自动创建第一个监控设备
         agent_id = str(uuid.uuid4())[:8]
         conn.execute(
-            "INSERT INTO agents (id, user_id, name, created_at, customer_name) VALUES (?,?,?,?,?)",
-            (agent_id, user_id, data.name + '-监控', now, data.name)
+            "INSERT INTO agents (id, user_id, name, created_at, customer_name, platform) VALUES (?,?,?,?,?,?)",
+            (agent_id, user_id, data.name + "-监控", now, data.name, data.platform or "openwrt")
         )
         conn.commit()
         return {"user_id": user_id, "token": token, "name": data.name, "agent_id": agent_id}
@@ -674,8 +696,8 @@ def register_agent(data: AgentRegister, authorization: Optional[str] = Header(No
         agent_id = str(uuid.uuid4())[:8]
         now = time.time()
         conn.execute(
-            "INSERT INTO agents (id, user_id, name, created_at, customer_name) VALUES (?,?,?,?,?)",
-            (agent_id, user["id"], data.name, now, user["name"])
+            "INSERT INTO agents (id, user_id, name, created_at, customer_name, platform) VALUES (?,?,?,?,?,?)",
+            (agent_id, user["id"], data.name, now, user["name"], "windows")
         )
         conn.commit()
         return {"agent_id": agent_id}
@@ -803,7 +825,7 @@ def list_all_users():
         for u in rows:
             udict = dict(u)
             agents = [dict(r) for r in conn.execute(
-                "SELECT * FROM agents WHERE user_id=? AND uninstalled=0 ORDER BY created_at", (udict["id"],)).fetchall()]
+                "SELECT * FROM agents WHERE user_id=? ORDER BY created_at", (udict["id"],)).fetchall()]
             # 每个 agent 带上最新的 probe 数据
             agents_with_probes = []
             for a in agents:
@@ -846,8 +868,8 @@ def create_user(data: UserCreate):
         )
         agent_id = str(uuid.uuid4())[:8]
         conn.execute(
-            "INSERT INTO agents (id, user_id, name, created_at, customer_name) VALUES (?,?,?,?,?)",
-            (agent_id, user_id, data.name + '-监控', now, data.name)
+            "INSERT INTO agents (id, user_id, name, created_at, customer_name, platform) VALUES (?,?,?,?,?,?)",
+            (agent_id, user_id, data.name + "-监控", now, data.name, data.platform or "openwrt")
         )
         conn.commit()
         return {"user_id": user_id, "token": token, "agent_id": agent_id}
@@ -1144,8 +1166,8 @@ def test_ping_monitor(monitor_id: int):
         row = conn.execute("SELECT * FROM ping_monitors WHERE id=?", (monitor_id,)).fetchone()
         if not row:
             raise HTTPException(status_code=404, detail="目标不存在")
-        result = ping_host(row['ip'])
-        return {"ip": row['ip'], "online": result}
+        online, rtt = ping_host(row['ip'])
+        return {"ip": row['ip'], "online": online, "rtt_ms": int(rtt*1000) if online else None}
     finally:
         close_db(conn)
 
@@ -1157,6 +1179,51 @@ def get_ping_latest():
         return [dict(r) for r in conn.execute("SELECT * FROM ping_monitors WHERE enabled=1").fetchall()]
     finally:
         close_db(conn)
+
+@app.get("/api/admin/ping/{monitor_id}")
+def get_ping_monitor(monitor_id: int):
+    conn = get_db()
+    try:
+        row = conn.execute("SELECT * FROM ping_monitors WHERE id=?", (monitor_id,)).fetchone()
+        if not row:
+            raise HTTPException(status_code=404, detail="目标不存在")
+        return dict(row)
+    finally:
+        close_db(conn)
+
+@app.get("/api/admin/ping/{monitor_id}/history")
+def get_ping_history(monitor_id: int, hours: int = 24):
+    """获取掉线监控历史（延迟趋势 + 可用率）"""
+    conn = get_db()
+    try:
+        row = conn.execute("SELECT * FROM ping_monitors WHERE id=?", (monitor_id,)).fetchone()
+        if not row:
+            raise HTTPException(status_code=404, detail="目标不存在")
+        now = time.time()
+        hour_sec = hours * 3600
+        rtt_rows = conn.execute(
+            "SELECT timestamp as ts, rtt_ms FROM ping_results WHERE monitor_id=? AND timestamp>? ORDER BY timestamp ASC",
+            (monitor_id, now - hour_sec)
+        ).fetchall()
+        rtt_history = [dict(r) for r in rtt_rows]
+        up_history = []
+        for day in range(7):
+            t = now - day * 86400
+            day_start = int(t) - 86400
+            day_end = int(t)
+            total = conn.execute("SELECT COUNT(*) FROM ping_results WHERE monitor_id=? AND timestamp BETWEEN ? AND ?", (monitor_id, day_start, day_end)).fetchone()[0]
+            online = conn.execute("SELECT COUNT(*) FROM ping_results WHERE monitor_id=? AND timestamp BETWEEN ? AND ? AND online=1", (monitor_id, day_start, day_end)).fetchone()[0]
+            up_pct = online * 100 / total if total > 0 else 0
+            up_history.insert(0, {"ts": day_start, "up_pct": up_pct})
+        return {"rtt_history": rtt_history, "up_history": up_history}
+    finally:
+        close_db(conn)
+
+@app.post("/api/admin/ping/poll-now")
+def poll_ping_now():
+    """手动触发一次掉线检测（调试用）"""
+    poll_ping_monitors()
+    return {"ok": True}
 
 @app.get("/api/snmp/{device_id}")
 def get_snmp_device_detail(device_id: int):
@@ -1355,12 +1422,13 @@ def report_topology(agent_id: str, data: TopologyReport):
             raise HTTPException(status_code=404, detail="Agent not found")
         now = time.time()
         for dev in data.devices:
+            open_ports_json = json.dumps(dev.open_ports or [])
             conn.execute("""
                 INSERT OR REPLACE INTO topology
-                (agent_id, ip, mac, hostname, vendor, device_type, last_seen, discovered_at)
-                VALUES (?,?,?,?,?,?,?,?)
+                (agent_id, ip, mac, hostname, vendor, device_type, last_seen, discovered_at, open_ports)
+                VALUES (?,?,?,?,?,?,?,?,?)
             """, (agent_id, dev.ip, dev.mac.upper(), dev.hostname or '',
-                  dev.vendor or '', dev.device_type or 'unknown', now, now))
+                  dev.vendor or '', dev.device_type or 'unknown', now, now, open_ports_json))
         conn.commit()
         return {"ok": True, "count": len(data.devices)}
     finally:
@@ -1393,7 +1461,16 @@ def get_topology(agent_id: str):
             (agent_id,)
         )
         rows = c.fetchall()
-        return [dict(r) for r in rows]
+        result = []
+        for r in rows:
+            d = dict(r)
+            if d.get('open_ports'):
+                try:
+                    d['open_ports'] = json.loads(d['open_ports'])
+                except Exception:
+                    d['open_ports'] = []
+            result.append(d)
+        return result
     finally:
         close_db(conn)
 
@@ -1425,6 +1502,13 @@ def index():
 @app.get("/monitor")
 def monitor_page():
     static_path = Path(__file__).parent / "static" / "index.html"
+    if static_path.exists():
+        return FileResponse(str(static_path))
+    return {"message": "Not found"}
+
+@app.get("/ping/{monitor_id}")
+def ping_detail_page(monitor_id: int):
+    static_path = Path(__file__).parent / "static" / "ping_detail.html"
     if static_path.exists():
         return FileResponse(str(static_path))
     return {"message": "Not found"}
@@ -1532,8 +1616,10 @@ def startup():
     init_crm()
     start_ping_poller()
     start_snmp_poller()
-    start_snmp_trap_receiver()
-    print("[Server] 企业网络监控平台启动 v0.6.3")
+    t = threading.Thread(target=start_snmp_trap_receiver, daemon=True)
+    t.start()
+    print("[SNMP Trap] receiver starting in background thread", flush=True)
+    print("[Server] 企业网络监控平台启动 v0.6.3", flush=True)
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8000)
