@@ -53,15 +53,15 @@ def parse_version(v):
         return (0, 0, 0)
 
 
-def _write_update_helper_script(exe_path, marker_path, marker_data):
+def _write_update_helper_script(marker_path, marker_data):
     """生成升级辅助脚本，用于复制新 exe 并重启"""
     helper = UPDATE_HELPER
+    temp_dir = tempfile.gettempdir()
     try:
         with open(helper, "w", encoding="utf-8") as f:
             f.write(f"""
-import sys, os, time, shutil, json
+import sys, os, time, shutil, json, glob
 
-marker = {marker_data!r}
 with open({marker_path!r}, 'r') as mf:
     info = json.load(mf)
 dst = info['dst']
@@ -79,9 +79,22 @@ for _ in range(15):
 try: os.remove({marker_path!r})
 except Exception: pass
 
+# 清理临时文件（忽略失败）
+try:
+    for fp in glob.glob({temp_dir!r} + '/*.json'):
+        try: os.remove(fp)
+        except Exception: pass
+    helper = {helper!r}
+    try: os.remove(helper)
+    except Exception: pass
+    for fp in glob.glob({temp_dir!r} + '/lanwatch_agent_new.exe'):
+        try: os.remove(fp)
+        except Exception: pass
+except Exception: pass
+
 # 重启
 try:
-    os.system(f'"{{dst}}"')
+    os.system(f'\"{{dst}}\"')
 except Exception:
     pass
 """)
@@ -114,7 +127,7 @@ def _do_upgrade(download_url, new_version):
             json.dump(marker_data, f)
 
         # 生成辅助脚本
-        _write_update_helper_script(tmp_exe, marker_path, marker_data)
+        _write_update_helper_script(marker_path, marker_data)
 
         # 启动辅助脚本后，本进程退出
         log.info("[升级] 正在替换并重启...")
@@ -136,6 +149,20 @@ def _do_upgrade(download_url, new_version):
         try:
             if _tray_icon_ref:
                 _tray_icon_ref.stop()
+        except Exception:
+            pass
+        try:
+            # 清理临时下载文件（忽略失败，防止 Windows 报错）
+            tmp_exe = os.path.join(tempfile.gettempdir(), "lanwatch_agent_new.exe")
+            os.remove(tmp_exe)
+        except Exception:
+            pass
+        try:
+            # 清理标记文件
+            import glob, random
+            for fp in glob.glob(os.path.join(tempfile.gettempdir(), "lw_update_*.json")):
+                try: os.remove(fp)
+                except Exception: pass
         except Exception:
             pass
         os._exit(0)
