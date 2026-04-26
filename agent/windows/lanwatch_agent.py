@@ -2,7 +2,9 @@
 # -*- coding: utf-8 -*-
 """lanwatch_agent - 企业网络监控客户端 v0.8.0"""
 
-__version__ = "0.8.0"
+__version__ = "0.8.1"
+
+import tempfile
 
 # ═══════════════════════════════════════════════════════════════
 # 自动升级配置
@@ -197,6 +199,20 @@ def _notify_upgrade(new_version, download_url):
 
 import socket
 from time import sleep
+import time
+import json
+import sys
+import os
+import uuid
+import logging
+import subprocess
+import urllib.request
+import urllib.error
+import threading
+import ctypes
+import queue
+import re
+from concurrent.futures import ThreadPoolExecutor, as_completed
 import time
 import json
 import sys
