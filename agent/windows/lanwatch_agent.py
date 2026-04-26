@@ -946,40 +946,28 @@ def _on_uninstall():
 def _show_settings_window():
     """显示设置窗口（托盘点击"设置"触发）：自启动开关"""
     try:
-        from tkinter import Toplevel, Label, Checkbutton, IntVar, messagebox
+        from tkinter import Toplevel, Label, Checkbutton, IntVar, messagebox, Button, Frame
         cfg = load_config()
         win = Toplevel(_tk_root)
         win.title("设置")
-        win.geometry("340x180")
+        win.geometry("340x220")
         win.resizable(False, False)
         win.attributes("-topmost", True)
-        # 居中
         win.update_idletasks()
         sw = win.winfo_screenwidth()
         sh = win.winfo_screenheight()
-        ww, wh = 340, 180
+        ww, wh = 340, 220
         win.geometry(f"{ww}x{wh}+{(sw-ww)//2}+{(sh-wh)//2}")
 
         # 标题
         Label(win, text="lanwatch_agent v" + __version__, font=("微软雅黑", 10, "bold")).place(x=20, y=16)
         Label(win, text="企业网络监控客户端", font=("微软雅黑", 9), fg="#666").place(x=20, y=42)
 
-        # 自启动开关
+        # 自启动开关（不立即生效，等点确定）
         auto_var = IntVar(value=1 if is_autostart_enabled() else 0)
-
-        def on_auto_toggle():
-            ok = set_autostart(bool(auto_var.get()))
-            if ok:
-                status = "已开启" if auto_var.get() else "已关闭"
-                log.info("[设置] 自启动: %s", status)
-            else:
-                # 回滚 UI
-                auto_var.set(1 if is_autostart_enabled() else 0)
-                messagebox.showwarning("设置失败", "无法修改自启动设置", parent=win)
-
         cb = Checkbutton(
             win, text="开机自启动",
-            variable=auto_var, command=on_auto_toggle,
+            variable=auto_var,
             font=("微软雅黑", 10),
             onvalue=1, offvalue=0
         )
@@ -988,13 +976,32 @@ def _show_settings_window():
         # 服务器地址（只读）
         Label(win, text="服务端: " + SERVER_URL, font=("微软雅黑", 8), fg="#888").place(x=20, y=130)
 
-        # 关闭按钮
-        def close():
+        # 按钮栏
+        btn_frame = Frame(win)
+        btn_frame.pack(side="bottom", fill="x", padx=20, pady=(0, 16))
+
+        def on_ok():
+            ok = set_autostart(bool(auto_var.get()))
+            if ok:
+                status = "已开启" if auto_var.get() else "已关闭"
+                log.info("[设置] 自启动: %s", status)
+            else:
+                messagebox.showwarning("设置失败", "无法修改自启动设置", parent=win)
+                return
             win.destroy()
-        Label(win, text="  关闭  ", font=("微软雅黑", 9), fg="#888",
-              cursor="hand2").place(x=270, y=145)
-        win.bind("<Button-1>", lambda e: close() if e.x > 250 and e.y > 135 else None)
-        win.protocol("WM_DELETE_WINDOW", close)
+
+        def on_cancel():
+            win.destroy()
+
+        ok_btn = Button(btn_frame, text="确定", font=("微软雅黑", 9), command=on_ok,
+                        bg="#2563EB", fg="white", relief="flat", pady=5)
+        ok_btn.pack(side="left", fill="x", expand=True, padx=(0, 8))
+
+        cancel_btn = Button(btn_frame, text="取消", font=("微软雅黑", 9), command=on_cancel,
+                            bg="#F3F4F6", fg="#374151", relief="flat", pady=5)
+        cancel_btn.pack(side="left", fill="x", expand=True)
+
+        win.protocol("WM_DELETE_WINDOW", on_cancel)
     except Exception as e:
         log.warning("[设置] 窗口打开失败: %s", e)
         _show_about()
