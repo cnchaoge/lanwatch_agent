@@ -1144,8 +1144,7 @@ def _show_setup_window(root):
                 # 设置开机自启（根据用户选择）
                 if autostart_var.get():
                     set_autostart(True)
-                win.after(0, lambda: _show_success_window(root, company_name, agent_id, token))
-                import os as _os; win.after(500, lambda: _os._exit(0))
+                win.after(0, lambda: _show_success_window(root, win, company_name, agent_id, token))
             except Exception as e:
                 import traceback
                 log.error("注册异常: %s", e)
@@ -1196,7 +1195,7 @@ def _show_setup_window(root):
 
 
 
-def _show_success_window(root, company_name, agent_id, token):
+def _show_success_window(root, setup_win, company_name, agent_id, token):
     """注册成功窗口"""
     import tkinter as tk
     from PIL import Image, ImageTk
@@ -1282,19 +1281,20 @@ def _show_success_window(root, company_name, agent_id, token):
              font=("微软雅黑",9), bg="#F3F4F6", fg=TEXT,
              relief="flat", pady=7).pack(side="left", fill="x", expand=True, padx=4)
     tk.Button(btn_frame, text="完 成",
-             command=lambda: _dismiss_and_start(win, root, agent_id, company_name),
+             command=lambda: _dismiss_and_start(win, setup_win, root, agent_id, company_name),
              font=("微软雅黑",9,"bold"), bg=GREEN, fg="white",
              relief="flat", pady=7).pack(side="left", fill="x", expand=True, padx=(4,0))
 
-    win.protocol("WM_DELETE_WINDOW", lambda: _dismiss_and_start(win, root, agent_id, company_name))
+    win.protocol("WM_DELETE_WINDOW", lambda: _dismiss_and_start(win, setup_win, root, agent_id, company_name))
     win.wait_window()
 
 
-def _dismiss_and_start(win, root, agent_id, company_name):
-    """注册完成：关闭窗口，直接退出程序（用户下次手动运行启动监控）"""
-    win.destroy()
-    import os, sys
-    os._exit(0)  # 彻底退出进程，不留任何残留线程
+def _dismiss_and_start(success_win, setup_win, root, agent_id, company_name):
+    """关闭注册成功窗口（如有），关闭 setup 向导，退出 Tk 主循环"""
+    success_win.destroy()
+    if setup_win is not None:
+        setup_win.destroy()  # 关闭 setup 向导，让其 wait_window() 返回
+    root.quit()  # 退出 main() 的 root.mainloop()
 
 
 def _open_mobile(agent_id):
