@@ -1291,10 +1291,10 @@ def _show_success_window(root, company_name, agent_id, token):
 
 
 def _dismiss_and_start(win, root, agent_id, company_name):
-    """setup wizard 点完成后：销毁向导窗口，退出 setup 的 mainloop，返回 main() 继续"""
+    """注册完成：关闭窗口，直接退出程序（用户下次手动运行启动监控）"""
     win.destroy()
-    root.quit()  # 退出 _show_setup_window 的 root.mainloop()
-    # 托盘和监控会在 main() 里接着启动，这里不要直接调用 _run_monitoring
+    import os, sys
+    os._exit(0)  # 彻底退出进程，不留任何残留线程
 
 
 def _open_mobile(agent_id):
