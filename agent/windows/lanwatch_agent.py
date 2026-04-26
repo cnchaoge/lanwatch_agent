@@ -83,7 +83,21 @@ def get_local_ip():
         s.close()
         return ip
     except Exception:
-        return ""
+        pass
+    # 备用方案：Windows 用 ipconfig 提取
+    try:
+        import subprocess
+        out = subprocess.check_output("ipconfig", stderr=subprocess.DEVNULL, text=True)
+        for line in out.splitlines():
+            if "IPv4" in line:
+                parts = line.split(":")
+                if len(parts) >= 2:
+                    ip = parts[1].strip()
+                    if ip and ip != "0.0.0.0":
+                        return ip
+    except Exception:
+        pass
+    return ""
 
 
 def get_subnet_prefix():
@@ -488,7 +502,10 @@ def get_all_devices_from_arp():
         # 先快速 ping 网段填充 ARP 缓存
         subnet = get_subnet_prefix()
         if subnet:
+            log.debug("[拓扑] 本机网段: %s，开始 ping 扫描", subnet)
             _ping_subnet_fast(subnet)
+        else:
+            log.warning("[拓扑] 无法获取本机网段，跳过 ping 扫描")
         # 再读 ARP 表
         if sys.platform == "win32":
             out, _ = _run_hidden('arp -a', timeout=5)
