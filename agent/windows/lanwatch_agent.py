@@ -132,6 +132,12 @@ def _do_upgrade(download_url, new_version):
             return
 
         # 退出当前程序
+        log.info("[升级] 退出程序，准备重启...")
+        try:
+            if _tray_icon_ref:
+                _tray_icon_ref.stop()
+        except Exception:
+            pass
         os._exit(0)
     except Exception as e:
         log.error("[升级] 下载/替换失败: %s", e)
