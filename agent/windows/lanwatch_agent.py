@@ -149,14 +149,19 @@ def ping_once(host, timeout=3):
         if sys.platform == "win32":
             out, _ = _run_hidden(f'ping -n 1 -w {timeout*1000} {host}')
             if "TTL=" in out.upper():
-                # 优先取 Average 时间，格式: Average = Xms
+                # 优先取 Average 时间，格式: Average = Xms（英文 Windows）
                 m = re.search(r'[Aa]verage\s*=\s*(\d+)ms', out)
                 if m:
                     return float(m.group(1))
-                # 其次取 time=Xms（ping 输出行的 RTT）
-                m = re.search(r'time[=<](\d+\.?\d*)\s*ms', out, re.IGNORECASE)
+                # time=Xms（英文）或 时间=Xms（中文 Windows）
+                m = re.search(r'[Tt]ime[=<]?\s*(\d+\.?\d*)\s*ms', out)
                 if m:
                     return float(m.group(1))
+                m = re.search(r'时间[=<]?\s*(\d+\.?\d*)\s*ms', out)
+                if m:
+                    return float(m.group(1))
+                # 有 TTL 响应但读不到时间（某些 Windows 变体），返回 1ms
+                return 1.0
             return None
         else:
             out, _ = _run_hidden(f'ping -c 1 -W {timeout} {host}')
