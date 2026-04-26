@@ -1121,45 +1121,39 @@ def _show_setup_window(root):
             try:
                 reg = register_agent(company_name, phone, location)
                 if not reg:
-                    root.after(0, lambda: status_lbl.config(text="注册失败", fg="#EF4444"))
-                    root.after(0, lambda: [w.config(state="normal") for w in btn_frame.winfo_children()])
-                    root.after(0, lambda: _show_err("注册失败，请检查网络后重试。"))
+                    win.after(0, lambda: status_lbl.config(text="\u6ce8\u518c\u5931\u8d25", fg="#EF4444"))
+                    win.after(0, lambda: [w.config(state="normal") for w in btn_frame.winfo_children()])
+                    win.after(0, lambda: _show_err("\u5931\u8d25\uff0c\u8bf7\u68c0\u67e5\u7f51\u7edc\u540e\u91cd\u8bd5\u3002"))
                     return
                 agent_id = reg["agent_id"]
                 token    = reg["token"]
-                log.info("注册成功，Agent ID: %s", agent_id)
+                log.info("\u6ce8\u518c\u6210\u529f\uff0cAgent ID: %s", agent_id)
                 cfg = {
                     "agent_id": agent_id, "company_name": company_name,
                     "phone": phone, "location": location,
-                    "subnets": [subnet] if subnet and subnet != "无法检测" else [],
-                    "targets": [{"name": "网关", "host": get_gateway()}],
+                    "subnets": [subnet] if subnet and subnet != "\u65e0\u6cd5\u68c0\u6d4b" else [],
+                    "targets": [{"name": "\u7f51\u5173", "host": get_gateway()}],
                 }
                 save_config(cfg)
-                # 设置开机自启（根据用户选择）
                 if autostart_var.get():
                     set_autostart(True)
-                win.destroy()  # 关闭设置向导
-                root.after(0, lambda a=agent_id, t=token: _show_success_window(root, company_name, a, t))
+                win.destroy()
+                root.quit()
+                _show_success_window(root, company_name, agent_id, token)
             except Exception as e:
                 import traceback
-                log.error("注册异常: %s", e)
+                log.error("\u6ce8\u518c\u5f02\u5e38: %s", e)
                 log.error(traceback.format_exc())
-                root.after(0, lambda msg=str(e): [
-                    status_lbl.config(text=f"异常: {msg[:50]}", fg="#EF4444"),
-                    [w.config(state="normal") for w in btn_frame.winfo_children()]
-                ])
-                root.after(0, lambda: _show_err(f"注册异常: {e}"))
+                try:
+                    win.after(0, lambda msg=str(e): [
+                        status_lbl.config(text="\u5f02\u5e38: %s" % msg[:50], fg="#EF4444"),
+                        [w.config(state="normal") for w in btn_frame.winfo_children()]
+                    ])
+                    win.after(0, lambda: _show_err("\u5f02\u5e38: %s" % e))
+                except Exception:
+                    pass
 
-        def _show_err(msg):
-            def _show():
-                from tkinter import messagebox
-                messagebox.showerror("注册异常", msg)
-            try:
-                root.after(0, _show)
-            except Exception:
-                log.error("无法显示错误弹窗: %s", msg)
-
-        threading.Thread(target=_do_register, daemon=True, name="register").start()
+threading.Thread(target=_do_register, daemon=True, name="register").start()
 
     def on_cancel():
         result["cancelled"] = True
