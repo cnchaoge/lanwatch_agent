@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""lanwatch_agent - 企业网络监控客户端 v0.7.0"""
+"""lanwatch_agent - 企业网络监控客户端 v0.8.0"""
 
-__version__ = "0.7.0"
+__version__ = "0.8.0"
 
 # ═══════════════════════════════════════════════════════════════
 # 自动升级配置
@@ -51,29 +51,38 @@ def parse_version(v):
         return (0, 0, 0)
 
 
-def _write_update_helper_script(exe_path):
+def _write_update_helper_script(exe_path, marker_path, marker_data):
     """生成升级辅助脚本，用于复制新 exe 并重启"""
     helper = UPDATE_HELPER
     try:
         with open(helper, "w", encoding="utf-8") as f:
-            f.write("""
-import sys, os, time, shutil
-src = sys.argv[1]
-dst = sys.argv[2]
-max_wait = 10
-for _ in range(max_wait):
+            f.write(f"""
+import sys, os, time, shutil, json
+
+marker = {marker_data!r}
+with open({marker_path!r}, 'r') as mf:
+    info = json.load(mf)
+dst = info['dst']
+src = info['src']
+
+# 等待原进程退出
+for _ in range(15):
     try:
         shutil.copy2(src, dst)
-        print("OK", flush=True)
         break
     except Exception:
         time.sleep(1)
-# 重新启动本程序
+
+# 清理标记文件
+try: os.remove({marker_path!r})
+except Exception: pass
+
+# 重启
 try:
-    os.system(f'"{dst}"')
+    os.system(f'"{{dst}}"')
 except Exception:
     pass
-""".strip())
+""")
         log.debug("[升级] 辅助脚本已写入: %s", helper)
     except Exception as e:
         log.warning("[升级] 写入辅助脚本失败: %s", e)
@@ -94,31 +103,34 @@ def _do_upgrade(download_url, new_version):
             f.write(data)
         log.info("[升级] 临时文件: %s", tmp_exe)
 
-        # 生成辅助脚本
-        _write_update_helper_script(tmp_exe)
-
-        # 用辅助脚本替换并重启
+        # 标记文件，helper 会读取目标路径
+        import random
+        marker_path = os.path.join(tempfile.gettempdir(), f"lw_update_{random.randint(100000,999999)}.json")
         dst_exe = sys.executable
-        log.info("[升级] 正在替换 exe ...")
+        marker_data = {"src": tmp_exe, "dst": dst_exe}
+        with open(marker_path, "w") as f:
+            json.dump(marker_data, f)
+
+        # 生成辅助脚本
+        _write_update_helper_script(tmp_exe, marker_path, marker_data)
+
+        # 启动辅助脚本后，本进程退出
+        log.info("[升级] 正在替换并重启...")
         try:
             import subprocess
             si = subprocess.STARTUPINFO()
             si.dwFlags |= subprocess.STARTF_USESHOWWINDOW
             si.wShowWindow = subprocess.SW_HIDE
             subprocess.Popen(
-                [sys.executable, UPDATE_HELPER, tmp_exe, dst_exe],
+                [sys.executable, UPDATE_HELPER],
                 startupinfo=si
             )
         except Exception as e:
             log.error("[升级] 启动辅助脚本失败: %s", e)
-            # 备用：直接替换
-            try:
-                import shutil as _sh
-                _sh.copy2(tmp_exe, dst_exe)
-                log.info("[升级] 替换完成，重启...")
-                os.system(f'"{dst_exe}"')
-            except Exception as e2:
-                log.error("[升级] 备用替换也失败: %s", e2)
+            return
+
+        # 退出当前程序
+        os._exit(0)
     except Exception as e:
         log.error("[升级] 下载/替换失败: %s", e)
 
