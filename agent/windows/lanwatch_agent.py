@@ -458,14 +458,19 @@ def _ping_subnet_fast(subnet_prefix, workers=30, timeout=0.5):
         r = ping_once(ip, timeout=timeout)
         return ip if r is not None else None
     try:
-        import concurrent.futures
         ips = [f"{subnet_prefix}.{i}" for i in range(1, 255)]
         reached = []
+        import concurrent.futures
         with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as ex:
-            futures = [ex.submit(_ping1, ip) for ip in ips]
-            for fut in concurrent.futures.as_completed(futures, timeout=timeout + 1):
+            future_to_ip = {ex.submit(_ping1, ip): ip for ip in ips}
+            # 不使用 as_completed，直接等全部完成（timeout 保护整个池）
+            try:
+                concurrent.futures.wait(future_to_ip.keys(), timeout=workers * timeout + 2)
+            except Exception:
+                pass  # 超时也继续收集结果
+            for fut in future_to_ip:
                 try:
-                    res = fut.result()
+                    res = fut.result(timeout=0)
                     if res:
                         reached.append(res)
                 except Exception:
