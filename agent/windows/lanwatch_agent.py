@@ -447,10 +447,30 @@ def scan_device_ports(host, timeout=PORT_SCAN_TIMEOUT, workers=PORT_SCAN_WORKERS
     return open_ports
 
 
+def _ping_subnet_fast(subnet_prefix, workers=30, timeout=0.5):
+    """快速 ping 网段所有 IP，填充 ARP 缓存（并发 workers 个线程）"""
+    def _ping1(ip):
+        r = ping_once(ip, timeout=timeout)
+        return ip if r is not None else None
+    try:
+        from concurrent.futures import ThreadPoolExecutor, ascompleted
+        ips = [f"{subnet_prefix}.{i}" for i in range(1, 255)]
+        with ThreadPoolExecutor(max_workers=workers) as ex:
+            futures = {ex.submit(_ping1, ip): ip for ip in ips}
+            for fut in ascompleted(futures, timeout=timeout + 1):
+                pass  # 等待全部完成，不在乎结果
+    except Exception:
+        pass
+
 def get_all_devices_from_arp():
-    """读取本机 ARP 缓存表，获取局域网已知设备（不发包，速度快）"""
+    """读取本机 ARP 缓存表，获取局域网已知设备（先 ping 填充 ARP 缓存）"""
     devices = []
     try:
+        # 先快速 ping 网段填充 ARP 缓存
+        subnet = get_subnet_prefix()
+        if subnet:
+            _ping_subnet_fast(subnet)
+        # 再读 ARP 表
         if sys.platform == "win32":
             out, _ = _run_hidden('arp -a', timeout=5)
         else:
