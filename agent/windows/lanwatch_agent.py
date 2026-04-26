@@ -498,6 +498,9 @@ def scan_topology(subnets=None):
 
 def register_agent(company_name, phone="", location=""):
     """向服务端注册企业，返回 dict {agent_id, token, user_id, name} 或 None"""
+    import socket
+    # 强制设置全局 socket 超时，防止 urllib 挂死
+    socket.setdefaulttimeout(5)
     try:
         data = json.dumps({
             "name": company_name,
@@ -511,12 +514,15 @@ def register_agent(company_name, phone="", location=""):
             headers={"Content-Type": "application/json"},
             method="POST"
         )
-        with urllib.request.urlopen(req, timeout=8) as resp:
+        log.info("[注册] 正在连接 %s...", SERVER_URL)
+        with urllib.request.urlopen(req, timeout=5) as resp:
             result = json.loads(resp.read())
-            log.info("注册成功: agent_id=%s, token=%s", result.get("agent_id"), result.get("token"))
+            log.info("[注册] 成功: agent_id=%s", result.get("agent_id"))
             return result
     except Exception as e:
-        log.error("注册失败: %s", e)
+        log.error("[注册] 失败: %s", e)
+        import traceback
+        log.error(traceback.format_exc())
         return None
 
 
