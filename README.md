@@ -2,8 +2,8 @@
 
 > 让每一家中小企业的网络都有"人"值守
 
-[![版本](https://img.shields.io/badge/version-v0.6.3-blue.svg)](https://github.com/cnchaoge/lanwatch_agent/releases)
-[![平台](https://img.shields.io/badge/platform-Windows%20%7C%20Linux-green.svg)]()
+[![版本](https://img.shields.io/badge/version-v0.7.0-blue.svg)](https://github.com/cnchaoge/lanwatch_agent/releases)
+[![平台](https://img.shields.io/badge/platform-Windows%20%7C%20OpenWRT%20%7C%20SNMP-green.svg)]()
 [![协议](https://img.shields.io/badge/license-MIT-orange.svg)]()
 
 **lanwatch_agent** 是一套面向中小企业网络监控的 SaaS 解决方案，包含运行在客户内网的监控客户端（Agent）和部署在云端的服务端。客户无需专业人员，下载运行即可完成部署，管理员和企业主通过 Web 后台或手机随时掌握网络健康状态。
@@ -24,14 +24,29 @@
 | **🌐 多DNS延迟探测** | 同时测百度/阿里/腾讯/网易四个域名DNS延迟，真实反映各运营商DNS质量 |
 | **📡 ICMP 状态显示** | 实时显示 ICMP 支持/不支持/丢包，不误报，支持状态一目了然 |
 | **🗺️ 静默拓扑发现** | 读取本机 ARP 缓存表获取局域网设备，不发包，零噪音，秒级完成 |
+| **📡 端口扫描与服务识别** | 自动扫描 43 个常见端口，识别 HTTP/SSH/SMB/DNS 等服务 |
 | **📱 系统托盘运行** | 最小化到托盘，不占任务栏，后台静默运行 |
 | **⚡ 开机自启** | 支持注册表自启，客户开机即监控，无需人工干预 |
 | **🔔 微信报警** | 网络离线超过 3 分钟自动推送微信通知，防轰炸（5分钟不重复） |
 | **💡 托盘状态指示** | 图标颜色直观显示健康状态（绿=正常，红=故障） |
-| **🌐 手机端查看** | 适配手机浏览器，无需安装 App，扫码即看 |
+| **📱 手机端查看** | 适配手机浏览器，无需安装 App，扫码即看 |
 | **🔒 多租户隔离** | 每个企业主只能看到自己公司的数据，完全隔离 |
-| **📊 SNMP 监控** | 支持企业级路由器/交换机的 SNMP 协议接入（V2c） |
+| **📊 SNMP 监控** | 支持企业级路由器/交换机的 SNMP 协议接入（V2c/V3） |
 | **🚨 SNMP Trap 接收** | 被动接收设备主动上报告警，无需轮询 |
+| **🌐 掉线检测** | 支持自定义监控目标，每 60 秒自动检测，掉线/恢复均通知 |
+
+---
+
+## 📦 客户端类型
+
+系统支持四类监控端，按需选择：
+
+| 类型 | 说明 | 部署方式 |
+|------|------|---------|
+| 🖥️ Windows 客户端 | 运行在 Windows 系统上的监控 Agent | 下载 exe，一键安装 |
+| 📡 OpenWRT 软路由 | 运行在 OpenWRT 固件路由器上的 Python Agent | Python 环境运行 |
+| 📊 SNMP 监控设备 | 通过 SNMP 协议接入的交换机/路由器 | 后台添加 IP |
+| 🌐 掉线检测目标 | 自定义 ICMP 检测目标，支持多节点监控 | 后台添加目标 |
 
 ---
 
@@ -82,6 +97,18 @@ arp -a  →  拿到本机已知的所有局域网设备（IP/MAC/hostname）
 
 ---
 
+## ⚡ 技术亮点：端口扫描与服务识别
+
+> 了解每台设备开了什么服务，比知道设备 IP 更重要
+
+**lanwatch 方案：** 扫描 43 个常见端口，自动识别服务类型（HTTP/SSH/SMB/DNS/RDP 等），上报服务端，在拓扑图上直观显示。
+
+- 30 线程并发，0.8s 超时，扫描 43 端口约 3-5 秒
+- 零噪音，平时不扫描，每 5 分钟上报一次拓扑
+- 支持 MAC 厂商识别（TP-Link/D-Link/Huawei 等）
+
+---
+
 ## 🏗️ 技术架构
 
 ```
@@ -92,108 +119,56 @@ arp -a  →  拿到本机已知的所有局域网设备（IP/MAC/hostname）
 │  │  (Windows exe)   │      │  读本机 ARP 缓存表              │   │
 │  │                  │      │  反向 DNS 查 hostname          │   │
 │  │  每 60s 探测一次  │─────▶│  MAC 查厂商，判断设备类型       │   │
-│  │  每 300s 读 ARP   │      │  秒级完成，零发包              │   │
-│  │  离线3次→诊断    │                                         │
-│  └────────┬─────────┘                                           │
+│  │  每 300s 读 ARP   │      │  端口扫描，识别服务            │   │
+│  │  离线3次→诊断    │      │  秒级完成，零发包              │   │
+│  └────────┬─────────┘      └───────────────────────────────┘   │
 │           │ TCP/HTTP 上报                                        │
 └───────────┼─────────────────────────────────────────────────────┘
             │ 互联网
             ▼
 ┌─────────────────────────────────────────────────────────────────┐
-│                   腾讯云 (82.156.229.67)                        │
-│  ┌─────────────┐  ┌──────────────┐  ┌────────────────────┐     │
-│  │ FastAPI     │  │ SQLite       │  │ 微信 Server酱 报警    │     │
-│  │ /api/register│  │ 历史数据存储 │  │ 离线3分钟触发        │     │
-│  │ /api/report │  │ 7天数据清理  │  │ 5分钟防轰炸          │     │
-│  │ /api/topology│  │              │  └────────────────────┘     │
-│  │ /api/offline│  │              │                             │
-│  │ /api/diag   │  └──────────────┘                             │
-│  └──────┬──────┘                                               │
-│         │                                                       │
-│  ┌──────▼──────────────────┐                                    │
-│  │  管理后台 / 手机端 / 下载  │                                   │
-│  │  admin.html / mobile.html│                                   │
-│  └─────────────────────────┘                                    │
+│                     云端服务端 (82.156.229.67)                   │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────────────┐  │
+│  │  Web 后台     │  │   微信推送    │  │   手机端 /agent/{id}  │  │
+│  │  /admin      │  │  Server酱     │  │   扫码查看           │  │
+│  └──────────────┘  └──────────────┘  └──────────────────────┘  │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## 📦 安装部署
+## 🚀 快速部署
 
-### 企业主（客户端）
+### Windows 客户端
 
-**Windows 版本（推荐）：**
+1. 下载 [lanwatch_agent.exe](https://github.com/cnchaoge/lanwatch_agent/releases)
+2. 双击运行 → 输入企业名称 → 完成注册
+3. 托盘图标变绿即为正常
 
-1. 下载 `lanwatch_agent.exe`：https://github.com/cnchaoge/lanwatch_agent/releases/latest
-2. 双击运行，填写企业名称
-3. 首次运行后可勾选「开机自动启动」
-4. 最小化到托盘，开始监控
-
-**服务端地址：** `http://82.156.229.67:8000`
-
-**手机查看：** http://82.156.229.67:8000/mobile
-
-**下载中心：** http://82.156.229.67:8000/download
-
----
-
-### 开发者（从源码构建）
-
-**依赖：** Python 3.8+
+### OpenWRT 软路由
 
 ```bash
-git clone https://github.com/cnchaoge/lanwatch_agent.git
-cd lanwatch_agent/agent/windows
+# 安装 Python3
+opkg install python3
 
-# 安装依赖
-pip install pystray pillow pyinstaller
+# 下载客户端
+curl -L https://github.com/cnchaoge/lanwatch_agent/releases/latest/download/lanwatch_agent_linux.py -o lanwatch_agent_linux.py
 
-# 打包 Windows exe
-.\build.bat
-
-# 生成的 exe 在 dist/lanwatch_agent.exe
+# 运行注册
+python3 lanwatch_agent_linux.py
 ```
 
----
+### 管理后台
 
-### 私有部署（服务端）
-
-服务端依赖 Python 3.8+ 和 FastAPI：
-
-```bash
-cd server
-pip install -r requirements.txt
-python main.py
-# 服务监听 0.0.0.0:8000
-```
+访问 http://www.lanwatch.net/admin （密码：lanwatch2026）
 
 ---
 
-## 🗺️ Roadmap
+## 📄 版本历史
 
-| 版本 | 计划时间 | 计划内容 |
-|------|----------|----------|
-| **v0.7** | 2026-05 | 数据可视化（延迟/丢包率趋势图、可用性统计）、导出 CSV/Excel |
-| **v0.8** | 2026-06 | 告警规则自定义（阈值、通知时段、告警渠道扩展）、企业微信/钉钉 |
-| **v1.0** | 2026-06 | Web 管理后台全新 UI、支持 OpenWRT 路由器插件 |
-
----
-
-## 📄 版本记录
-
-| 版本 | 日期 | 更新内容 |
-|------|------|----------|
-| [v0.6.3](https://github.com/cnchaoge/lanwatch_agent/releases/tag/v0.6.3) | 2026-04-22 | 多DNS延迟探测（百度/阿里/腾讯/网易）、静默ARP拓扑发现、离线断点诊断、前端UI卡片重构、离线报警防轰炸、数据7天清理、admin token随机化 |
-| [v0.6.0](https://github.com/cnchaoge/lanwatch_agent/releases/tag/v0.6.0) | 2026-04-21 | 多协议智能探测、离线自动诊断（traceroute）、设置向导开机自启、托盘状态逻辑修复 |
-| [v0.5.0](https://github.com/cnchaoge/lanwatch_agent/releases/tag/v0.5.0) | 2026-04-20 | ICMP Ping 替代 TCP 探测、多线程拓扑扫描、MAC 正确获取、线程安全托盘、离线通知 |
-| [v0.4.0](https://github.com/cnchaoge/lanwatch_agent/releases/tag/v0.4.0) | 2026-04-19 | 多网段/多目标可配置，托盘/开机自启，版本号打包 |
-
----
-
-## 🔗 相关链接
-
-- **管理后台**：http://82.156.229.67:8000/admin
-- **手机端**：http://82.156.229.67:8000/mobile
-- **下载中心**：http://82.156.229.67:8000/download
-- **服务端仓库**：本仓库包含完整服务端代码
+| 版本 | 更新内容 |
+|------|---------|
+| v0.7.0 | 新增端口扫描与服务识别；Windows/OpenWRT分类显示；前端四区域结构；掉线检测 |
+| v0.6.3 | SNMP Trap接收支持；后台美化 |
+| v0.6.2 | SNMP v3支持；设备详情页延迟趋势图 |
+| v0.6.0 | 管理后台；企业/设备层级视图；微信推送 |
