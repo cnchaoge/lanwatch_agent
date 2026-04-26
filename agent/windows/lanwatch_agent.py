@@ -1145,7 +1145,7 @@ def _show_setup_window(root):
                 if autostart_var.get():
                     set_autostart(True)
                 win.after(0, lambda: _show_success_window(root, company_name, agent_id, token))
-                win.after(500, lambda: root.quit())
+                import os as _os; win.after(500, lambda: _os._exit(0))
             except Exception as e:
                 import traceback
                 log.error("注册异常: %s", e)
