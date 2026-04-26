@@ -489,9 +489,9 @@ def _ping_subnet_fast(subnet_prefix, workers=30, timeout=0.5):
                         reached.append(res)
                 except Exception:
                     pass
-        log.debug("[拓扑] ping 扫描完成，%d/%d 台可达", len(reached), len(ips))
+        log.info("[拓扑] ping 扫描完成，%d/%d 台可达", len(reached), len(ips))
         if reached:
-            log.debug("[拓扑] 可达 IP 示例: %s", ",".join(reached[:5]))
+            log.info("[拓扑] 可达 IP 示例: %s", ",".join(reached[:5]))
     except Exception as e:
         log.warning("[拓扑] ping 扫描异常: %s", e)
 
@@ -501,8 +501,9 @@ def get_all_devices_from_arp():
     try:
         # 先快速 ping 网段填充 ARP 缓存
         subnet = get_subnet_prefix()
+        log.info("[拓扑] 本机网段: %s", subnet)
         if subnet:
-            log.debug("[拓扑] 本机网段: %s，开始 ping 扫描", subnet)
+            log.info("[拓扑] 开始 ping 扫描...")
             _ping_subnet_fast(subnet)
         else:
             log.warning("[拓扑] 无法获取本机网段，跳过 ping 扫描")
@@ -511,7 +512,9 @@ def get_all_devices_from_arp():
             out, _ = _run_hidden('arp -a', timeout=5)
         else:
             out, _ = _run_hidden('arp -a -n', timeout=5)
-        for line in out.splitlines():
+        arp_lines = [l for l in out.splitlines() if l.strip()]
+        log.info("[拓扑] ARP 表读取到 %d 行", len(arp_lines))
+        for line in arp_lines:
             line = line.strip()
             # Windows: 192.168.1.1    60:de:44:67:12:1a     动态
             # Linux: 192.168.1.1                      (ether) 60:de:44:67:12:1a  eth0
