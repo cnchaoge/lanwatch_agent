@@ -458,12 +458,12 @@ def _ping_subnet_fast(subnet_prefix, workers=30, timeout=0.5):
         r = ping_once(ip, timeout=timeout)
         return ip if r is not None else None
     try:
-        from concurrent.futures import ThreadPoolExecutor, ascompleted
+        import concurrent.futures
         ips = [f"{subnet_prefix}.{i}" for i in range(1, 255)]
         reached = []
-        with ThreadPoolExecutor(max_workers=workers) as ex:
-            futures = {ex.submit(_ping1, ip): ip for ip in ips}
-            for fut in ascompleted(futures, timeout=timeout + 1):
+        with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as ex:
+            futures = [ex.submit(_ping1, ip) for ip in ips]
+            for fut in concurrent.futures.as_completed(futures, timeout=timeout + 1):
                 try:
                     res = fut.result()
                     if res:
