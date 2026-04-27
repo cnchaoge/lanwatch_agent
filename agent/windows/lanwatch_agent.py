@@ -1289,9 +1289,9 @@ def _show_setup_window(root):
                 if autostart_var.get():
                     set_autostart(True)
                 win.destroy()
-                root.quit()
-                # 同步显示成功窗口
+                # 同步显示成功窗口（需要在 root.mainloop 退出前调用）
                 _show_success_window(root, company_name, agent_id, token)
+                root.quit()
             except Exception as e:
                 import traceback
                 log.error("注册异常: %s", e)
