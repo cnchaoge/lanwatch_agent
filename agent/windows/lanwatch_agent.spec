@@ -9,19 +9,11 @@ a = Analysis(
     binaries=[],
     datas=[],
     hiddenimports=[
-        # GUI
-        'tkinter', 'tkinter.ttk', 'tkinter.messagebox',
-        'pystray', 'PIL', 'PIL._imaging', 'PIL.Image', 'PIL.ImageDraw',
-        'PIL.ImageFont',
-        # 网络
-        'urllib.request', 'urllib.error', 'urllib.parse',
-        # 标准库
-        'json', 'socket', 'logging', 'logging.handlers',
-        'threading', 'queue', 'concurrent.futures', 'concurrent.futures.as_completed',
+        'tkinter', 'pystray', 'PIL', 'PIL._imaging',
+        'urllib.request', 'urllib.error', 'json', 'socket',
+        'logging', 'threading', 'queue', 'concurrent.futures',
         'ctypes', 're', 'subprocess', 'uuid', 'time', 'os', 'sys',
-        'msvcrt',
-        # Windows 专用
-        'winreg',
+        'winreg', 'msvcrt', 'subprocess', 'logging.handlers',
     ],
     hookspath=[],
     hooksconfig={},
@@ -49,12 +41,12 @@ exe = EXE(
     upx=False,
     upx_exclude=[],
     runtime_tmpdir=None,
-    console=False,
+    console=False,          # 无控制台窗口（GUI 程序）
     disable_windowed_traceback=False,
     argv_emulation=False,
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
-    icon=None,
+    icon=None,             # 可加 icon.ico
     version=None,
 )

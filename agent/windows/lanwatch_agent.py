@@ -1,234 +1,8 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""lanwatch_agent - 企业网络监控客户端 v0.8.0"""
+"""lanwatch_agent - 企业网络监控客户端 v0.7.0"""
 
-__version__ = "0.8.1"
-
-import tempfile
-
-# ═══════════════════════════════════════════════════════════════
-# 自动升级配置
-# ═══════════════════════════════════════════════════════════════
-UPDATE_CHECK_INTERVAL = 86400   # 检查频率：每天一次（秒）
-GITHUB_REPO = "cnchaoge/lanwatch_agent"
-UPDATE_MARKER_FILE = os.path.expanduser("~/.lanwatch_agent_update.json")
-UPDATE_HELPER = os.path.join(tempfile.gettempdir(), "lanwatch_update_helper.py")
-
-# ═══════════════════════════════════════════════════════════════
-# 自动升级功能
-# ═══════════════════════════════════════════════════════════════
-
-def check_github_latest_version():
-    """从 GitHub releases API 获取最新版本号，返回 (version, download_url) 或 None"""
-    try:
-        req = urllib.request.Request(
-            f"https://api.github.com/repos/{GITHUB_REPO}/releases/latest",
-            headers={"User-Agent": "lanwatch_agent"}
-        )
-        with urllib.request.urlopen(req, timeout=10) as resp:
-            data = json.loads(resp.read())
-            tag = data.get("tag_name", "").strip()
-            if tag.startswith("v"):
-                version = tag[1:]
-            else:
-                version = tag
-            download_url = None
-            for asset in data.get("assets", []):
-                if asset.get("name") == "lanwatch_agent.exe":
-                    download_url = asset.get("browser_download_url")
-                    break
-            if download_url and version:
-                return version, download_url
-    except Exception as e:
-        log.debug("[升级] 检查失败: %s", e)
-    return None
-
-
-def parse_version(v):
-    """将版本字符串转为 (int, int, int) 元组，用于比较"""
-    try:
-        parts = v.strip().lstrip("v").split(".")
-        return tuple(int(p) for p in parts[:3]) + (0, 0, 0)[:3-len(parts)]
-    except Exception:
-        return (0, 0, 0)
-
-
-def _write_update_helper_script(marker_path, marker_data):
-    """生成升级辅助脚本，用于复制新 exe 并重启"""
-    helper = UPDATE_HELPER
-    temp_dir = tempfile.gettempdir()
-    try:
-        with open(helper, "w", encoding="utf-8") as f:
-            f.write(f"""
-import sys, os, time, shutil, json, glob
-
-with open({marker_path!r}, 'r') as mf:
-    info = json.load(mf)
-dst = info['dst']
-src = info['src']
-
-# 等待原进程退出
-for _ in range(15):
-    try:
-        shutil.copy2(src, dst)
-        break
-    except Exception:
-        time.sleep(1)
-
-# 清理标记文件
-try: os.remove({marker_path!r})
-except Exception: pass
-
-# 清理临时文件（忽略失败）
-try:
-    for fp in glob.glob({temp_dir!r} + '/*.json'):
-        try: os.remove(fp)
-        except Exception: pass
-    helper = {helper!r}
-    try: os.remove(helper)
-    except Exception: pass
-    for fp in glob.glob({temp_dir!r} + '/lanwatch_agent_new.exe'):
-        try: os.remove(fp)
-        except Exception: pass
-except Exception: pass
-
-# 重启
-try:
-    os.system(f'\"{{dst}}\"')
-except Exception:
-    pass
-""")
-        log.debug("[升级] 辅助脚本已写入: %s", helper)
-    except Exception as e:
-        log.warning("[升级] 写入辅助脚本失败: %s", e)
-
-
-def _do_upgrade(download_url, new_version):
-    """下载新版本 exe 并触发升级"""
-    log.info("[升级] 准备下载新版本 v%s ...", new_version)
-    try:
-        req = urllib.request.Request(download_url, headers={"User-Agent": "lanwatch_agent"})
-        with urllib.request.urlopen(req, timeout=60) as resp:
-            data = resp.read()
-        log.info("[升级] 下载完成，大小: %s", len(data))
-
-        # 写到 temp 目录
-        tmp_exe = os.path.join(tempfile.gettempdir(), "lanwatch_agent_new.exe")
-        with open(tmp_exe, "wb") as f:
-            f.write(data)
-        log.info("[升级] 临时文件: %s", tmp_exe)
-
-        # 标记文件，helper 会读取目标路径
-        import random
-        marker_path = os.path.join(tempfile.gettempdir(), f"lw_update_{random.randint(100000,999999)}.json")
-        dst_exe = sys.executable
-        marker_data = {"src": tmp_exe, "dst": dst_exe}
-        with open(marker_path, "w") as f:
-            json.dump(marker_data, f)
-
-        # 生成辅助脚本
-        _write_update_helper_script(marker_path, marker_data)
-
-        # 启动辅助脚本后，本进程退出
-        log.info("[升级] 正在替换并重启...")
-        try:
-            import subprocess
-            si = subprocess.STARTUPINFO()
-            si.dwFlags |= subprocess.STARTF_USESHOWWINDOW
-            si.wShowWindow = subprocess.SW_HIDE
-            subprocess.Popen(
-                [sys.executable, UPDATE_HELPER],
-                startupinfo=si
-            )
-        except Exception as e:
-            log.error("[升级] 启动辅助脚本失败: %s", e)
-            return
-
-        # 退出当前程序
-        log.info("[升级] 退出程序，准备重启...")
-        try:
-            if _tray_icon_ref:
-                _tray_icon_ref.stop()
-        except Exception:
-            pass
-        try:
-            # 清理临时下载文件（忽略失败，防止 Windows 报错）
-            tmp_exe = os.path.join(tempfile.gettempdir(), "lanwatch_agent_new.exe")
-            os.remove(tmp_exe)
-        except Exception:
-            pass
-        try:
-            # 清理标记文件
-            import glob, random
-            for fp in glob.glob(os.path.join(tempfile.gettempdir(), "lw_update_*.json")):
-                try: os.remove(fp)
-                except Exception: pass
-        except Exception:
-            pass
-        os._exit(0)
-    except Exception as e:
-        log.error("[升级] 下载/替换失败: %s", e)
-
-
-def check_and_upgrade():
-    """检查新版本并提示用户升级"""
-    try:
-        result = check_github_latest_version()
-        if not result:
-            _show_upgrade_toast("检查失败", "无法连接到 GitHub，请稍后重试")
-            return
-        new_version, download_url = result
-        if parse_version(new_version) <= parse_version(__version__):
-            _show_upgrade_toast("已是最新", f"当前 v{__version__} 已是最新版本")
-            return
-        log.info("[升级] 发现新版本 v%s（当前 v%s）", new_version, __version__)
-        _notify_upgrade(new_version, download_url)
-    except Exception as e:
-        log.warning("[升级] 检查异常: %s", e)
-
-
-def _do_manual_upgrade_check():
-    """手动检查更新（托盘菜单调用）"""
-    threading.Thread(target=check_and_upgrade, daemon=True, name="upgrade_check_manual").start()
-
-
-def _show_upgrade_toast(title, msg):
-    """在托盘线程中弹出提示（无需用户交互的结果通知）"""
-    def _popup():
-        try:
-            from tkinter import messagebox
-            root = _tk_root
-            if root is None:
-                return
-            messagebox.showinfo(title, msg, parent=root)
-        except Exception:
-            pass
-    if _tk_root:
-        _tk_root.after(0, _popup)
-
-
-def _notify_upgrade(new_version, download_url):
-    """在托盘线程中弹出升级提示"""
-    def _popup():
-        try:
-            from tkinter import messagebox
-            root = _tk_root
-            if root is None:
-                return
-            if messagebox.askyesno(
-                "发现新版本",
-                f"发现新版本 v{new_version}（当前 v{__version__}）\n\n是否立即下载并升级？\n\n"
-                f"升级过程将自动重启客户端",
-                parent=root
-            ):
-                log.info("[升级] 用户确认，开始下载...")
-                threading.Thread(target=_do_upgrade, args=(download_url, new_version), daemon=True).start()
-            else:
-                log.info("[升级] 用户取消升级")
-        except Exception as e:
-            log.warning("[升级] 弹窗失败: %s", e)
-    if _tk_root:
-        _tk_root.after(0, _popup)
+__version__ = "0.7.0"
 
 import socket
 from time import sleep
@@ -244,21 +18,6 @@ import urllib.error
 import threading
 import ctypes
 import queue
-import re
-from concurrent.futures import ThreadPoolExecutor, as_completed
-import time
-import json
-import sys
-import os
-import uuid
-import logging
-import subprocess
-import urllib.request
-import urllib.error
-import threading
-import ctypes
-import queue
-import tempfile
 import re
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
@@ -324,21 +83,7 @@ def get_local_ip():
         s.close()
         return ip
     except Exception:
-        pass
-    # 备用方案：Windows 用 ipconfig 提取
-    try:
-        import subprocess
-        out = subprocess.check_output("ipconfig", stderr=subprocess.DEVNULL, text=True)
-        for line in out.splitlines():
-            if "IPv4" in line:
-                parts = line.split(":")
-                if len(parts) >= 2:
-                    ip = parts[1].strip()
-                    if ip and ip != "0.0.0.0":
-                        return ip
-    except Exception:
-        pass
-    return ""
+        return ""
 
 
 def get_subnet_prefix():
@@ -404,19 +149,14 @@ def ping_once(host, timeout=3):
         if sys.platform == "win32":
             out, _ = _run_hidden(f'ping -n 1 -w {timeout*1000} {host}')
             if "TTL=" in out.upper():
-                # 优先取 Average 时间，格式: Average = Xms（英文 Windows）
+                # 优先取 Average 时间，格式: Average = Xms
                 m = re.search(r'[Aa]verage\s*=\s*(\d+)ms', out)
                 if m:
                     return float(m.group(1))
-                # time=Xms（英文）或 时间=Xms（中文 Windows）
-                m = re.search(r'[Tt]ime[=<]?\s*(\d+\.?\d*)\s*ms', out)
+                # 其次取 time=Xms（ping 输出行的 RTT）
+                m = re.search(r'time[=<](\d+\.?\d*)\s*ms', out, re.IGNORECASE)
                 if m:
                     return float(m.group(1))
-                m = re.search(r'时间[=<]?\s*(\d+\.?\d*)\s*ms', out)
-                if m:
-                    return float(m.group(1))
-                # 有 TTL 响应但读不到时间（某些 Windows 变体），返回 1ms
-                return 1.0
             return None
         else:
             out, _ = _run_hidden(f'ping -c 1 -W {timeout} {host}')
@@ -707,107 +447,36 @@ def scan_device_ports(host, timeout=PORT_SCAN_TIMEOUT, workers=PORT_SCAN_WORKERS
     return open_ports
 
 
-def _ping_subnet_fast(subnet_prefix, workers=30, timeout=0.5):
-    """快速 ping 网段所有 IP，填充 ARP 缓存，返回可达 IP 列表"""
-    def _ping1(ip):
-        r = ping_once(ip, timeout=timeout)
-        return ip if r is not None else None
-    reached = []
-    try:
-        ips = [f"{subnet_prefix}.{i}" for i in range(1, 255)]
-        import concurrent.futures
-        with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as ex:
-            future_to_ip = {ex.submit(_ping1, ip): ip for ip in ips}
-            try:
-                concurrent.futures.wait(future_to_ip.keys(), timeout=workers * timeout + 2)
-            except Exception:
-                pass
-            for fut in future_to_ip:
-                try:
-                    res = fut.result(timeout=0)
-                    if res:
-                        reached.append(res)
-                except Exception:
-                    pass
-        log.info("[拓扑] ping 扫描完成，%d/%d 台可达", len(reached), len(ips))
-        if reached:
-            log.info("[拓扑] 可达 IP: %s", ",".join(reached[:10]))
-    except Exception as e:
-        log.warning("[拓扑] ping 扫描异常: %s", e)
-    return reached
-
-def _get_mac_for_ip(ip):
-    """用 getmac 或 arp -a 获取指定 IP 的 MAC 地址"""
-    try:
-        # 先尝试 getmac
-        out, _ = _run_hidden(f'getmac /nh /fo csv /s {ip}', timeout=3)
-        for line in out.splitlines():
-            if ip in line or len(line) > 10:
-                parts = line.split(",")
-                if parts:
-                    mac = parts[0].strip().strip('"').replace("-", ":").upper()
-                    if len(mac) == 17 and mac.count(":") == 5:
-                        return mac
-        # 备用：arp -a 单 IP
-        out2, _ = _run_hidden(f"arp -a {ip}", timeout=3)
-        m = re.search(r"([0-9a-fA-F]{2}[:-]){5}[0-9a-fA-F]{2}", out2)
-        if m:
-            return m.group(0).replace("-", ":").upper()
-    except Exception:
-        pass
-    return ""
-
 def get_all_devices_from_arp():
-    """读取本机 ARP 缓存表，获取局域网已知设备（先 ping 填充 ARP 缓存）"""
+    """读取本机 ARP 缓存表，获取局域网已知设备（不发包，速度快）"""
     devices = []
     try:
-        # 先快速 ping 网段填充 ARP 缓存
-        subnet = get_subnet_prefix()
-        log.info("[拓扑] 本机网段: %s", subnet)
-        reached = []
-        if subnet:
-            log.info("[拓扑] 开始 ping 扫描...")
-            reached = _ping_subnet_fast(subnet)
-        else:
-            log.warning("[拓扑] 无法获取本机网段，跳过 ping 扫描")
-        # 解析 ARP 表
-        ip_to_mac = {}
         if sys.platform == "win32":
             out, _ = _run_hidden('arp -a', timeout=5)
         else:
             out, _ = _run_hidden('arp -a -n', timeout=5)
-        arp_lines = [l for l in out.splitlines() if l.strip()]
-        log.info("[拓扑] ARP 表读取到 %d 行", len(arp_lines))
-        for line in arp_lines:
+        for line in out.splitlines():
             line = line.strip()
+            # Windows: 192.168.1.1    60:de:44:67:12:1a     动态
+            # Linux: 192.168.1.1                      (ether) 60:de:44:67:12:1a  eth0
             m = re.search(r'(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})\s+([0-9a-fA-F:]{17})', line)
             if not m:
                 m = re.search(r'(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})\s+([0-9a-fA-F]{2}[-:][0-9a-fA-F]{2}[:][0-9a-fA-F]{2}[:][0-9a-fA-F]{2}[:][0-9a-fA-F]{2}[:][0-9a-fA-F]{2})', line)
             if m:
                 ip, mac = m.group(1), m.group(2).replace('-', ':').upper()
+                # 过滤广播/组播地址
                 if ip.endswith('.255') or mac.startswith('FF:FF'):
                     continue
-                ip_to_mac[ip] = mac
-        # ARP 表为空时，用 getmac 逐个获取可达 IP 的 MAC
-        if not ip_to_mac and reached:
-            log.info("[拓扑] ARP 表为空，尝试 getmac 获取 %d 个 IP 的 MAC", len(reached))
-            for ip in reached[:20]:
-                mac = _get_mac_for_ip(ip)
-                if mac:
-                    ip_to_mac[ip] = mac
-                    log.debug("[拓扑] %s -> %s", ip, mac)
-        # 生成设备列表
-        for ip, mac in ip_to_mac.items():
-            hostname = _resolve_hostname(ip) or ""
-            vendor = get_vendor(mac)
-            dtype = guess_device_type(hostname, vendor, mac)
-            # 端口扫描（并发进行）
-            open_ports = scan_device_ports(ip)
-            port_strs = [f"{p}/{s}" for p, s in open_ports]
-            if port_strs:
-                log.debug("[端口] %s 发现 %s", ip, ",".join(port_strs))
-            devices.append({"ip": ip, "mac": mac, "hostname": hostname, "vendor": vendor, "device_type": dtype, "open_ports": port_strs})
-            log.debug("[拓扑] 发现 %s (%s) %s", ip, mac, vendor or "?")
+                hostname = _resolve_hostname(ip) or ''
+                vendor = get_vendor(mac)
+                dtype = guess_device_type(hostname, vendor, mac)
+                # 端口扫描（ARP 扫描完成后并发进行）
+                open_ports = scan_device_ports(ip)
+                port_strs = [f"{p}/{s}" for p, s in open_ports]
+                if port_strs:
+                    log.debug("[端口] %s 发现 %s", ip, ",".join(port_strs))
+                devices.append({"ip": ip, "mac": mac, "hostname": hostname, "vendor": vendor, "device_type": dtype, "open_ports": port_strs})
+                log.debug("[拓扑] ARP 发现 %s (%s) %s", ip, mac, vendor or "?")
     except Exception as e:
         log.warning("[拓扑] ARP 读取失败: %s", e)
     return devices
@@ -829,16 +498,12 @@ def scan_topology(subnets=None):
 
 def register_agent(company_name, phone="", location=""):
     """向服务端注册企业，返回 dict {agent_id, token, user_id, name} 或 None"""
-    import socket
-    # 强制设置全局 socket 超时，防止 urllib 挂死
-    socket.setdefaulttimeout(5)
     try:
         data = json.dumps({
             "name": company_name,
             "phone": phone,
             "location": location,
-            "remark": "lanwatch_agent_v0.7.0",
-            "platform": "windows"
+            "remark": "lanwatch_agent_v0.7.0"
         }).encode()
         req = urllib.request.Request(
             SERVER_URL + "/api/register",
@@ -846,15 +511,12 @@ def register_agent(company_name, phone="", location=""):
             headers={"Content-Type": "application/json"},
             method="POST"
         )
-        log.info("[注册] 正在连接 %s...", SERVER_URL)
-        with urllib.request.urlopen(req, timeout=5) as resp:
+        with urllib.request.urlopen(req, timeout=8) as resp:
             result = json.loads(resp.read())
-            log.info("[注册] 成功: agent_id=%s", result.get("agent_id"))
+            log.info("注册成功: agent_id=%s, token=%s", result.get("agent_id"), result.get("token"))
             return result
     except Exception as e:
-        log.error("[注册] 失败: %s", e)
-        import traceback
-        log.error(traceback.format_exc())
+        log.error("注册失败: %s", e)
         return None
 
 
@@ -1084,7 +746,6 @@ def setup_tray(agent_id, company_name):
 
         def make_menu():
             return Menu(
-                MenuItem("检查更新", lambda icon, item: _do_manual_upgrade_check(), default=False),
                 MenuItem("查看日志", lambda icon, item: _open_log(), default=False),
                 MenuItem("设置", lambda icon, item: _show_settings_window(), default=False),
                 MenuItem("卸载", lambda icon, item: _on_uninstall(), default=False),
@@ -1223,30 +884,15 @@ def _open_log(icon=None):
 
 def _show_about(icon=None):
     """显示关于对话框"""
-    from tkinter import Toplevel, Label, Button, messagebox
+    from tkinter import messagebox
     try:
-        win = Toplevel(_tk_root)
-        win.title("关于 lanwatch_agent")
-        win.geometry("320x180")
-        win.resizable(False, False)
-        win.attributes("-topmost", True)
-        win.update_idletasks()
-        sw = win.winfo_screenwidth()
-        sh = win.winfo_screenheight()
-        ww, wh = 320, 180
-        win.geometry(f"{ww}x{wh}+{(sw-ww)//2}+{(sh-wh)//2}")
-
-        Label(win, text=f"lanwatch_agent v{__version__}", font=("Arial", 12, "bold")).place(x=20, y=20)
-        Label(win, text="企业网络监控客户端", font=("Arial", 10)).place(x=20, y=50)
-        Label(win, text=f"服务端: {SERVER_URL}", font=("Arial", 9), fg="#666").place(x=20, y=75)
-
-        def do_check():
-            check_and_upgrade()
-
-        Button(win, text="检查更新", command=do_check, width=12).place(x=20, y=115)
-        Button(win, text="关闭", command=win.destroy, width=12).place(x=165, y=115)
-
-        win.protocol("WM_DELETE_WINDOW", win.destroy)
+        messagebox.showinfo(
+            "关于 lanwatch_agent",
+            f"lanwatch_agent v{__version__}\n"
+            f"企业网络监控客户端\n\n"
+            f"服务端: {SERVER_URL}",
+            parent=_tk_root
+        )
     except Exception:
         pass
 
@@ -1274,28 +920,40 @@ def _on_uninstall():
 def _show_settings_window():
     """显示设置窗口（托盘点击"设置"触发）：自启动开关"""
     try:
-        from tkinter import Toplevel, Label, Checkbutton, IntVar, messagebox, Button, Frame
+        from tkinter import Toplevel, Label, Checkbutton, IntVar, messagebox
         cfg = load_config()
         win = Toplevel(_tk_root)
         win.title("设置")
-        win.geometry("340x220")
+        win.geometry("340x180")
         win.resizable(False, False)
         win.attributes("-topmost", True)
+        # 居中
         win.update_idletasks()
         sw = win.winfo_screenwidth()
         sh = win.winfo_screenheight()
-        ww, wh = 340, 220
+        ww, wh = 340, 180
         win.geometry(f"{ww}x{wh}+{(sw-ww)//2}+{(sh-wh)//2}")
 
         # 标题
         Label(win, text="lanwatch_agent v" + __version__, font=("微软雅黑", 10, "bold")).place(x=20, y=16)
         Label(win, text="企业网络监控客户端", font=("微软雅黑", 9), fg="#666").place(x=20, y=42)
 
-        # 自启动开关（不立即生效，等点确定）
+        # 自启动开关
         auto_var = IntVar(value=1 if is_autostart_enabled() else 0)
+
+        def on_auto_toggle():
+            ok = set_autostart(bool(auto_var.get()))
+            if ok:
+                status = "已开启" if auto_var.get() else "已关闭"
+                log.info("[设置] 自启动: %s", status)
+            else:
+                # 回滚 UI
+                auto_var.set(1 if is_autostart_enabled() else 0)
+                messagebox.showwarning("设置失败", "无法修改自启动设置", parent=win)
+
         cb = Checkbutton(
             win, text="开机自启动",
-            variable=auto_var,
+            variable=auto_var, command=on_auto_toggle,
             font=("微软雅黑", 10),
             onvalue=1, offvalue=0
         )
@@ -1304,32 +962,13 @@ def _show_settings_window():
         # 服务器地址（只读）
         Label(win, text="服务端: " + SERVER_URL, font=("微软雅黑", 8), fg="#888").place(x=20, y=130)
 
-        # 按钮栏
-        btn_frame = Frame(win)
-        btn_frame.pack(side="bottom", fill="x", padx=20, pady=(0, 16))
-
-        def on_ok():
-            ok = set_autostart(bool(auto_var.get()))
-            if ok:
-                status = "已开启" if auto_var.get() else "已关闭"
-                log.info("[设置] 自启动: %s", status)
-            else:
-                messagebox.showwarning("设置失败", "无法修改自启动设置", parent=win)
-                return
+        # 关闭按钮
+        def close():
             win.destroy()
-
-        def on_cancel():
-            win.destroy()
-
-        ok_btn = Button(btn_frame, text="确定", font=("微软雅黑", 9), command=on_ok,
-                        bg="#2563EB", fg="white", relief="flat", pady=5)
-        ok_btn.pack(side="left", fill="x", expand=True, padx=(0, 8))
-
-        cancel_btn = Button(btn_frame, text="取消", font=("微软雅黑", 9), command=on_cancel,
-                            bg="#F3F4F6", fg="#374151", relief="flat", pady=5)
-        cancel_btn.pack(side="left", fill="x", expand=True)
-
-        win.protocol("WM_DELETE_WINDOW", on_cancel)
+        Label(win, text="  关闭  ", font=("微软雅黑", 9), fg="#888",
+              cursor="hand2").place(x=270, y=145)
+        win.bind("<Button-1>", lambda e: close() if e.x > 250 and e.y > 135 else None)
+        win.protocol("WM_DELETE_WINDOW", close)
     except Exception as e:
         log.warning("[设置] 窗口打开失败: %s", e)
         _show_about()
@@ -1482,42 +1121,38 @@ def _show_setup_window(root):
             try:
                 reg = register_agent(company_name, phone, location)
                 if not reg:
-                    root.after(0, lambda: status_lbl.config(text="注册失败", fg="#EF4444"))
-                    root.after(0, lambda: [w.config(state="normal") for w in btn_frame.winfo_children()])
-                    root.after(0, lambda: _show_err("注册失败，请检查网络后重试。"))
+                    win.after(0, lambda: status_lbl.config(text=注册失败, fg=#EF4444))
+                    win.after(0, lambda: [w.config(state=normal) for w in btn_frame.winfo_children()])
+                    win.after(0, lambda: _show_err(注册失败，请检查网络后重试。))
                     return
-                agent_id = reg["agent_id"]
-                token    = reg["token"]
-                log.info("注册成功，Agent ID: %s", agent_id)
+                agent_id = reg[agent_id]
+                token    = reg[token]
+                log.info(注册成功，Agent ID: %s, agent_id)
                 cfg = {
-                    "agent_id": agent_id, "company_name": company_name,
-                    "phone": phone, "location": location,
-                    "subnets": [subnet] if subnet and subnet != "无法检测" else [],
-                    "targets": [{"name": "网关", "host": get_gateway()}],
+                    agent_id: agent_id, company_name: company_name,
+                    phone: phone, location: location,
+                    subnets: [subnet] if subnet and subnet != 无法检测 else [],
+                    targets: [{name: 网关, host: get_gateway()}],
                 }
                 save_config(cfg)
-                # 设置开机自启（根据用户选择）
                 if autostart_var.get():
                     set_autostart(True)
-                win.after(0, lambda: _show_success_window(root, win, company_name, agent_id, token))
+                win.destroy()
+                root.quit()
+                # 同步显示成功窗口
+                _show_success_window(root, company_name, agent_id, token)
             except Exception as e:
                 import traceback
-                log.error("注册异常: %s", e)
+                log.error(注册异常: %s, e)
                 log.error(traceback.format_exc())
-                win.after(0, lambda msg=str(e): [
-                    status_lbl.config(text="异常: %s" % msg[:50], fg="#EF4444"),
-                    [w.config(state="normal") for w in btn_frame.winfo_children()]
-                ])
-                win.after(0, lambda: _show_err("注册异常: %s" % e))
-
-        def _show_err(msg):
-            def _show():
-                from tkinter import messagebox
-                messagebox.showerror("注册异常", msg)
-            try:
-                root.after(0, _show)
-            except Exception:
-                log.error("无法显示错误弹窗: %s", msg)
+                try:
+                    win.after(0, lambda msg=str(e): [
+                        status_lbl.config(text=异常: %s % msg[:50], fg=#EF4444),
+                        [w.config(state=normal) for w in btn_frame.winfo_children()]
+                    ])
+                    win.after(0, lambda: _show_err(注册异常: %s % e))
+                except Exception:
+                    pass
 
         threading.Thread(target=_do_register, daemon=True, name="register").start()
 
@@ -1550,7 +1185,7 @@ def _show_setup_window(root):
 
 
 
-def _show_success_window(root, setup_win, company_name, agent_id, token):
+def _show_success_window(root, company_name, agent_id, token):
     """注册成功窗口"""
     import tkinter as tk
     from PIL import Image, ImageTk
@@ -1636,20 +1271,19 @@ def _show_success_window(root, setup_win, company_name, agent_id, token):
              font=("微软雅黑",9), bg="#F3F4F6", fg=TEXT,
              relief="flat", pady=7).pack(side="left", fill="x", expand=True, padx=4)
     tk.Button(btn_frame, text="完 成",
-             command=lambda: _dismiss_and_start(win, setup_win, root, agent_id, company_name),
+             command=lambda: _dismiss_and_start(win, root, agent_id, company_name),
              font=("微软雅黑",9,"bold"), bg=GREEN, fg="white",
              relief="flat", pady=7).pack(side="left", fill="x", expand=True, padx=(4,0))
 
-    win.protocol("WM_DELETE_WINDOW", lambda: _dismiss_and_start(win, setup_win, root, agent_id, company_name))
+    win.protocol("WM_DELETE_WINDOW", lambda: _dismiss_and_start(win, root, agent_id, company_name))
     win.wait_window()
 
 
-def _dismiss_and_start(success_win, setup_win, root, agent_id, company_name):
-    """关闭注册成功窗口（如有），关闭 setup 向导，退出 Tk 主循环"""
-    success_win.destroy()
-    if setup_win is not None:
-        setup_win.destroy()  # 关闭 setup 向导，让其 wait_window() 返回
-    root.quit()  # 退出 main() 的 root.mainloop()
+def _dismiss_and_start(win, root, agent_id, company_name):
+    """setup wizard 点完成后：销毁向导窗口，退出 setup 的 mainloop，返回 main() 继续"""
+    win.destroy()
+    root.quit()  # 退出 _show_setup_window 的 root.mainloop()
+    # 托盘和监控会在 main() 里接着启动，这里不要直接调用 _run_monitoring
 
 
 def _open_mobile(agent_id):
@@ -1733,7 +1367,6 @@ def _run_monitoring(agent_id, company_name):
     log.info("开始监控探测...")
     consecutive_errors = 0
     topo_next_in = TOPOLOGY_INTERVAL
-    upgrade_next_in = UPDATE_CHECK_INTERVAL  # 首次启动先等一会儿再检查
     while True:
         try:
             cfg = load_config()
@@ -1768,10 +1401,6 @@ def _run_monitoring(agent_id, company_name):
             threading.Thread(target=_do_topology_scan,
                            args=((cfg or {}).get("subnets", []), agent_id),
                            daemon=True, name="topology").start()
-        upgrade_next_in -= REPORT_INTERVAL
-        if upgrade_next_in <= 0:
-            upgrade_next_in = UPDATE_CHECK_INTERVAL
-            threading.Thread(target=check_and_upgrade, daemon=True, name="upgrade_check").start()
         sleep(REPORT_INTERVAL)
 
     report_offline(agent_id)

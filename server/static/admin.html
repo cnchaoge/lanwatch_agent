@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>LANWatch - 管理后台</title>
-<link rel="stylesheet" href="/static/theme.css">
+<link rel="stylesheet" href="/theme.css">
 <style>
 body { background: var(--bg); }
 
@@ -98,8 +98,8 @@ body { background: var(--bg); }
 </head>
 <body>
 
-<!-- 登录页（已禁用） -->
-<div id="login-page" class="login-wrap" style="display:none">
+<!-- 登录页 -->
+<div id="login-page" class="login-wrap">
   <div class="login-box">
     <div class="login-title">LANWatch 管理后台</div>
     <div class="login-sub">请输入管理员密码</div>
@@ -110,7 +110,7 @@ body { background: var(--bg); }
 </div>
 
 <!-- 管理后台 -->
-<div id="admin-page">
+<div id="admin-page" style="display:none">
   <div class="nav">
     <div class="container nav-inner">
       <a href="/" class="nav-brand">
@@ -119,12 +119,12 @@ body { background: var(--bg); }
       </a>
       <div class="nav-links">
         <a href="/">首页</a>
-        <a href="/monitor">监控面板</a>
-        <a href="/download">下载</a>
+        <a href="/download">下载中心</a>
+        <a href="/admin">管理后台</a>
       </div>
       <div class="nav-right">
         <button class="theme-toggle" id="themeToggle" title="切换主题">🌙</button>
-        <a class="btn btn-secondary btn-sm" href="/download">📥 下载</a>
+        <a class="btn btn-secondary btn-sm" href="/">🏠 官网首页</a>
         <button class="btn btn-primary btn-sm" onclick="showAddUser()">+ 新建企业</button>
       </div>
     </div>
@@ -156,23 +156,13 @@ body { background: var(--bg); }
       </div>
       <div id="snmp-list"></div>
     </div>
-
-    <!-- 掉线检测 -->
-    <div class="panel" style="margin-top:18px;">
-      <div class="panel-head">
-        掉线检测
-        <span class="sub" id="ping-count"></span>
-        <button class="btn btn-sm" style="margin-left:8px;background:var(--orange);color:#fff;" onclick="showAddPing()">+ 添加目标</button>
-      </div>
-      <div id="ping-list"></div>
-    </div>
   </div>
 
   <div class="admin-footer container">
     <a href="/">官网首页</a> ·
-    <a href="/monitor">监控面板</a> ·
     <a href="/download">下载中心</a> ·
-    LANWatch · © 2026
+    <a href="/admin">管理后台</a> ·
+    <a href="/monitor">监控面板</a> ·
   </div>
 </div>
 
@@ -233,43 +223,8 @@ body { background: var(--bg); }
       <input class="input" id="f-snmp-ip" placeholder="例如：192.168.1.1">
     </div>
     <div class="form-row">
-      <label class="form-label">SNMP 版本</label>
-      <select class="input" id="f-snmp-version" onchange="toggleSnmpV3(this.value)">
-        <option value="v2c">v2c（社区字符串）</option>
-        <option value="v3">v3（用户名+加密）</option>
-      </select>
-    </div>
-    <div class="form-row" id="row-snmp-community">
       <label class="form-label">Community</label>
       <input class="input" id="f-snmp-community" value="public" placeholder="通常为 public">
-    </div>
-    <div id="snmp-v3-fields" style="display:none">
-      <div class="form-row">
-        <label class="form-label">用户名</label>
-        <input class="input" id="f-snmp-auth-user" placeholder="v3 用户名">
-      </div>
-      <div class="form-row">
-        <label class="form-label">认证协议</label>
-        <select class="input" id="f-snmp-auth-protocol">
-          <option value="SHA">SHA（推荐）</option>
-          <option value="MD5">MD5</option>
-        </select>
-      </div>
-      <div class="form-row">
-        <label class="form-label">加密协议</label>
-        <select class="input" id="f-snmp-priv-protocol">
-          <option value="AES">AES（推荐）</option>
-          <option value="DES">DES</option>
-        </select>
-      </div>
-      <div class="form-row">
-        <label class="form-label">认证密钥</label>
-        <input class="input" id="f-snmp-auth-key" type="password" placeholder="认证密码">
-      </div>
-      <div class="form-row">
-        <label class="form-label">加密密钥</label>
-        <input class="input" id="f-snmp-priv-key" type="password" placeholder="加密密码（可选）">
-      </div>
     </div>
     <div class="form-row">
       <label class="form-label">设备类型</label>
@@ -283,35 +238,6 @@ body { background: var(--bg); }
     <div class="modal-btns">
       <button class="btn btn-secondary btn-sm" onclick="closeModal('modal-snmp')">取消</button>
       <button class="btn btn-primary btn-sm" onclick="submitSnmp()">保存</button>
-    </div>
-  </div>
-</div>
-
-<!-- 掉线检测弹窗 -->
-<div class="modal-overlay" id="modal-ping">
-  <div class="modal">
-    <div class="modal-title" id="modal-ping-title">添加掉线目标</div>
-    <input type="hidden" id="f-ping-id">
-    <div class="form-row">
-      <label class="form-label">名称</label>
-      <input class="input" id="f-ping-name" placeholder="例如：总公司路由器">
-    </div>
-    <div class="form-row">
-      <label class="form-label">IP地址 *</label>
-      <input class="input" id="f-ping-ip" placeholder="例如：1.2.3.4">
-    </div>
-    <div class="form-row">
-      <label class="form-label">检测间隔</label>
-      <select class="input" id="f-ping-interval">
-        <option value="60">每分钟</option>
-        <option value="180">每3分钟</option>
-        <option value="300">每5分钟</option>
-        <option value="600">每10分钟</option>
-      </select>
-    </div>
-    <div class="modal-btns">
-      <button class="btn btn-secondary btn-sm" onclick="closeModal('modal-ping')">取消</button>
-      <button class="btn btn-primary btn-sm" onclick="submitPing()">保存</button>
     </div>
   </div>
 </div>
@@ -336,7 +262,7 @@ if (toggle) {
   });
 }
 
-function doLogin() { return; 
+function doLogin() {
   var pw = document.getElementById('pw').value;
   fetch(SERVER + '/api/admin/login', {
     method: 'POST',
@@ -570,11 +496,9 @@ function renderSnmp(devs) {
     html += '<span>社区: <span class="mono">' + d.community + '</span></span>';
     html += '</div></div>';
     html += '<span class="tag ' + (isOnline ? 'tag-green' : 'tag-red') + '">' + (isOnline ? '在线' : '离线') + '</span>';
-    html += '<span style="font-size:11px;color:var(--muted)">v' + (d.snmp_version || 'v2c') + '</span>';
     html += '<span style="font-size:11px;color:var(--muted);min-width:65px;">轮询:' + timeAgo(d.last_poll) + '</span>';
     html += '<div class="snmp-actions">';
     html += '<button class="btn btn-secondary btn-xs" onclick="editSnmp(' + d.id + ')">编辑</button>';
-    html += '<a class="btn btn-secondary btn-xs" href="/snmp/' + d.id + '" style="display:inline-block;text-align:center;line-height:1.4;">详情</a>';
     html += '<button class="btn btn-secondary btn-xs" onclick="pollSnmpNow(' + d.id + ')">轮询</button>';
     html += '<button class="btn btn-danger btn-xs" onclick="deleteSnmp(' + d.id + ')">删除</button>';
     html += '</div></div>';
@@ -582,31 +506,12 @@ function renderSnmp(devs) {
   document.getElementById('snmp-list').innerHTML = html;
 }
 
-function toggleSnmpV3(version) {
-  var v3fields = document.getElementById('snmp-v3-fields');
-  var communityRow = document.getElementById('row-snmp-community');
-  if (version === 'v3') {
-    v3fields.style.display = 'block';
-    communityRow.style.display = 'none';
-  } else {
-    v3fields.style.display = 'none';
-    communityRow.style.display = 'flex';
-  }
-}
-
 function showAddSnmp() {
   document.getElementById('f-snmp-id').value = '';
   document.getElementById('f-snmp-name').value = '';
   document.getElementById('f-snmp-ip').value = '';
-  document.getElementById('f-snmp-version').value = 'v2c';
   document.getElementById('f-snmp-community').value = 'public';
-  document.getElementById('f-snmp-auth-user').value = '';
-  document.getElementById('f-snmp-auth-protocol').value = 'SHA';
-  document.getElementById('f-snmp-priv-protocol').value = 'AES';
-  document.getElementById('f-snmp-auth-key').value = '';
-  document.getElementById('f-snmp-priv-key').value = '';
   document.getElementById('f-snmp-type').value = 'router';
-  toggleSnmpV3('v2c');
   document.getElementById('modal-snmp-title').textContent = '添加 SNMP 设备';
   document.getElementById('modal-snmp').style.display = 'flex';
 }
@@ -617,16 +522,8 @@ function editSnmp(id) {
   document.getElementById('f-snmp-id').value = id;
   document.getElementById('f-snmp-name').value = d.device_name || '';
   document.getElementById('f-snmp-ip').value = d.ip;
-  var ver = d.snmp_version || 'v2c';
-  document.getElementById('f-snmp-version').value = ver;
   document.getElementById('f-snmp-community').value = d.community || 'public';
-  document.getElementById('f-snmp-auth-user').value = d.auth_user || '';
-  document.getElementById('f-snmp-auth-protocol').value = d.auth_protocol || 'SHA';
-  document.getElementById('f-snmp-priv-protocol').value = d.priv_protocol || 'AES';
-  document.getElementById('f-snmp-auth-key').value = d.auth_key || '';
-  document.getElementById('f-snmp-priv-key').value = d.priv_key || '';
   document.getElementById('f-snmp-type').value = d.device_type || 'router';
-  toggleSnmpV3(ver);
   document.getElementById('modal-snmp-title').textContent = '编辑设备';
   document.getElementById('modal-snmp').style.display = 'flex';
 }
@@ -636,12 +533,6 @@ function submitSnmp() {
   var data = {
     ip: document.getElementById('f-snmp-ip').value.trim(),
     community: document.getElementById('f-snmp-community').value.trim(),
-    snmp_version: document.getElementById('f-snmp-version').value,
-    auth_user: document.getElementById('f-snmp-auth-user').value.trim(),
-    auth_protocol: document.getElementById('f-snmp-auth-protocol').value,
-    priv_protocol: document.getElementById('f-snmp-priv-protocol').value,
-    auth_key: document.getElementById('f-snmp-auth-key').value,
-    priv_key: document.getElementById('f-snmp-priv-key').value,
     device_name: document.getElementById('f-snmp-name').value.trim(),
     device_type: document.getElementById('f-snmp-type').value
   };
@@ -652,15 +543,10 @@ function submitSnmp() {
     method: method,
     headers: {'Content-Type': 'application/json'},
     body: JSON.stringify(data)
-  }).then(function(r){
-    if (!r.ok) {
-      return r.json().then(function(err) { throw new Error(err.detail || '保存失败'); });
-    }
-    return r.json();
-  }).then(function(d) {
+  }).then(function(r){ return r.json(); }).then(function() {
     closeModal('modal-snmp');
     loadSnmp();
-  }).catch(function(e){ console.error('SNMP submit error:', e); alert('保存失败: ' + e.message); });
+  });
 }
 
 function pollSnmpNow(id) {
@@ -675,103 +561,13 @@ function deleteSnmp(id) {
   fetch(SERVER + '/api/admin/snmp/' + id, {method:'DELETE'}).then(function(r){ return r.json(); }).then(function() { loadSnmp(); });
 }
 
-// ─── 掉线检测 ───────────────────────────────────────────────────
-var allPingMonitors = [];
-
-function loadPing() {
-  fetch(SERVER + '/api/admin/ping').then(function(r){ return r.json(); }).then(function(devs) {
-    allPingMonitors = devs;
-    document.getElementById('ping-count').textContent = devs.length + ' 个目标';
-    var html = '';
-    if (devs.length === 0) {
-      html = '<div class="empty">暂无监控目标，点击右上角添加</div>';
-    }
-    devs.forEach(function(d) {
-      var isOnline = d.status === 'online';
-      html += '<div class="snmp-row">';
-      html += '<span class="snmp-icon">🌐</span>';
-      html += '<div class="snmp-info">';
-      html += '<div class="snmp-name">' + (d.name || d.ip) + '</div>';
-      html += '<div class="snmp-meta">';
-      html += '<span class="mono">' + d.ip + '</span>';
-      html += '<span>间隔: ' + d.interval_sec + '秒</span>';
-      html += '</div></div>';
-      html += '<span class="tag ' + (isOnline ? 'tag-green' : 'tag-red') + '">' + (isOnline ? '在线' : '离线') + '</span>';
-      html += '<span style="font-size:11px;color:var(--muted)">' + (d.last_seen ? timeAgo(d.last_seen) : '从未') + '</span>';
-      html += '<div class="snmp-actions">';
-      html += '<button class="btn btn-secondary btn-xs" onclick="editPing(' + d.id + ')">编辑</button>';
-      html += '<button class="btn btn-secondary btn-xs" onclick="testPing(' + d.id + ')">测试</button>';
-      html += '<button class="btn btn-danger btn-xs" onclick="deletePing(' + d.id + ')">删除</button>';
-      html += '</div></div>';
-    });
-    document.getElementById('ping-list').innerHTML = html;
-  });
-}
-
-function showAddPing() {
-  document.getElementById('f-ping-id').value = '';
-  document.getElementById('f-ping-name').value = '';
-  document.getElementById('f-ping-ip').value = '';
-  document.getElementById('f-ping-interval').value = '60';
-  document.getElementById('modal-ping-title').textContent = '添加掉线目标';
-  document.getElementById('modal-ping').style.display = 'flex';
-}
-
-function editPing(id) {
-  var d = allPingMonitors.find(function(x){ return x.id === id; });
-  if (!d) return;
-  document.getElementById('f-ping-id').value = id;
-  document.getElementById('f-ping-name').value = d.name || '';
-  document.getElementById('f-ping-ip').value = d.ip;
-  document.getElementById('f-ping-interval').value = d.interval_sec || 60;
-  document.getElementById('modal-ping-title').textContent = '编辑掉线目标';
-  document.getElementById('modal-ping').style.display = 'flex';
-}
-
-function submitPing() {
-  var id = document.getElementById('f-ping-id').value;
-  var data = {
-    name: document.getElementById('f-ping-name').value.trim(),
-    ip: document.getElementById('f-ping-ip').value.trim(),
-    interval_sec: parseInt(document.getElementById('f-ping-interval').value)
-  };
-  if (!data.ip) { alert('请填写 IP 地址'); return; }
-  var method = id ? 'PATCH' : 'POST';
-  var url = id ? SERVER + '/api/admin/ping/' + id : SERVER + '/api/admin/ping';
-  fetch(url, {
-    method: method,
-    headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify(data)
-  }).then(function(r){
-    if (!r.ok) { return r.json().then(function(err){ throw new Error(err.detail || '保存失败'); }); }
-    return r.json();
-  }).then(function() {
-    closeModal('modal-ping');
-    loadPing();
-  }).catch(function(e){ alert('保存失败: ' + e.message); });
-}
-
-function testPing(id) {
-  fetch(SERVER + '/api/admin/ping/' + id + '/test', {method:'POST'}).then(function(r){ return r.json(); }).then(function(d) {
-    alert('Ping ' + d.ip + ': ' + (d.online ? '✅ 在线' : '❌ 离线'));
-  });
-}
-
-function deletePing(id) {
-  if (!confirm('确定删除该监控目标吗？')) return;
-  fetch(SERVER + '/api/admin/ping/' + id, {method:'DELETE'}).then(function(r){ return r.json(); }).then(function() { loadPing(); });
-}
-
 function loadData() {
   fetch(SERVER + '/api/admin/users').then(function(r){ return r.json(); }).then(function(users) {
     allUsers = users;
     render(users);
   });
   loadSnmp();
-  loadPing();
 }
-
-loadData();
 
 document.querySelectorAll('.modal-overlay').forEach(function(el) {
   el.addEventListener('click', function(e) {

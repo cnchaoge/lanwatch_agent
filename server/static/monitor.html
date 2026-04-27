@@ -1,68 +1,128 @@
 <!DOCTYPE html>
-<html lang="zh">
+<html lang="zh" data-theme="light">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>网络监控平台</title>
+<title>LANWatch - 监控面板</title>
+<link rel="stylesheet" href="/theme.css">
 <style>
-* { margin: 0; padding: 0; box-sizing: border-box; }
-body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: #f5f5f7; color: #1d1d1f; padding: 32px; }
-h1 { font-size: 22px; font-weight: 600; margin-bottom: 4px; }
-.subtitle { font-size: 12px; color: #86868b; margin-bottom: 24px; }
-.card { background: #fff; border: 1px solid #e5e5ea; border-radius: 12px; padding: 20px; margin-bottom: 16px; }
-.card-title { font-size: 15px; font-weight: 600; margin-bottom: 4px; }
-.card-meta { font-size: 11px; color: #86868b; margin-bottom: 4px; }
-.online { color: #34c759; } .offline { color: #ff3b30; }
+body { background: var(--bg); color: var(--text); }
+
+/* ─── Page header ─── */
+.page-header {
+  padding: 0 0 20px 0;
+  display: flex; align-items: center; justify-content: space-between;
+  flex-wrap: wrap; gap: 12px;
+}
+.page-header h1 { font-size: 20px; font-weight: 800; letter-spacing: -0.02em; }
+.header-right { display: flex; align-items: center; gap: 10px; }
+
+/* ─── Grid ─── */
 .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 16px; }
-.refresh-btn { background: #007aff; color: #fff; border: none; border-radius: 8px; padding: 8px 16px; font-size: 13px; cursor: pointer; }
-.refresh-btn:hover { opacity: 0.8; }
-.empty { text-align: center; padding: 48px; color: #86868b; }
-.card-footer { display: flex; align-items: center; gap: 10px; margin-top: 10px; padding-top: 10px; border-top: 1px solid #f0f0f0; }
-.qr-img { width: 56px; height: 56px; border: 1px solid #f0f0f0; border-radius: 6px; flex-shrink: 0; }
-.qr-text { display: flex; flex-direction: column; gap: 2px; }
-.qr-label { font-size: 11px; color: #86868b; }
-.qr-btn { font-size: 11px; color: #007aff; cursor: pointer; }
-.qr-btn:hover { text-decoration: underline; }
+
+/* ─── Card ─── */
+.card {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius-lg); padding: 18px 20px; margin-bottom: 16px;
+  backdrop-filter: blur(12px);
+}
+[data-theme="dark"] .card { background: rgba(255,255,255,0.05); }
+.card-title { font-size: 15px; font-weight: 700; margin-bottom: 4px; }
+.card-meta { font-size: 12px; color: var(--muted); margin-bottom: 4px; }
+.online { color: var(--green); } .offline { color: var(--red); }
+
+/* ─── Metrics ─── */
 .metrics-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 12px; margin: 10px 0; }
-.metric-item { display: flex; align-items: center; gap: 6px; font-size: 12px; }
+.metric-item { display: flex; align-items: center; gap: 6px; font-size: 13px; }
 .metric-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
-.dot-green { background: #34c759; box-shadow: 0 0 5px rgba(52,199,89,0.5); }
-.dot-orange { background: #ff9500; box-shadow: 0 0 5px rgba(255,149,0,0.5); }
-.dot-red { background: #ff3b30; box-shadow: 0 0 5px rgba(255,59,48,0.5); }
-.dot-grey { background: #d2d2d7; }
-.metric-label { color: #86868b; min-width: 50px; }
+.dot-green { background: var(--green); box-shadow: 0 0 5px rgba(74,222,128,0.5); }
+.dot-orange { background: var(--orange); }
+.dot-red { background: var(--red); box-shadow: 0 0 5px rgba(239,68,68,0.5); }
+.dot-grey { background: var(--muted); }
+.dot-yellow { background: var(--orange); }
+.metric-label { color: var(--muted); min-width: 50px; font-size: 12px; }
 .metric-value { font-weight: 600; font-size: 12px; margin-left: auto; }
-.val-green { color: #34c759; }
-.val-orange { color: #ff9500; }
-.val-red { color: #ff3b30; }
-.val-gray { color: #aeaeb2; }
-.dot-gray { background: #aeaeb2; }
-.dot-yellow { background: #f59e0b; }
-.val-grey { color: #aeaeb2; }
-.footer { text-align: center; font-size: 11px; color: #aeaeb2; margin-top: 32px; padding-top: 16px; border-top: 1px solid #e5e5ea; }
-.footer a { color: #aeaeb2; text-decoration: none; }
+.val-green { color: var(--green); }
+.val-orange { color: var(--orange); }
+.val-red { color: var(--red); }
+.val-grey { color: var(--muted); }
+
+/* ─── Card footer ─── */
+.card-footer { display: flex; align-items: center; gap: 10px; margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--border); }
+.qr-img { width: 56px; height: 56px; border: 1px solid var(--border); border-radius: 6px; flex-shrink: 0; }
+.qr-text { display: flex; flex-direction: column; gap: 2px; }
+.qr-label { font-size: 12px; color: var(--muted); }
+.qr-btn { font-size: 12px; color: var(--primary); cursor: pointer; }
+.qr-btn:hover { text-decoration: underline; }
+
+/* ─── Section ─── */
+.section-title { font-size: 16px; font-weight: 700; margin: 24px 0 12px; display: flex; align-items: center; gap: 8px; }
+
+/* ─── Empty ─── */
+.empty { text-align: center; padding: 48px; color: var(--muted); font-size: 14px; }
+
+/* ─── Refresh btn ─── */
+.refresh-btn {
+  background: var(--primary); color: #fff; border: none; border-radius: var(--radius);
+  padding: 8px 16px; font-size: 13px; font-weight: 600; cursor: pointer;
+  transition: opacity 0.2s;
+}
+.refresh-btn:hover { opacity: 0.85; }
 </style>
 </head>
 <body>
-<h1>网络监控平台</h1>
-<p class="subtitle">托管服务 · <span id="server-url"></span></p>
-<div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;">
-  <button class="refresh-btn" onclick="load()">刷新</button>
-  <a href="/download" style="background:#34c759;color:#fff;border:none;border-radius:8px;padding:8px 16px;font-size:13px;text-decoration:none;">📥 下载安装包</a>
-  <a href="/" style="background:#fff;color:#1d1d1f;border:1px solid #d2d2d7;border-radius:8px;padding:8px 16px;font-size:13px;text-decoration:none;">返回官网</a>
+
+<!-- Nav -->
+<div class="nav">
+  <div class="container nav-inner">
+    <a href="/" class="nav-brand">
+      <span class="nav-icon">L</span>
+      <span>LANWatch</span>
+    </a>
+    <div class="nav-links">
+      <a href="/">首页</a>
+      <a href="/download">下载中心</a>
+      <a href="/admin">管理后台</a>
+    </div>
+    <div class="nav-right">
+      <button class="theme-toggle" id="themeToggle" title="切换主题">🌙</button>
+      <a class="btn btn-secondary btn-sm" href="/">🏠 官网首页</a>
+    </div>
+  </div>
 </div>
-<hr style="margin:16px 0;border:none;border-top:1px solid #e5e5ea;">
-<h2 style="font-size:16px;font-weight:600;margin-bottom:12px;">🎯 客户端监控</h2>
-<div id="grid" class="grid"></div>
-<h2 style="font-size:16px;font-weight:600;margin:24px 0 12px;">📦 SNMP 设备监控</h2>
-<div id="snmp-grid" class="grid"></div>
+
+<div class="container" style="padding-top:28px;">
+  <div class="page-header">
+    <h1>📊 监控面板</h1>
+    <div class="header-right">
+      <button class="refresh-btn" onclick="load()">🔄 刷新</button>
+      <a class="btn btn-primary btn-sm" href="/download">📥 下载客户端</a>
+    </div>
+  </div>
+
+  <!-- 客户端监控 -->
+  <div class="section-title">🎯 客户端监控</div>
+  <div id="grid" class="grid" style="gap:16px;"></div>
+
+  <!-- SNMP 设备监控 -->
+  <div class="section-title">📦 SNMP 设备监控</div>
+  <div id="snmp-grid" class="grid" style="gap:16px;"></div>
+</div>
+
+<!-- Footer -->
 <div class="footer">
-  <a href="/download">📥 下载安装包</a> · <a href="https://lanwatch.net">lanwatch.net</a> · 企业网络值守服务<br>
-  © 2026 · 所有权利保留
+  <div class="container">
+    <a href="/">官网首页</a> ·
+    <a href="/download">下载中心</a> ·
+    <a href="/admin">管理后台</a> ·
+    <a href="/monitor">监控面板</a>
+    <br><br>
+    LANWatch · © 2026
+  </div>
 </div>
+
 <script>
 var SERVER = location.origin;
-document.getElementById('server-url').textContent = SERVER;
 
 function metricDot(v, warn, crit) {
   if (v === null || v === undefined || isNaN(v)) return { dot: 'dot-grey', val: 'val-grey', text: '-' };
@@ -139,15 +199,13 @@ function load() {
           '<div class="card-meta">' + agent.name + ' · ' + ago + '</div>' +
           '<div class="metrics-grid">' +
             (function(){
-              var icmpDot, icmpVal, icmpText;
               if (pRtt == null && dns != null) {
-                icmpDot = 'dot-gray'; icmpVal = 'val-gray'; icmpText = '不支持';
+                return '<div class="metric-item"><span class="metric-dot dot-grey"></span><span class="metric-label">ICMP</span><span class="metric-value val-grey">不支持</span></div>';
               } else if (pLoss > 0) {
-                icmpDot = 'dot-yellow'; icmpVal = 'val-yellow'; icmpText = '丢包' + pLoss + '%';
+                return '<div class="metric-item"><span class="metric-dot dot-yellow"></span><span class="metric-label">ICMP</span><span class="metric-value" style="color:var(--orange)">丢包' + pLoss + '%</span></div>';
               } else {
-                icmpDot = 'dot-green'; icmpVal = 'val-green'; icmpText = '支持';
+                return '<div class="metric-item"><span class="metric-dot dot-green"></span><span class="metric-label">ICMP</span><span class="metric-value val-green">支持</span></div>';
               }
-              return '<div class="metric-item"><span class="metric-dot ' + icmpDot + '"></span><span class="metric-label">ICMP</span><span class="metric-value ' + icmpVal + '">' + icmpText + '</span></div>';
             })() +
             (function(){
               var items = [];
@@ -155,10 +213,11 @@ function load() {
               for (var i = 0; i < servers.length; i++) {
                 var v = servers[i][1];
                 if (v == null) continue;
-                var m = v < 100 ? 'val-green' : (v < 300 ? 'val-orange' : 'val-red');
-                items.push('<span style="font-size:11px;color:#86868b;">' + servers[i][0] + ':</span><span class="metric-value ' + m + '" style="font-size:12px;">' + v.toFixed(0) + '</span>');
+                var c = v < 100 ? 'val-green' : (v < 300 ? 'val-orange' : 'val-red');
+                items.push('<span style="font-size:12px;color:var(--muted);">' + servers[i][0] + ':</span><span class="metric-value ' + c + '">' + v.toFixed(0) + '</span>');
               }
-              return '<div class="metric-item"><span class="metric-dot dot-green"></span><span class="metric-label" style="font-size:11px;">DNS</span>' + items.join(' <span style="color:#d2d2d7">|</span> ') + '</div>';
+              if (!items.length) return '<div class="metric-item"><span class="metric-dot dot-grey"></span><span class="metric-label">DNS</span><span class="metric-value val-grey">-</span></div>';
+              return '<div class="metric-item"><span class="metric-dot dot-green"></span><span class="metric-label" style="font-size:12px;">DNS</span>' + items.join(' <span style="color:var(--border)">|</span> ') + '</div>';
             })() +
             (tgtOk === false
               ? '<div class="metric-item"><span class="metric-dot dot-red"></span><span class="metric-label">' + tgtName + '</span><span class="metric-value val-red">不可达</span></div>'
@@ -167,10 +226,10 @@ function load() {
           '<div class="card-footer">' +
             '<img class="qr-img" src="' + qrUrl + '" alt="二维码">' +
             '<div class="qr-text">' +
-              '<span class="qr-label">手机查看专属</span>' +
+              '<span class="qr-label">手机查看</span>' +
               '<span class="qr-btn" onclick="copyText(\'' + mobileUrl + '\')">复制链接</span>' +
             '</div>' +
-            '<a class="qr-btn" href="/agent/' + agent.id + '" style="margin-left:auto;color:#007aff;font-size:12px;">详细信息 →</a>' +
+            '<a class="qr-btn" href="/agent/' + agent.id + '" style="margin-left:auto;">详细信息 →</a>' +
           '</div>' +
           '</div>';
       });
@@ -184,7 +243,6 @@ function load() {
   };
   xhr.send(null);
 
-  // 加载 SNMP 设备
   loadSnmp();
 }
 
@@ -252,6 +310,19 @@ function formatUptime(ticks) {
   if (s < 86400) return Math.floor(s/3600) + '小时';
   return Math.floor(s/86400) + '天';
 }
+
+// Theme toggle
+var toggle = document.getElementById('themeToggle');
+var stored = localStorage.getItem('lw-theme') || 'light';
+function applyTheme(t) {
+  document.documentElement.setAttribute('data-theme', t);
+  toggle.textContent = t === 'dark' ? '🌙' : '☀️';
+  localStorage.setItem('lw-theme', t);
+}
+applyTheme(stored);
+toggle.addEventListener('click', function() {
+  applyTheme(document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark');
+});
 
 load();
 var es = null;
