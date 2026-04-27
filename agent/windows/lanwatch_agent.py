@@ -1034,52 +1034,8 @@ def _open_log(icon=None):
 
 
 def _show_about(icon=None):
-        """显示关于对话框"""
-        from tkinter import messagebox
-        try:
-            from tkinter import Toplevel, Label, Button
-            win = Toplevel(_tk_root)
-            win.title("关于 lanwatch_agent")
-            win.geometry("320x260")
-            win.resizable(False, False)
-            win.attributes("-topmost", True)
-            win.update_idletasks()
-            sw = win.winfo_screenwidth(); sh = win.winfo_screenheight()
-            ww, wh = 320, 260
-            win.geometry(f"{ww}x{wh}+{(sw-ww)//2}+{(sh-wh)//2}")
-
-            bg = "#F3F4F6"
-            win.configure(bg=bg)
-
-            Label(win, text="lanwatch_agent", font=("微软雅黑", 16, "bold"),
-                  bg=bg, fg="#111827").place(x=20, y=20)
-            Label(win, text=f"v{__version__}", font=("微软雅黑", 11),
-                  bg=bg, fg="#6B7280").place(x=20, y=54)
-            Label(win, text="企业网络监控客户端", font=("微软雅黑", 9),
-                  bg=bg, fg="#9CA3AF").place(x=20, y=80)
-            Label(win, text=f"服务端: {SERVER_URL}", font=("微软雅黑", 8),
-                  bg=bg, fg="#9CA3AF").place(x=20, y=102)
-
-
-            btn_frame = Label(win, text="", font=("微软雅黑", 1), bg=bg)
-            btn_frame.pack(side="bottom", fill="x", padx=20, pady=(0, 16))
-
-            def close_about():
-                win.destroy()
-
-            def do_check_update():
-                win.destroy()
-                _do_manual_upgrade_check()
-
-            Button(btn_frame, text="检查更新", command=do_check_update,
-                   font=("微软雅黑", 10), width=10, bg="#2563EB", fg="white",
-                   relief="flat", pady=6).pack(side="left", fill="x", expand=True)
-            Button(btn_frame, text="确定", command=close_about,
-                   font=("微软雅黑", 10), width=10, bg="#F3F4F6", fg="#374151",
-                   relief="flat", pady=6).pack(side="right", fill="x", expand=True)
-            win.protocol("WM_DELETE_WINDOW", close_about)
-        except Exception:
-            pass
+    """点击"关于"菜单项 → 跳转到设置窗口的关于区块"""
+    _show_settings_window()
 
 
 def _exit_app(icon=None):
@@ -1103,77 +1059,72 @@ def _on_uninstall():
 
 
 def _show_settings_window():
-    """显示设置窗口（托盘点击"设置"触发）：自启动开关"""
+    """设置窗口：自启动开关 + 关于区块"""
     try:
-        from tkinter import Toplevel, Label, Checkbutton, IntVar, messagebox
-        cfg = load_config()
+        from tkinter import Toplevel, Label, Checkbutton, IntVar, Button, messagebox, Frame
         win = Toplevel(_tk_root)
         win.title("设置")
-        win.geometry("340x180")
+        win.geometry("360x400")
         win.resizable(False, False)
         win.attributes("-topmost", True)
-        # 居中
         win.update_idletasks()
-        sw = win.winfo_screenwidth()
-        sh = win.winfo_screenheight()
-        ww, wh = 340, 180
+        sw = win.winfo_screenwidth(); sh = win.winfo_screenheight()
+        ww, wh = 360, 400
         win.geometry(f"{ww}x{wh}+{(sw-ww)//2}+{(sh-wh)//2}")
+        bg = "#FFFFFF"; ACCENT = "#2563EB"; TEXT = "#374151"; MUTED = "#9CA3AF"; BORDER = "#E5E7EB"
+        win.configure(bg=bg)
 
-        # 标题
-        Label(win, text="lanwatch_agent v" + __version__, font=("微软雅黑", 10, "bold")).place(x=20, y=16)
-        Label(win, text="企业网络监控客户端", font=("微软雅黑", 9), fg="#666").place(x=20, y=42)
+        # ── 标题 ──
+        Label(win, text="设置", font=("微软雅黑", 16, "bold"), bg=bg, fg="#111827").place(x=20, y=16)
 
-        # 自启动开关
+        # ── 自启动区块 ──
+        sec1 = Label(win, text="", bg=bg)
+        sec1.pack(fill="x", padx=20, pady=(0, 0))
         auto_var = IntVar(value=1 if is_autostart_enabled() else 0)
-
         def on_auto_toggle():
             ok = set_autostart(bool(auto_var.get()))
             if ok:
-                status = "已开启" if auto_var.get() else "已关闭"
-                log.info("[设置] 自启动: %s", status)
+                log.info("[设置] 自启动: %s", "已开启" if auto_var.get() else "已关闭")
             else:
-                # 回滚 UI
                 auto_var.set(1 if is_autostart_enabled() else 0)
                 messagebox.showwarning("设置失败", "无法修改自启动设置", parent=win)
+        cb = Checkbutton(sec1, text="开机自启动", variable=auto_var, command=on_auto_toggle,
+                       font=("微软雅黑", 10), bg=bg, fg=TEXT, anchor="w")
+        cb.pack(anchor="w")
 
-        cb = Checkbutton(
-            win, text="开机自启动",
-            variable=auto_var, command=on_auto_toggle,
-            font=("微软雅黑", 10),
-            onvalue=1, offvalue=0
-        )
-        cb.place(x=20, y=78)
+        # ── 分隔线 ──
+        Label(win, text="", bg=bg, height=1).pack(fill="x", padx=20, pady=(4, 0))
+        sep = Frame(win, bg=BORDER); sep.pack(fill="x", padx=20); sep.configure(height=1)
 
-        # 服务器地址（只读）
-        Label(win, text="服务端: " + SERVER_URL, font=("微软雅黑", 8), fg="#888").place(x=20, y=130)
+        # ── 关于区块 ──
+        sec2 = Label(win, text="", bg=bg)
+        sec2.pack(fill="x", padx=20, pady=(8, 0))
+        Label(sec2, text="关于", font=("微软雅黑", 12, "bold"), bg=bg, fg="#111827").pack(anchor="w")
+        Label(sec2, text=f"版本 v{__version__}  ·  企业网络监控客户端", font=("微软雅黑", 9),
+              bg=bg, fg=MUTED).pack(anchor="w", pady=(4, 0))
+        Label(sec2, text=f"服务端: {SERVER_URL}", font=("微软雅黑", 8),
+              bg=bg, fg=MUTED).pack(anchor="w", pady=(2, 0))
+        def do_check_update():
+            _do_manual_upgrade_check()
+        Button(sec2, text="检查更新", command=do_check_update,
+               font=("微软雅黑", 10), width=12, bg=ACCENT, fg="white",
+               relief="flat", pady=6).pack(anchor="w", pady=(8, 0))
 
-        # 底部按钮：取消 / 确认
-        btn_frame = Label(win, text="", font=("微软雅黑", 1), bg=BG)
-        btn_frame.pack(side="bottom", fill="x", padx=20, pady=(0, 14))
-
-
+        # ── 底部按钮 ──
+        btn_frame = Label(win, text="", font=("微软雅黑", 1), bg=bg)
+        btn_frame.pack(side="bottom", fill="x", padx=20, pady=(0, 16))
         def close_settings():
             win.destroy()
-
-        def on_cancel():
-            close_settings()
-
-        def on_confirm():
-            close_settings()
-
-
-        Label(btn_frame, text="", bg=BG).pack(side="left", fill="x", expand=True)
-        Label(btn_frame, text="", bg=BG).pack(side="right", fill="x", expand=True)
-        tk.Button(btn_frame, text="取消", command=on_cancel,
-                 font=("微软雅黑", 10), width=9, bg="#F3F4F6", fg=TEXT,
-                 relief="flat", pady=6).pack(side="left", fill="x", expand=True)
-        tk.Button(btn_frame, text="确认", command=on_confirm,
-                 font=("微软雅黑", 10, "bold"), width=9, bg=ACCENT, fg="white",
-                 relief="flat", pady=6).pack(side="right", fill="x", expand=True)
+        Button(btn_frame, text="取消", command=close_settings,
+               font=("微软雅黑", 10), width=10, bg="#F3F4F6", fg=TEXT,
+               relief="flat", pady=6).pack(side="left", fill="x", expand=True)
+        Button(btn_frame, text="确认", command=close_settings,
+               font=("微软雅黑", 10, "bold"), width=10, bg=ACCENT, fg="white",
+               relief="flat", pady=6).pack(side="right", fill="x", expand=True)
         win.protocol("WM_DELETE_WINDOW", close_settings)
     except Exception as e:
         log.warning("[设置] 窗口打开失败: %s", e)
-        _show_about()
+        messagebox.showinfo("关于", f"lanwatch_agent v{__version__}\n企业网络监控客户端\n服务端: {SERVER_URL}")
 
 
 # ═══════════════════════════════════════════════════════════════
