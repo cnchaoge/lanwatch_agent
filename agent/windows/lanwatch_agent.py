@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 """lanwatch_agent - 企业网络监控客户端 v0.9.0"""
 
-__version__ = "0.9.6"
+__version__ = "0.9.8"
 
 import socket
 from time import sleep
@@ -1129,23 +1129,47 @@ def _show_about(icon=None):
         Label(win, text=f"服务端: {SERVER_URL}",
               font=("微软雅黑", 9), bg=bg, fg="#9CA3AF").place(x=20, y=208)
 
-        # ── 检查更新 ──
+        # ── 检查更新按钮 + 结果 ──
+        update_btn = Button(win, text="检查更新", font=("微软雅黑", 10),
+                           width=12, bg=C_ACCENT, fg="white", relief="flat", pady=6)
+        update_btn.place(x=20, y=234)
+        result_lbl = Label(win, text="", font=("微软雅黑", 9), bg=bg, fg=C_MUTED)
+        result_lbl.place(x=20, y=268)
+
         def do_check_update():
-            anim.stop()
-            canvas.delete(scan_id[0])
-            win.destroy()
-            _do_manual_upgrade_check()
-        Button(win, text="检查更新", command=do_check_update,
-               font=("微软雅黑", 10), width=12, bg=C_ACCENT, fg="white",
-               relief="flat", pady=6).place(x=20, y=234)
+            update_btn.config(state="disabled", text="检查中...")
+            result_lbl.config(text="")
+            win.update_idletasks()
+            try:
+                result = check_github_latest_version()
+                if not result:
+                    result_lbl.config(text="检查更新失败，请检查网络", fg=C_RED)
+                    update_btn.config(state="normal", text="检查更新")
+                    return
+                new_ver, dl_url = result
+                if parse_version(new_ver) <= parse_version(__version__):
+                    result_lbl.config(text=f"已是最新版本 v{__version__}", fg=C_GREEN)
+                    update_btn.config(state="normal", text="检查更新")
+                else:
+                    result_lbl.config(text=f"发现新版本 v{new_ver}（当前 v{__version__}）", fg=C_ORANGE)
+                    def do_upgrade():
+                        update_btn.config(state="disabled", text="升级中...")
+                        threading.Thread(target=_do_upgrade, args=(dl_url, new_ver), daemon=True).start()
+                    update_btn.config(state="normal", text="立即更新", bg=C_GREEN, command=do_upgrade)
+            except Exception as e:
+                result_lbl.config(text="检查更新失败", fg=C_RED)
+                update_btn.config(state="normal", text="检查更新")
+
+        update_btn.config(command=do_check_update)
 
         # ── 底部确定按钮 ──
         def close_win():
             anim.stop()
-            canvas.delete(scan_id[0])
+            try: canvas.delete(scan_id[0])
+            except Exception: pass
             win.destroy()
         Button(win, text="确定", command=close_win,
-               font=("微软雅黑", 10), width=12, bg=C_BORDER, fg="#374151",
+               font=("微软雅黑", 10), width=12, bg=C_BTN_SEC, fg=C_MUTED,
                relief="flat", pady=6).place(x=168, y=234)
 
         win.protocol("WM_DELETE_WINDOW", close_win)
@@ -1206,20 +1230,19 @@ def _show_settings_window():
         cb.place(x=20, y=52)
 
         # ── 底部按钮 ──
-        btn_frame = Label(win, text="", font=("微软雅黑", 1), bg=bg)
-        btn_frame.pack(side="bottom", fill="x", padx=20, pady=(0, 16))
+        btn_frame = Label(win, text="", font=("微软雅黑", 1), bg=C_BG)
+        btn_frame.place(x=20, y=130, width=320, height=34)
         def close_settings():
             win.destroy()
         Button(btn_frame, text="取消", command=close_settings,
-               font=("微软雅黑", 10), width=10, bg=C_BORDER, fg=C_TEXT,
-               relief="flat", pady=6).pack(side="left", fill="x", expand=True)
+               font=("微软雅黑", 10), width=10, bg=C_BTN_SEC, fg=C_MUTED,
+               relief="flat", pady=6).place(x=0, y=0, width=147, height=34)
         Button(btn_frame, text="确认", command=close_settings,
                font=("微软雅黑", 10, "bold"), width=10, bg=C_ACCENT, fg="white",
-               relief="flat", pady=6).pack(side="right", fill="x", expand=True)
+               relief="flat", pady=6).place(x=173, y=0, width=147, height=34)
         win.protocol("WM_DELETE_WINDOW", close_settings)
-    except Exception as e:
-        log.warning("[设置] 窗口打开失败: %s", e)
-        messagebox.showinfo("关于", f"lanwatch_agent v{__version__}\n企业网络监控客户端\n服务端: {SERVER_URL}")
+    except Exception:
+        pass
 
 
 # ═══════════════════════════════════════════════════════════════
