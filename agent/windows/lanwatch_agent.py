@@ -1272,18 +1272,18 @@ def _show_setup_window(root):
             try:
                 reg = register_agent(company_name, phone, location)
                 if not reg:
-                    win.after(0, lambda: status_lbl.config(text=注册失败, fg=#EF4444))
-                    win.after(0, lambda: [w.config(state=normal) for w in btn_frame.winfo_children()])
-                    win.after(0, lambda: _show_err(注册失败，请检查网络后重试。))
+                    win.after(0, lambda: status_lbl.config(text="注册失败", fg="#EF4444"))
+                    win.after(0, lambda: [w.config(state="normal") for w in btn_frame.winfo_children()])
+                    win.after(0, lambda: _show_err("注册失败，请检查网络后重试。"))
                     return
-                agent_id = reg[agent_id]
-                token    = reg[token]
-                log.info(注册成功，Agent ID: %s, agent_id)
+                agent_id = reg["agent_id"]
+                token    = reg["token"]
+                log.info("注册成功，Agent ID: %s", agent_id)
                 cfg = {
-                    agent_id: agent_id, company_name: company_name,
-                    phone: phone, location: location,
-                    subnets: [subnet] if subnet and subnet != 无法检测 else [],
-                    targets: [{name: 网关, host: get_gateway()}],
+                    "agent_id": agent_id, "company_name": company_name,
+                    "phone": phone, "location": location,
+                    "subnets": [subnet] if subnet and subnet != "无法检测" else [],
+                    "targets": [{"name": "网关", "host": get_gateway()}],
                 }
                 save_config(cfg)
                 if autostart_var.get():
@@ -1294,14 +1294,14 @@ def _show_setup_window(root):
                 _show_success_window(root, company_name, agent_id, token)
             except Exception as e:
                 import traceback
-                log.error(注册异常: %s, e)
+                log.error("注册异常: %s", e)
                 log.error(traceback.format_exc())
                 try:
                     win.after(0, lambda msg=str(e): [
-                        status_lbl.config(text=异常: %s % msg[:50], fg=#EF4444),
-                        [w.config(state=normal) for w in btn_frame.winfo_children()]
+                        status_lbl.config(text="异常: %s" % msg[:50], fg="#EF4444"),
+                        [w.config(state="normal") for w in btn_frame.winfo_children()]
                     ])
-                    win.after(0, lambda: _show_err(注册异常: %s % e))
+                    win.after(0, lambda: _show_err("注册异常: %s" % e))
                 except Exception:
                     pass
 
