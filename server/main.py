@@ -39,9 +39,7 @@ except ImportError:
     SNMP_AVAILABLE = False
     print("[SNMP] pysnmp not installed, SNMP polling disabled")
 
-from crm import init_crm_db, list_customers, get_customer, create_customer, update_customer, delete_customer
 
-# CRM 相关路由已移除（见 crm-system 仓库）
 
 # ─── 数据库 ─────────────────────────────────────────────────────────────────
 
@@ -283,9 +281,6 @@ def init_db():
     finally:
         close_db(conn)
 
-def init_crm():
-    """CRM已迁移至独立仓库，保留函数避免启动报错"""
-    pass
 
 # ─── SNMP 轮询引擎 ──────────────────────────────────────────────────────────
 
@@ -1501,7 +1496,7 @@ def index():
 
 @app.get("/monitor")
 def monitor_page():
-    static_path = Path(__file__).parent / "static" / "index.html"
+    static_path = Path(__file__).parent / "static" / "monitor.html"
     if static_path.exists():
         return FileResponse(str(static_path))
     return {"message": "Not found"}
@@ -1552,7 +1547,6 @@ def admin_page():
     return {"message": "Not found"}
 
 # ─── CRM 客户管理 ──────────────────────────────────────────────────────────
-# 已迁移至 crm-system 仓库（https://github.com/cnchaoge/crm-system）
 # CRM 相关路由和 API 已移除 ───────────────────────────────────────────────────────────────
 
 @app.get("/download")
@@ -1611,9 +1605,24 @@ def cleanup_old_probes():
     finally:
         close_db(conn)
 
+@app.get("/client.exe")
+def download_client_exe():
+    """Windows 客户端直接下载（服务端存储）"""
+    exe_path = Path("/home/ubuntu/lanwatch_agent_client.exe")
+    if exe_path.exists():
+        return FileResponse(str(exe_path), filename="lanwatch_agent.exe", media_type="application/octet-stream")
+    return {"message": "File not found"}
+
+@app.get("/client-linux.tar.gz")
+def download_client_linux():
+    """Linux 客户端直接下载（服务端存储）"""
+    linux_path = Path("/home/ubuntu/lanwatch_agent_linux.tar.gz")
+    if linux_path.exists():
+        return FileResponse(str(linux_path), filename="lanwatch_agent_linux.tar.gz", media_type="application/octet-stream")
+    return {"message": "File not found"}
+
 def startup():
     init_db()
-    init_crm()
     start_ping_poller()
     start_snmp_poller()
     t = threading.Thread(target=start_snmp_trap_receiver, daemon=True)
@@ -1623,3 +1632,4 @@ def startup():
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8000)
+
