@@ -1032,7 +1032,12 @@ def _do_uninstall_confirm():
     except Exception as e:
         log.error("[卸载] 删除配置失败: %s", e)
 
-    # 4. 关进程
+    # 4. 弹卸载成功，再结束
+    try:
+        from tkinter import messagebox
+        messagebox.showinfo("卸载完成", "lanwatch 已卸载，感谢使用！再见！", parent=_tk_root)
+    except Exception:
+        pass
     log.info("[卸载] 完成")
     os._exit(0)
 
@@ -1175,22 +1180,19 @@ def _show_settings_window():
         from tkinter import Toplevel, Label, Checkbutton, IntVar, Button, messagebox, Frame
         win = Toplevel(_tk_root)
         win.title("设置")
-        win.geometry("360x400")
+        win.geometry("360x180")
         win.resizable(False, False)
         win.attributes("-topmost", True)
         win.update_idletasks()
         sw = win.winfo_screenwidth(); sh = win.winfo_screenheight()
-        ww, wh = 360, 400
+        ww, wh = 360, 180
         win.geometry(f"{ww}x{wh}+{(sw-ww)//2}+{(sh-wh)//2}")
-        bg = "#FFFFFF"; ACCENT = "#2563EB"; TEXT = "#374151"; MUTED = "#9CA3AF"; BORDER = "#E5E7EB"
-        win.configure(bg=bg)
+        win.configure(bg=C_BG)
 
         # ── 标题 ──
-        Label(win, text="设置", font=("微软雅黑", 16, "bold"), bg=bg, fg="#111827").place(x=20, y=16)
+        Label(win, text="设置", font=("微软雅黑", 14, "bold"), bg=C_BG, fg=C_TEXT).place(x=20, y=16)
 
-        # ── 自启动区块 ──
-        sec1 = Label(win, text="", bg=bg)
-        sec1.pack(fill="x", padx=20, pady=(0, 0))
+        # ── 自启动 ──
         auto_var = IntVar(value=1 if is_autostart_enabled() else 0)
         def on_auto_toggle():
             ok = set_autostart(bool(auto_var.get()))
@@ -1199,22 +1201,9 @@ def _show_settings_window():
             else:
                 auto_var.set(1 if is_autostart_enabled() else 0)
                 messagebox.showwarning("设置失败", "无法修改自启动设置", parent=win)
-        cb = Checkbutton(sec1, text="开机自启动", variable=auto_var, command=on_auto_toggle,
-                       font=("微软雅黑", 10), bg=bg, fg=C_TEXT, anchor="w")
-        cb.pack(anchor="w")
-
-        # ── 分隔线 ──
-        Label(win, text="", bg=bg, height=1).pack(fill="x", padx=20, pady=(4, 0))
-        sep = Frame(win, bg=BORDER); sep.pack(fill="x", padx=20); sep.configure(height=1)
-
-        # ── 关于区块 ──
-        sec2 = Label(win, text="", bg=bg)
-        sec2.pack(fill="x", padx=20, pady=(8, 0))
-        Label(sec2, text="关于", font=("微软雅黑", 12, "bold"), bg=bg, fg="#111827").pack(anchor="w")
-        Label(sec2, text=f"版本 v{__version__}  ·  企业网络监控客户端", font=("微软雅黑", 9),
-              bg=bg, fg=MUTED).pack(anchor="w", pady=(4, 0))
-        Label(sec2, text=f"服务端: {SERVER_URL}", font=("微软雅黑", 8),
-              bg=bg, fg=MUTED).pack(anchor="w", pady=(2, 0))
+        cb = Checkbutton(win, text="开机自启动", variable=auto_var, command=on_auto_toggle,
+                       font=("微软雅黑", 10), bg=C_BG, fg=C_TEXT, anchor="w")
+        cb.place(x=20, y=52)
 
         # ── 底部按钮 ──
         btn_frame = Label(win, text="", font=("微软雅黑", 1), bg=bg)
