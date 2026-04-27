@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 """lanwatch_agent - 企业网络监控客户端 v0.9.0"""
 
-__version__ = "0.9.4"
+__version__ = "0.9.5"
 
 import socket
 from time import sleep
