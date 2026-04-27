@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 """lanwatch_agent - 企业网络监控客户端 v0.9.0"""
 
-__version__ = "0.9.1"
+__version__ = "0.9.4"
 
 import socket
 from time import sleep
@@ -25,11 +25,23 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 # ═══════════════════════════════════════════════════════════════
 # 配置
 # ═══════════════════════════════════════════════════════════════
-SERVER_URL = "http://82.156.229.67:8000"
+SERVER_URL = "http://82.156.229.67"
 REPORT_INTERVAL = 60
 TOPOLOGY_INTERVAL = 300       # 5 分钟扫一次拓扑
 LOG_FILE = os.path.expanduser("~/.lanwatch_agent.log")
 CONFIG_FILE = os.path.expanduser("~/.lanwatch_agent.json")
+
+# ─── UI 色板（统一）───────────────────────────────────────────────
+C_BG       = "#FFFFFF"
+C_ACCENT   = "#2563EB"
+C_TEXT     = "#111827"
+C_MUTED    = "#6B7280"
+C_BORDER   = "#E5E7EB"
+C_GREEN    = "#10B981"
+C_RED      = "#EF4444"
+C_ORANGE   = "#F59E0B"
+C_BTN_SEC  = "#F3F4F6"
+C_INPUT_BG = "#F9FAFB"
 
 # ═══════════════════════════════════════════════════════════════
 # 日志
@@ -1054,73 +1066,56 @@ def _show_about(icon=None):
               bg=bg, fg="#111827").place(x=20, y=16)
 
 
-        # ── 网络动画画布 ──
-        canvas = Canvas(win, width=280, height=120, bg=bg, highlightthickness=0)
+        # ── 雷达扫描动画 ──
+        canvas = Canvas(win, width=280, height=120, bg="#0F172A", highlightthickness=0)
         canvas.place(x=20, y=56)
 
-        # 画节点
-        nodes = [
-            (60, 60),   # 中心
-            (30, 30),   # 左上
-            (90, 30),   # 右上
-            (30, 90),   # 左下
-            (90, 90),   # 右下
-            (140, 60),  # 右中
-            (0, 60),    # 最左
-        ]
-        node_ids = []
-        for x, y in nodes:
-            rid = canvas.create_oval(x-6, y-6, x+6, y+6, fill=ACCENT, outline="")
-            node_ids.append(rid)
+        # 画背景网格
+        for i in range(1, 4):
+            r = i * 20
+            canvas.create_oval(140-r, 60-r, 140+r, 60+r, outline="#1E3A5F", width=1)
+        for x in range(40, 241, 40):
+            canvas.create_line(x, 10, x, 110, fill="#1E3A5F", width=1)
+        for y in range(10, 111, 25):
+            canvas.create_line(20, y, 260, y, fill="#1E3A5F", width=1)
 
-        # 画连线
-        center = nodes[0]
-        for x, y in nodes[1:]:
-            canvas.create_line(center[0], center[1], x, y,
-                              fill="#93C5FD", width=1.5)
-
-        # 脉冲动画
-        import random
-        class PulseAnim:
+        scan_id = [None]
+        class RadarAnim:
             def __init__(self):
-                self.rings = []
-                self._after_id = None
+                self.angle = 0
                 self.running = True
+                self._id = None
 
             def step(self):
                 if not self.running:
                     return
-                # 随机选一个节点发起脉冲
-                ni = random.choice(range(len(nodes)))
-                nx, ny = nodes[ni]
-                r = canvas.create_oval(nx-2, ny-2, nx+2, ny+2,
-                                      fill=ACCENT, outline="")
-                self.rings.append((r, 0))
-                # 更新已有脉冲
-                new_rings = []
-                for rid, radius in self.rings:
-                    radius += 3
-                    if radius > 50:
-                        canvas.delete(rid)
-                    else:
-                        x1 = nx - radius; y1 = ny - radius
-                        x2 = nx + radius; y2 = ny + radius
-                        alpha = max(0, int(255 * (1 - radius / 50)))
-                        color = f"#2563EB{int(alpha * 58 / 255):02X}"
-                        canvas.coords(rid, x1, y1, x2, y2)
-                        new_rings.append((rid, radius))
-                self.rings = new_rings
+                if scan_id[0] is not None:
+                    canvas.delete(scan_id[0])
+                import math
+                r = 60
+                ex = 140 + r * math.cos(math.radians(self.angle))
+                ey = 60 + r * math.sin(math.radians(self.angle))
+                x1 = 140 - 4; y1 = 60 - 4; x2 = 140 + 4; y2 = 60 + 4
+                scan_id[0] = canvas.create_line(140, 60, ex, ey,
+                                             fill="#22D3EE", width=2)
+                # 尾部渐隐效果
+                for tail in range(1, 6):
+                    ta = self.angle - tail * 12
+                    tx = 140 + r * math.cos(math.radians(ta))
+                    ty = 60 + r * math.sin(math.radians(ta))
+                    alpha = max(0, 255 - tail * 50)
+                    color = f"#{alpha:02X}{221 * (alpha // 255):02X}{238 * (alpha // 255):02X}"
+                    canvas.create_line(140, 60, tx, ty, fill=color, width=2)
+                self.angle = (self.angle + 3) % 360
                 if self.running:
-                    self._after_id = canvas.after(80, self.step)
+                    self._id = canvas.after(50, self.step)
 
             def stop(self):
                 self.running = False
-                if self._after_id:
-                    canvas.after_cancel(self._after_id)
-                for rid, _ in self.rings:
-                    canvas.delete(rid)
+                if self._id:
+                    canvas.after_cancel(self._id)
 
-        anim = PulseAnim()
+        anim = RadarAnim()
         anim.step()
 
         # ── 版本信息 ──
@@ -1132,18 +1127,20 @@ def _show_about(icon=None):
         # ── 检查更新 ──
         def do_check_update():
             anim.stop()
+            canvas.delete(scan_id[0])
             win.destroy()
             _do_manual_upgrade_check()
         Button(win, text="检查更新", command=do_check_update,
-               font=("微软雅黑", 10), width=12, bg=ACCENT, fg="white",
+               font=("微软雅黑", 10), width=12, bg=C_ACCENT, fg="white",
                relief="flat", pady=6).place(x=20, y=234)
 
         # ── 底部确定按钮 ──
         def close_win():
             anim.stop()
+            canvas.delete(scan_id[0])
             win.destroy()
         Button(win, text="确定", command=close_win,
-               font=("微软雅黑", 10), width=12, bg="#F3F4F6", fg="#374151",
+               font=("微软雅黑", 10), width=12, bg=C_BORDER, fg="#374151",
                relief="flat", pady=6).place(x=168, y=234)
 
         win.protocol("WM_DELETE_WINDOW", close_win)
@@ -1203,7 +1200,7 @@ def _show_settings_window():
                 auto_var.set(1 if is_autostart_enabled() else 0)
                 messagebox.showwarning("设置失败", "无法修改自启动设置", parent=win)
         cb = Checkbutton(sec1, text="开机自启动", variable=auto_var, command=on_auto_toggle,
-                       font=("微软雅黑", 10), bg=bg, fg=TEXT, anchor="w")
+                       font=("微软雅黑", 10), bg=bg, fg=C_TEXT, anchor="w")
         cb.pack(anchor="w")
 
         # ── 分隔线 ──
@@ -1218,11 +1215,6 @@ def _show_settings_window():
               bg=bg, fg=MUTED).pack(anchor="w", pady=(4, 0))
         Label(sec2, text=f"服务端: {SERVER_URL}", font=("微软雅黑", 8),
               bg=bg, fg=MUTED).pack(anchor="w", pady=(2, 0))
-        def do_check_update():
-            _do_manual_upgrade_check()
-        Button(sec2, text="检查更新", command=do_check_update,
-               font=("微软雅黑", 10), width=12, bg=ACCENT, fg="white",
-               relief="flat", pady=6).pack(anchor="w", pady=(8, 0))
 
         # ── 底部按钮 ──
         btn_frame = Label(win, text="", font=("微软雅黑", 1), bg=bg)
@@ -1230,10 +1222,10 @@ def _show_settings_window():
         def close_settings():
             win.destroy()
         Button(btn_frame, text="取消", command=close_settings,
-               font=("微软雅黑", 10), width=10, bg="#F3F4F6", fg=TEXT,
+               font=("微软雅黑", 10), width=10, bg=C_BORDER, fg=C_TEXT,
                relief="flat", pady=6).pack(side="left", fill="x", expand=True)
         Button(btn_frame, text="确认", command=close_settings,
-               font=("微软雅黑", 10, "bold"), width=10, bg=ACCENT, fg="white",
+               font=("微软雅黑", 10, "bold"), width=10, bg=C_ACCENT, fg="white",
                relief="flat", pady=6).pack(side="right", fill="x", expand=True)
         win.protocol("WM_DELETE_WINDOW", close_settings)
     except Exception as e:
@@ -1320,22 +1312,22 @@ def _show_setup_window(root):
 
     BG="#FFFFFF"; ACCENT="#2563EB"; TEXT="#111827"; TEXT2="#6B7280"
     GREEN="#10B981"; INPUT_BG="#F9FAFB"
-    win.configure(bg=BG)
+    win.configure(bg=C_BG)
 
     # 顶部
-    header = tk.Frame(win, bg="#F3F4F6")
+    header = tk.Frame(win, bg=C_BORDER)
     header.pack(fill="x")
     tk.Label(header, text="◉ lanwatch", font=("微软雅黑",14,"bold"),
-             bg="#F3F4F6", fg=ACCENT).pack(pady=(12,1))
+             bg=C_BORDER, fg=C_ACCENT).pack(pady=(12,1))
     tk.Label(header, text="首次设置向导", font=("微软雅黑",9),
-             bg="#F3F4F6", fg=TEXT2).pack(pady=(0,10))
+             bg=C_BORDER, fg=C_MUTED).pack(pady=(0,10))
 
     # 表单
-    form = tk.Frame(win, bg=BG)
+    form = tk.Frame(win, bg=C_BG)
     form.pack(fill="x", padx=36, pady=(8,0))
 
     def entry(parent):
-        e = tk.Entry(parent, font=("微软雅黑",10), bg=INPUT_BG, fg=TEXT,
+        e = tk.Entry(parent, font=("微软雅黑",10), bg=C_INPUT_BG, fg=C_TEXT,
                      insertbackground=ACCENT, relief="solid", bd=1,
                      highlightthickness=0)
         e.pack_configure(pady=(3,8), ipady=5, padx=0)
@@ -1343,7 +1335,7 @@ def _show_setup_window(root):
 
     def label_row(parent, text):
         tk.Label(parent, text=text, font=("微软雅黑",9,"bold"),
-                 bg=BG, fg=TEXT2).pack(anchor="w", pady=(6,1))
+                 bg=C_BG, fg=C_MUTED).pack(anchor="w", pady=(6,1))
 
     label_row(form, "企业名称 *")
     name_entry = entry(form); name_entry.pack(fill="x")
@@ -1354,18 +1346,18 @@ def _show_setup_window(root):
     label_row(form, "网关电话（选填）")
     phone_entry = entry(form); phone_entry.pack(fill="x")
 
-    status_lbl = tk.Label(form, text="", font=("微软雅黑", 9), bg=BG, fg=TEXT2, anchor="w")
+    status_lbl = tk.Label(form, text="", font=("微软雅黑", 9), bg=C_BG, fg=C_MUTED, anchor="w")
     status_lbl.pack(fill="x", pady=(4,0))
 
     # 开机自启
     autostart_var = tk.BooleanVar(value=True)
     tk.Checkbutton(form, text="开机自动启动", variable=autostart_var,
-                   font=("微软雅黑", 10), bg=BG, fg=TEXT,
+                   font=("微软雅黑", 10), bg=C_BG, fg=C_TEXT,
                    activebackground=BG, anchor="w", pady=8).pack(anchor="w")
 
 
     # 按钮行
-    btn_frame = tk.Frame(win, bg=BG)
+    btn_frame = tk.Frame(win, bg=C_BG)
     btn_frame.pack(side="bottom", fill="x", padx=36, pady=14)
 
     def on_ok():
@@ -1381,14 +1373,14 @@ def _show_setup_window(root):
         for w in btn_frame.winfo_children():
             try: w.config(state="disabled")
             except Exception: pass
-        status_lbl.config(text="正在注册...", fg=TEXT2)
+        status_lbl.config(text="正在注册...", fg=C_MUTED)
         win.update_idletasks()
 
         def _do_register():
             try:
                 reg = register_agent(company_name, phone, location)
                 if not reg:
-                    win.after(0, lambda: status_lbl.config(text="注册失败", fg="#EF4444"))
+                    win.after(0, lambda: status_lbl.config(text="注册失败", fg=C_RED))
                     win.after(0, lambda: [w.config(state="normal") for w in btn_frame.winfo_children()])
                     win.after(0, lambda: _show_err("注册失败，请检查网络后重试。"))
                     return
@@ -1414,7 +1406,7 @@ def _show_setup_window(root):
                 log.error(traceback.format_exc())
                 try:
                     win.after(0, lambda msg=str(e): [
-                        status_lbl.config(text="异常: %s" % msg[:50], fg="#EF4444"),
+                        status_lbl.config(text="异常: %s" % msg[:50], fg=C_RED),
                         [w.config(state="normal") for w in btn_frame.winfo_children()]
                     ])
                     win.after(0, lambda: _show_err("注册异常: %s" % e))
@@ -1429,14 +1421,14 @@ def _show_setup_window(root):
         root.quit()
 
     # 状态标签（显示注册进度）
-    status_lbl = tk.Label(form, text="", font=("微软雅黑", 9), bg=BG, fg=TEXT2, anchor="w")
+    status_lbl = tk.Label(form, text="", font=("微软雅黑", 9), bg=C_BG, fg=C_MUTED, anchor="w")
     status_lbl.pack(fill="x", pady=(4,0))
 
     tk.Button(btn_frame, text="取消", command=on_cancel,
-             font=("微软雅黑",10), width=10, bg="#F3F4F6", fg=TEXT2,
+             font=("微软雅黑",10), width=10, bg=C_BTN_SEC, fg=C_MUTED,
              relief="flat", pady=7).pack(side="left")
     tk.Button(btn_frame, text="确认注册", command=on_ok,
-             font=("微软雅黑",10,"bold"), width=10, bg=ACCENT, fg="white",
+             font=("微软雅黑",10,"bold"), width=10, bg=C_ACCENT, fg="white",
              relief="flat", pady=7).pack(side="right")
 
     # 不阻塞，窗口关闭后自动清理
@@ -1470,22 +1462,22 @@ def _show_success_window(root, company_name, agent_id, token):
 
     BG="#FFFFFF"; ACCENT="#2563EB"; TEXT="#111827"; TEXT2="#6B7280"
     GREEN="#10B981"; INPUT_BG="#F9FAFB"
-    win.configure(bg=BG)
+    win.configure(bg=C_BG)
 
-    header = tk.Frame(win, bg="#F3F4F6")
+    header = tk.Frame(win, bg=C_BORDER)
     header.pack(fill="x")
     tk.Label(header, text="✓  注册成功", font=("微软雅黑",15,"bold"),
-             bg="#F3F4F6", fg=GREEN).pack(pady=(14,2))
+             bg=C_BORDER, fg=C_GREEN).pack(pady=(14,2))
     tk.Label(header, text=company_name, font=("微软雅黑",10),
-             bg="#F3F4F6", fg=TEXT2).pack(pady=(0,12))
+             bg=C_BORDER, fg=C_MUTED).pack(pady=(0,12))
 
-    main = tk.Frame(win, bg=BG)
+    main = tk.Frame(win, bg=C_BG)
     main.pack(fill="both", expand=True, padx=32, pady=(12,0))
 
-    qr_label = tk.Label(main, bg=BG, text=" ", width=20, height=12)
+    qr_label = tk.Label(main, bg=C_BG, text=" ", width=20, height=12)
     qr_label.pack()
     loading_lbl = tk.Label(main, text="正在加载二维码...", font=("微软雅黑",9),
-                           bg=BG, fg=TEXT2)
+                           bg=C_BG, fg=C_MUTED)
     loading_lbl.pack(pady=(4,0))
     qr_label._ref = qr_label
     loading_lbl._ref = loading_lbl
@@ -1515,27 +1507,27 @@ def _show_success_window(root, company_name, agent_id, token):
     threading.Thread(target=load_qr, daemon=True).start()
 
     tk.Label(main, text="Agent ID: " + agent_id, font=("微软雅黑",9),
-             bg=BG, fg=TEXT2).pack(pady=(8,0))
+             bg=C_BG, fg=C_MUTED).pack(pady=(8,0))
 
-    token_frame = tk.Frame(main, bg=INPUT_BG, relief="solid", bd=1,
+    token_frame = tk.Frame(main, bg=C_INPUT_BG, relief="solid", bd=1,
                            highlightbackground="#D1D5DB")
     token_frame.pack(fill="x", pady=(10,0))
     tk.Label(token_frame, text="Token（请妥善保存，遗失无法找回）",
-             font=("微软雅黑",8), bg=INPUT_BG, fg=TEXT2).pack(
+             font=("微软雅黑",8), bg=C_INPUT_BG, fg=C_MUTED).pack(
                  anchor="w", padx=10, pady=(6,0))
     tk.Label(token_frame, text=token, font=("Consolas",9),
-             bg=INPUT_BG, fg=ACCENT).pack(anchor="w", padx=10, pady=(0,8))
+             bg=C_INPUT_BG, fg=C_ACCENT).pack(anchor="w", padx=10, pady=(0,8))
 
-    btn_frame = tk.Frame(win, bg=BG)
+    btn_frame = tk.Frame(win, bg=C_BG)
     btn_frame.pack(side="bottom", fill="x", padx=32, pady=14)
 
     tk.Button(btn_frame, text="打开监控页面",
              command=lambda: _open_mobile(agent_id),
-             font=("微软雅黑",9), bg=ACCENT, fg="white",
+             font=("微软雅黑",9), bg=C_ACCENT, fg="white",
              relief="flat", pady=7).pack(side="left", fill="x", expand=True, padx=(0,4))
     tk.Button(btn_frame, text="复制 Token",
              command=lambda: _copy_token(root, token),
-             font=("微软雅黑",9), bg="#F3F4F6", fg=TEXT,
+             font=("微软雅黑",9), bg=C_BORDER, fg=C_TEXT,
              relief="flat", pady=7).pack(side="left", fill="x", expand=True, padx=4)
     tk.Button(btn_frame, text="完 成",
              command=lambda: _dismiss_and_start(win, root, agent_id, company_name),
