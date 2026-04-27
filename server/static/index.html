@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>LANWatch - 企业网络监控平台</title>
-<meta name="description" content="让每一家中小企业的网络都有"人"值守。网络断了？客户比你先知道。">
+<meta name="description" content="没有网管照样管好网络。断网了？LANWatch 告诉你断在哪一跳，小微企业也能用上专业级诊断能力。">
 <link rel="stylesheet" href="/static/theme.css">
 <style>
 body {
@@ -153,6 +153,16 @@ body {
 }
 
 /* ─── Divider ─── */
+
+/* ─── FAQ ─── */
+.faq-item {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 12px; padding: 18px 22px; margin-bottom: 12px;
+  transition: border-color 0.2s;
+}
+.faq-item:hover { border-color: rgba(37,99,235,0.3); }
+.faq-q { font-size: 14px; font-weight: 700; margin-bottom: 8px; }
+.faq-a { font-size: 13px; color: var(--muted); line-height: 1.7; }
 .divider { height: 1px; background: var(--border); margin: 0; }
 
 /* ─── Responsive ─── */
@@ -176,8 +186,9 @@ body {
     </a>
     <div class="nav-links">
       <a href="/#features">功能</a>
-      <a href="/#architecture">架构</a>
-      <a href="/#clients">客户端</a>
+      <a href="/#deploy">部署</a>
+      <a href="/#faq">FAQ</a>
+      <a href="/#contact">联系</a>
     </div>
     <div class="nav-right">
       <button class="btn btn-ghost btn-sm" id="themeToggle">🌙</button>
@@ -189,11 +200,11 @@ body {
 <!-- Hero -->
 <section class="hero">
   <div class="hero-eyebrow">
-    <span>云端协同网络监控</span>
+    <span>小微企业网络监控</span>
     <span class="badge-new">v0.8.5</span>
   </div>
-  <h1>让每一家中小企业<br>的<span class="accent">网络都有"人"值守</span></h1>
-  <p class="hero-sub">LANWatch 是一款云端协同的企业网络监控工具：安装一个客户端，网络断了客户比你先知道。不只是"通"或"不通"，更能告诉你断在哪一跳。</p>
+  <h1><span class="accent">没有网管</span><br>照样能管好网络</h1>
+  <p class="hero-sub">网络断了？LANWatch 不只告诉你断了，还告诉你断在哪一跳。小微企业也能用上专业级网络监控。</p>
   <div class="hero-actions">
     <a class="btn btn-primary btn-lg" href="/download">🖥️ 免费下载 Windows 客户端</a>
     <a class="btn btn-secondary btn-lg" href="/admin">📊 查看管理后台</a>
@@ -223,8 +234,8 @@ body {
 <!-- Features -->
 <section class="section" id="features">
   <div class="section-eyebrow">核心能力</div>
-  <h2 class="section-title">不只是"通"或"不通"</h2>
-  <p class="section-desc">传统监控只告诉你网络断了，LANWatch 告诉你断在哪、为什么断、以及怎么修。</p>
+  <h2 class="section-title">不只是知道断了，更知道断在哪</h2>
+  <p class="section-desc">断点诊断 · 静默拓扑 · 多维度探测 · 微信报警。LANWatch 让没有专职网管的小微企业，也能做到专业级的网络运维。</p>
 
   <div class="feature-grid">
     <div class="feature-card">
@@ -270,13 +281,44 @@ body {
   </div>
 </section>
 
+<!-- Deploy Steps -->
+<section class="section" id="deploy">
+  <div class="section-eyebrow">30 秒部署</div>
+  <h2 class="section-title">三步完成，无需配置</h2>
+  <p class="section-desc">传统网络监控需要专业网管、配置网关、安装 agent。LANWatch 下载运行即可，零配置，零专业知识。</p>
+
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:20px;margin-top:8px;">
+    <div style="text-align:center;">
+      <div style="font-size:48px;margin-bottom:16px;">📥</div>
+      <div style="font-size:13px;font-weight:700;color:var(--primary);margin-bottom:8px;">第一步</div>
+      <div style="font-size:15px;font-weight:700;margin-bottom:8px;">下载客户端</div>
+      <div style="font-size:13px;color:var(--muted);line-height:1.6;">访问下载中心<br>获取 Windows 安装包</div>
+      <a class="btn btn-secondary btn-sm" href="/download" style="margin-top:14px;">去下载</a>
+    </div>
+    <div style="text-align:center;">
+      <div style="font-size:48px;margin-bottom:16px;">🖥️</div>
+      <div style="font-size:13px;font-weight:700;color:var(--primary);margin-bottom:8px;">第二步</div>
+      <div style="font-size:15px;font-weight:700;margin-bottom:8px;">双击运行</div>
+      <div style="font-size:13px;color:var(--muted);line-height:1.6;">输入企业名称<br>点击注册完成</div>
+      <div style="margin-top:14px;font-size:12px;color:var(--muted);">约 10 秒</div>
+    </div>
+    <div style="text-align:center;">
+      <div style="font-size:48px;margin-bottom:16px;">📊</div>
+      <div style="font-size:13px;font-weight:700;color:var(--primary);margin-bottom:8px;">第三步</div>
+      <div style="font-size:15px;font-weight:700;margin-bottom:8px;">打开后台</div>
+      <div style="font-size:13px;color:var(--muted);line-height:1.6;">访问管理后台<br>实时查看网络状态</div>
+      <a class="btn btn-secondary btn-sm" href="/admin" style="margin-top:14px;">打开后台</a>
+    </div>
+  </div>
+</section>
+
 <div class="divider"></div>
 
 <!-- Architecture -->
 <section class="section" id="architecture">
   <div class="section-eyebrow">技术架构</div>
-  <h2 class="section-title">极简部署，云端协同</h2>
-  <p class="section-desc">企业内网部署一个客户端，探测数据实时上报云端，管理员通过 Web 后台随时掌握网络健康状态。</p>
+  <h2 class="section-title">零配置，30秒完成部署</h2>
+  <p class="section-desc">下载 exe，双击运行，输入企业名称，完成。无需配置，无需专业知识，一个人就能管好全公司的网络。</p>
 
   <div class="arch-diagram">
     <div class="arch-row">
@@ -340,6 +382,52 @@ body {
       <div class="client-status" style="color: var(--green);">✓ 支持</div>
       <a class="btn btn-secondary" href="/admin" style="margin-top:12px;width:100%;justify-content:center;">管理后台</a>
     </div>
+  </div>
+</section>
+
+<!-- FAQ -->
+<section class="section" id="faq">
+  <div class="section-eyebrow">常见问题</div>
+  <h2 class="section-title">疑问解答</h2>
+
+  <div style="max-width:680px;margin:0 auto;">
+    <div class="faq-item">
+      <div class="faq-q">需要专业网管才能用吗？</div>
+      <div class="faq-a">不需要。企业只需要一台能上网的 Windows 电脑，下载运行，5 分钟完成部署。后续操作在 Web 后台完成，有手就会。</div>
+    </div>
+    <div class="faq-item">
+      <div class="faq-q">监控数据存在哪？</div>
+      <div class="faq-a">云端服务器（82.156.229.67），企业间数据完全隔离，每个 Token 只看自己企业的数据。</div>
+    </div>
+    <div class="faq-item">
+      <div class="faq-q">网络断了怎么通知？</div>
+      <div class="faq-a">微信推送（Server酱）。离线超过 3 分钟自动推送给管理员和客户，同一故障 5 分钟内不重复提醒，防轰炸。</div>
+    </div>
+    <div class="faq-item">
+      <div class="faq-q">支持多少设备？</div>
+      <div class="faq-a">不限。服务端横向扩展，每个企业独立数据库，互不干扰。</div>
+    </div>
+    <div class="faq-item">
+      <div class="faq-q">收费吗？</div>
+      <div class="faq-a">现阶段免费试用。项目正在 MVP 验证阶段，欢迎小微企业联系试用。</div>
+    </div>
+    <div class="faq-item">
+      <div class="faq-q">Mac 能用吗？</div>
+      <div class="faq-a">Mac 客户端正在开发中。目前支持 Windows、Linux、OpenWRT 软路由。</div>
+    </div>
+  </div>
+</section>
+
+<!-- Contact -->
+<section class="section" id="contact">
+  <div class="section-eyebrow" style="color:var(--green);">联系我们</div>
+  <h2 class="section-title">想先了解一下？</h2>
+  <p class="section-desc" style="margin-bottom:32px;">项目正在 MVP 验证阶段，欢迎小微企业联系试用。也可以直接电话咨询。</p>
+
+  <div style="display:flex;flex-direction:column;align-items:center;gap:16px;">
+    <div style="font-size:48px;font-weight:800;letter-spacing:-0.02em;" onclick="window.location.href='tel:18531729777'">📞 185-3172-9777</div>
+    <div style="font-size:14px;color:var(--muted);">电话 / 微信同号（早 9:00 - 晚 6:00）</div>
+    <a class="btn btn-primary btn-lg" href="tel:18531729777">📱 立即拨打</a>
   </div>
 </section>
 
