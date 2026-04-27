@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 """lanwatch_agent - 企业网络监控客户端 v0.9.0"""
 
-__version__ = "0.9.0"
+__version__ = "0.9.1"
 
 import socket
 from time import sleep
@@ -1034,18 +1034,52 @@ def _open_log(icon=None):
 
 
 def _show_about(icon=None):
-    """显示关于对话框"""
-    from tkinter import messagebox
-    try:
-        messagebox.showinfo(
-            "关于 lanwatch_agent",
-            f"lanwatch_agent v{__version__}\n"
-            f"企业网络监控客户端\n\n"
-            f"服务端: {SERVER_URL}",
-            parent=_tk_root
-        )
-    except Exception:
-        pass
+        """显示关于对话框"""
+        from tkinter import messagebox
+        try:
+            from tkinter import Toplevel, Label, Button
+            win = Toplevel(_tk_root)
+            win.title("关于 lanwatch_agent")
+            win.geometry("320x260")
+            win.resizable(False, False)
+            win.attributes("-topmost", True)
+            win.update_idletasks()
+            sw = win.winfo_screenwidth(); sh = win.winfo_screenheight()
+            ww, wh = 320, 260
+            win.geometry(f"{ww}x{wh}+{(sw-ww)//2}+{(sh-wh)//2}")
+
+            bg = "#F3F4F6"
+            win.configure(bg=bg)
+
+            Label(win, text="lanwatch_agent", font=("微软雅黑", 16, "bold"),
+                  bg=bg, fg="#111827").place(x=20, y=20)
+            Label(win, text=f"v{__version__}", font=("微软雅黑", 11),
+                  bg=bg, fg="#6B7280").place(x=20, y=54)
+            Label(win, text="企业网络监控客户端", font=("微软雅黑", 9),
+                  bg=bg, fg="#9CA3AF").place(x=20, y=80)
+            Label(win, text=f"服务端: {SERVER_URL}", font=("微软雅黑", 8),
+                  bg=bg, fg="#9CA3AF").place(x=20, y=102)
+
+
+            btn_frame = Label(win, text="", font=("微软雅黑", 1), bg=bg)
+            btn_frame.pack(side="bottom", fill="x", padx=20, pady=(0, 16))
+
+            def close_about():
+                win.destroy()
+
+            def do_check_update():
+                win.destroy()
+                _do_manual_upgrade_check()
+
+            Button(btn_frame, text="检查更新", command=do_check_update,
+                   font=("微软雅黑", 10), width=10, bg="#2563EB", fg="white",
+                   relief="flat", pady=6).pack(side="left", fill="x", expand=True)
+            Button(btn_frame, text="确定", command=close_about,
+                   font=("微软雅黑", 10), width=10, bg="#F3F4F6", fg="#374151",
+                   relief="flat", pady=6).pack(side="right", fill="x", expand=True)
+            win.protocol("WM_DELETE_WINDOW", close_about)
+        except Exception:
+            pass
 
 
 def _exit_app(icon=None):
@@ -1113,13 +1147,30 @@ def _show_settings_window():
         # 服务器地址（只读）
         Label(win, text="服务端: " + SERVER_URL, font=("微软雅黑", 8), fg="#888").place(x=20, y=130)
 
-        # 关闭按钮
-        def close():
+        # 底部按钮：取消 / 确认
+        btn_frame = Label(win, text="", font=("微软雅黑", 1), bg=BG)
+        btn_frame.pack(side="bottom", fill="x", padx=20, pady=(0, 14))
+
+
+        def close_settings():
             win.destroy()
-        Label(win, text="  关闭  ", font=("微软雅黑", 9), fg="#888",
-              cursor="hand2").place(x=270, y=145)
-        win.bind("<Button-1>", lambda e: close() if e.x > 250 and e.y > 135 else None)
-        win.protocol("WM_DELETE_WINDOW", close)
+
+        def on_cancel():
+            close_settings()
+
+        def on_confirm():
+            close_settings()
+
+
+        Label(btn_frame, text="", bg=BG).pack(side="left", fill="x", expand=True)
+        Label(btn_frame, text="", bg=BG).pack(side="right", fill="x", expand=True)
+        tk.Button(btn_frame, text="取消", command=on_cancel,
+                 font=("微软雅黑", 10), width=9, bg="#F3F4F6", fg=TEXT,
+                 relief="flat", pady=6).pack(side="left", fill="x", expand=True)
+        tk.Button(btn_frame, text="确认", command=on_confirm,
+                 font=("微软雅黑", 10, "bold"), width=9, bg=ACCENT, fg="white",
+                 relief="flat", pady=6).pack(side="right", fill="x", expand=True)
+        win.protocol("WM_DELETE_WINDOW", close_settings)
     except Exception as e:
         log.warning("[设置] 窗口打开失败: %s", e)
         _show_about()
