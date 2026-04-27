@@ -1034,8 +1034,122 @@ def _open_log(icon=None):
 
 
 def _show_about(icon=None):
-    """点击"关于"菜单项 → 跳转到设置窗口的关于区块"""
-    _show_settings_window()
+    """关于窗口：版本信息 + 网络动画"""
+    try:
+        from tkinter import Toplevel, Label, Button, Canvas
+        win = Toplevel(_tk_root)
+        win.title("关于 lanwatch_agent")
+        win.geometry("320x320")
+        win.resizable(False, False)
+        win.attributes("-topmost", True)
+        win.update_idletasks()
+        sw = win.winfo_screenwidth(); sh = win.winfo_screenheight()
+        ww, wh = 320, 320
+        win.geometry(f"{ww}x{wh}+{(sw-ww)//2}+{(sh-wh)//2}")
+        bg = "#FFFFFF"; ACCENT = "#2563EB"
+        win.configure(bg=bg)
+
+        # ── 标题 ──
+        Label(win, text="lanwatch_agent", font=("微软雅黑", 18, "bold"),
+              bg=bg, fg="#111827").place(x=20, y=16)
+
+
+        # ── 网络动画画布 ──
+        canvas = Canvas(win, width=280, height=120, bg=bg, highlightthickness=0)
+        canvas.place(x=20, y=56)
+
+        # 画节点
+        nodes = [
+            (60, 60),   # 中心
+            (30, 30),   # 左上
+            (90, 30),   # 右上
+            (30, 90),   # 左下
+            (90, 90),   # 右下
+            (140, 60),  # 右中
+            (0, 60),    # 最左
+        ]
+        node_ids = []
+        for x, y in nodes:
+            rid = canvas.create_oval(x-6, y-6, x+6, y+6, fill=ACCENT, outline="")
+            node_ids.append(rid)
+
+        # 画连线
+        center = nodes[0]
+        for x, y in nodes[1:]:
+            canvas.create_line(center[0], center[1], x, y,
+                              fill="#93C5FD", width=1.5)
+
+        # 脉冲动画
+        import random
+        class PulseAnim:
+            def __init__(self):
+                self.rings = []
+                self._after_id = None
+                self.running = True
+
+            def step(self):
+                if not self.running:
+                    return
+                # 随机选一个节点发起脉冲
+                ni = random.choice(range(len(nodes)))
+                nx, ny = nodes[ni]
+                r = canvas.create_oval(nx-2, ny-2, nx+2, ny+2,
+                                      fill=ACCENT, outline="")
+                self.rings.append((r, 0))
+                # 更新已有脉冲
+                new_rings = []
+                for rid, radius in self.rings:
+                    radius += 3
+                    if radius > 50:
+                        canvas.delete(rid)
+                    else:
+                        x1 = nx - radius; y1 = ny - radius
+                        x2 = nx + radius; y2 = ny + radius
+                        alpha = max(0, int(255 * (1 - radius / 50)))
+                        color = f"#2563EB{int(alpha * 58 / 255):02X}"
+                        canvas.coords(rid, x1, y1, x2, y2)
+                        new_rings.append((rid, radius))
+                self.rings = new_rings
+                if self.running:
+                    self._after_id = canvas.after(80, self.step)
+
+            def stop(self):
+                self.running = False
+                if self._after_id:
+                    canvas.after_cancel(self._after_id)
+                for rid, _ in self.rings:
+                    canvas.delete(rid)
+
+        anim = PulseAnim()
+        anim.step()
+
+        # ── 版本信息 ──
+        Label(win, text=f"v{__version__}  ·  企业网络监控客户端",
+              font=("微软雅黑", 10), bg=bg, fg="#6B7280").place(x=20, y=186)
+        Label(win, text=f"服务端: {SERVER_URL}",
+              font=("微软雅黑", 9), bg=bg, fg="#9CA3AF").place(x=20, y=208)
+
+        # ── 检查更新 ──
+        def do_check_update():
+            anim.stop()
+            win.destroy()
+            _do_manual_upgrade_check()
+        Button(win, text="检查更新", command=do_check_update,
+               font=("微软雅黑", 10), width=12, bg=ACCENT, fg="white",
+               relief="flat", pady=6).place(x=20, y=234)
+
+        # ── 底部确定按钮 ──
+        def close_win():
+            anim.stop()
+            win.destroy()
+        Button(win, text="确定", command=close_win,
+               font=("微软雅黑", 10), width=12, bg="#F3F4F6", fg="#374151",
+               relief="flat", pady=6).place(x=168, y=234)
+
+        win.protocol("WM_DELETE_WINDOW", close_win)
+    except Exception:
+        pass
+
 
 
 def _exit_app(icon=None):
