@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="zh" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>掉线检测 - LANWatch</title>
+<link rel="stylesheet" href="/static/theme.css">
+<style>
+body { background: var(--bg); min-height: 100vh; }
+.container { max-width: 900px; margin: 0 auto; padding: 24px 20px; }
+
+.page-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px; flex-wrap: wrap; gap: 12px; }
+.page-header h1 { font-size: 20px; font-weight: 800; }
+.back-btn { font-size: 13px; color: var(--primary); text-decoration: none; }
+.back-btn:hover { text-decoration: underline; }
+
+/* ─── Stats ─── */
+.stats-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-bottom: 28px; }
+.stat-card {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius-lg); padding: 18px 20px; text-align: center;
+}
+.stat-num { font-size: 28px; font-weight: 800; margin-bottom: 4px; }
+.stat-num.green { color: var(--green); }
+.stat-num.red { color: var(--red); }
+.stat-num.orange { color: var(--orange); }
+.stat-label { font-size: 12px; color: var(--muted); }
+
+/* ─── Monitor list ─── */
+.monitor-list { display: flex; flex-direction: column; gap: 10px; }
+.monitor-row {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius-lg); padding: 14px 18px;
+  display: flex; align-items: center; gap: 14px;
+  cursor: pointer; transition: background 0.15s;
+}
+.monitor-row:hover { background: var(--surface-hover); }
+.monitor-status { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+.s-online { background: var(--green); box-shadow: 0 0 6px rgba(34,197,94,0.5); }
+.s-offline { background: var(--red); box-shadow: 0 0 6px rgba(239,68,68,0.5); }
+.s-unknown { background: var(--muted); }
+.monitor-info { flex: 1; min-width: 0; }
+.monitor-name { font-size: 14px; font-weight: 700; margin-bottom: 3px; }
+.monitor-ip { font-size: 12px; color: var(--muted); font-family: monospace; }
+.monitor-meta { display: flex; flex-wrap: wrap; gap: 8px 16px; font-size: 12px; color: var(--muted); margin-top: 4px; }
+.monitor-right { text-align: right; flex-shrink: 0; }
+.last-seen { font-size: 12px; color: var(--muted); margin-bottom: 4px; }
+.offline-count { font-size: 12px; font-weight: 600; }
+.offline-count.red { color: var(--red); }
+.offline-count.none { color: var(--muted); }
+.detail-link { font-size: 12px; color: var(--primary); text-decoration: none; margin-top: 4px; display: inline-block; }
+.detail-link:hover { text-decoration: underline; }
+
+.empty-state { text-align: center; padding: 60px 20px; color: var(--muted); font-size: 14px; }
+.empty-icon { font-size: 40px; margin-bottom: 12px; }
+
+.loading { text-align: center; padding: 60px; color: var(--muted); }
+.error-msg { background: rgba(239,68,68,0.08); border: 1px solid rgba(239,68,68,0.2); border-radius: 10px; padding: 14px 18px; color: var(--red); font-size: 13px; margin-bottom: 20px; }
+
+/* ─── Nav ─── */
+.nav { background: var(--surface-solid); border-bottom: 1px solid var(--border); padding: 0 20px; }
+.nav-inner { max-width: 1100px; margin: 0 auto; display: flex; align-items: center; height: 52px; }
+.nav-brand { display: flex; align-items: center; gap: 8px; text-decoration: none; font-weight: 800; font-size: 15px; color: var(--text); }
+.nav-icon { width: 28px; height: 28px; background: var(--primary); border-radius: 8px; display: flex; align-items: center; justify-content: center; color: #fff; font-size: 13px; font-weight: 800; }
+.nav-links { display: flex; gap: 16px; margin-left: auto; }
+.nav-links a { font-size: 13px; color: var(--muted); text-decoration: none; }
+.nav-links a:hover { color: var(--text); }
+</style>
+</head>
+<body>
+
+<nav class="nav">
+  <div class="nav-inner">
+    <a href="/" class="nav-brand">
+      <span class="nav-icon">L</span>
+      <span>LANWatch</span>
+    </a>
+    <div class="nav-links">
+      <a href="/">首页</a>
+      <a href="/download">下载中心</a>
+      <a href="/admin">管理后台</a>
+      <a href="/monitor">监控面板</a> · <a href="/ping_overview">断点检测</a>
+    </div>
+  </div>
+</nav>
+
+<div class="container">
+  <div class="page-header">
+    <h1>📡 掉线检测</h1>
+    <a href="/admin" class="back-btn">← 返回管理后台</a>
+  </div>
+
+  <div id="stats" class="stats-grid" style="display:none">
+    <div class="stat-card">
+      <div class="stat-num" id="stat-total">-</div>
+      <div class="stat-label">监控节点</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-num green" id="stat-online">-</div>
+      <div class="stat-label">在线</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-num red" id="stat-offline">-</div>
+      <div class="stat-label">离线</div>
+    </div>
+  </div>
+
+  <div id="error-box" class="error-msg" style="display:none"></div>
+  <div id="loading" class="loading">加载中...</div>
+  <div id="empty" class="empty-state" style="display:none">
+    <div class="empty-icon">📡</div>
+    <div>暂无监控节点</div>
+    <div style="margin-top:8px;font-size:12px;">在「管理后台」添加监控节点后，这里会显示状态</div>
+  </div>
+  <div id="list" class="monitor-list" style="display:none"></div>
+</div>
+
+<script>
+var SERVER = location.origin;
+
+function fmtTime(ts) {
+  if (!ts || ts === 0) return '从未';
+  var d = new Date(ts * 1000);
+  var now = Date.now();
+  var diff = Math.floor((now - d) / 1000);
+  if (diff < 60) return diff + '秒前';
+  if (diff < 3600) return Math.floor(diff / 60) + '分钟前';
+  if (diff < 86400) return Math.floor(diff / 3600) + '小时前';
+  return d.toLocaleDateString('zh-CN');
+}
+
+function load() {
+  fetch(SERVER + '/api/admin/ping')
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      document.getElementById('loading').style.display = 'none';
+      if (!Array.isArray(data) || data.length === 0) {
+        document.getElementById('empty').style.display = 'block';
+        return;
+      }
+
+      var online = 0, offline = 0;
+      data.forEach(function(m) {
+        if (m.status === 'online') online++;
+        else offline++;
+      });
+
+      document.getElementById('stat-total').textContent = data.length;
+      document.getElementById('stat-online').textContent = online;
+      document.getElementById('stat-offline').textContent = offline;
+      document.getElementById('stats').style.display = 'grid';
+
+      var html = '';
+      data.forEach(function(m) {
+        var sClass = m.status === 'online' ? 's-online' : (m.status === 'offline' ? 's-offline' : 's-unknown');
+        var sLabel = m.status === 'online' ? '在线' : (m.status === 'offline' ? '离线' : '未知');
+        var lastAlert = m.last_alert_at && m.last_alert_at > 0 ? fmtTime(m.last_alert_at) : '无';
+        var offlineCls = m.status === 'offline' ? 'offline-count red' : 'offline-count none';
+        var lastSeen = m.last_seen ? fmtTime(m.last_seen) : '未知';
+        html +=
+          '<div class="monitor-row" onclick="location.href=\'/ping_detail\/' + m.id + '\'">' +
+            '<div class="monitor-status ' + sClass + '"></div>' +
+            '<div class="monitor-info">' +
+              '<div class="monitor-name">' + (m.name || '未命名') + '</div>' +
+              '<div class="monitor-ip">' + m.ip + '</div>' +
+              '<div class="monitor-meta">' +
+                '<span>状态：' + sLabel + '</span>' +
+                '<span>最后活跃：' + lastSeen + '</span>' +
+                '<span>最近报警：' + lastAlert + '</span>' +
+              '</div>' +
+            '</div>' +
+            '<div class="monitor-right">' +
+              '<div class="last-seen">' + lastSeen + '</div>' +
+              '<div class="' + offlineCls + '">' + (m.status === 'offline' ? '⚠ 已离线' : '✓ 正常') + '</div>' +
+              '<div class="detail-link">查看详情 →</div>' +
+            '</div>' +
+          '</div>';
+      });
+
+      document.getElementById('list').innerHTML = html;
+      document.getElementById('list').style.display = 'flex';
+    })
+    .catch(function(e) {
+      document.getElementById('loading').style.display = 'none';
+      var err = document.getElementById('error-box');
+      err.textContent = '加载失败：' + e.message;
+      err.style.display = 'block';
+    });
+}
+
+load();
+</script>
+</body>
+</html>
