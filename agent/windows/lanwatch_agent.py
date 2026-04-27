@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""lanwatch_agent - 企业网络监控客户端 v0.7.0"""
+"""lanwatch_agent - 企业网络监控客户端 v0.9.0"""
 
-__version__ = "0.7.0"
+__version__ = "0.9.0"
 
 import socket
 from time import sleep
@@ -19,6 +19,7 @@ import threading
 import ctypes
 import queue
 import re
+import tempfile
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 # ═══════════════════════════════════════════════════════════════
@@ -54,6 +55,156 @@ _executor = None        # 拓扑扫描线程池
 _status_thread_started = False  # 托盘状态轮询线程只启动一次
 _tk_root = None        # 隐藏的 Tk 主窗口（用于跨线程安全调用）
 consecutive_errors = 0  # 连续上报失败次数
+
+# ═══════════════════════════════════════════════════════════════
+# 自动升级配置
+# ═══════════════════════════════════════════════════════════════
+UPDATE_DIR = "C:\\ProgramData\\LANWatch\\"
+UPDATE_EXE = os.path.join(UPDATE_DIR, "update.exe")
+UPDATE_BAT = os.path.join(UPDATE_DIR, "update.bat")
+UPDATE_CHECK_INTERVAL = 86400   # 检查频率：每天一次（秒）
+GITHUB_REPO = "cnchaoge/lanwatch_agent"
+
+
+def check_github_latest_version():
+    """从 GitHub releases API 获取最新版本号，返回 (version, download_url) 或 None"""
+    try:
+        req = urllib.request.Request(
+            f"https://api.github.com/repos/{GITHUB_REPO}/releases/latest",
+            headers={"User-Agent": "lanwatch_agent"}
+        )
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            data = json.loads(resp.read())
+            tag = data.get("tag_name", "").strip()
+            if tag.startswith("v"):
+                version = tag[1:]
+            else:
+                version = tag
+            download_url = None
+            for asset in data.get("assets", []):
+                if asset.get("name") == "lanwatch_agent.exe":
+                    download_url = asset.get("browser_download_url")
+                    break
+            if download_url and version:
+                return version, download_url
+    except Exception as e:
+        log.debug("[升级] 检查失败: %s", e)
+    return None
+
+
+def parse_version(v):
+    """将版本字符串转为 (int, int, int) 元组，用于比较"""
+    try:
+        parts = v.strip().lstrip("v").split(".")
+        return tuple(int(p) for p in parts[:3]) + (0, 0, 0)[:3-len(parts)]
+    except Exception:
+        return (0, 0, 0)
+
+
+def _write_update_bat():
+    """写入升级批处理脚本：等待 → 覆盖 → 重启 → 自清理"""
+    bat_content = (
+        "@echo off\n"
+        "timeout /t 2 /nobreak > nul\n"
+        "copy /Y C:\\ProgramData\\LANWatch\\update.exe C:\\ProgramData\\LANWatch\\lanwatch_agent.exe\n"
+        'start "" "C:\\ProgramData\\LANWatch\\lanwatch_agent.exe"\n'
+        "del \"C:\\ProgramData\\LANWatch\\update.bat\"\n"
+        "del \"C:\\ProgramData\\LANWatch\\update.exe\"\n"
+    )
+    try:
+        with open(UPDATE_BAT, "w", encoding="utf-8") as f:
+            f.write(bat_content)
+        log.debug("[升级] update.bat 已写入: %s", UPDATE_BAT)
+    except Exception as e:
+        log.warning("[升级] 写入 update.bat 失败: %s", e)
+
+
+def _do_upgrade(download_url, new_version):
+    """下载新版本 exe 并触发升级"""
+    log.info("[升级] 准备下载新版本 v%s ...", new_version)
+    try:
+        req = urllib.request.Request(download_url, headers={"User-Agent": "lanwatch_agent"})
+        with urllib.request.urlopen(req, timeout=60) as resp:
+            data = resp.read()
+        log.info("[升级] 下载完成，大小: %s", len(data))
+
+        # 写到固定目录
+        with open(UPDATE_EXE, "wb") as f:
+            f.write(data)
+        log.info("[升级] 临时文件: %s", UPDATE_EXE)
+
+        # 生成辅助批处理
+        _write_update_bat()
+
+        # 启动批处理后，本进程退出
+        log.info("[升级] 正在替换并重启...")
+        try:
+            si = subprocess.STARTUPINFO()
+            si.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+            si.wShowWindow = subprocess.SW_HIDE
+            subprocess.Popen(
+                ["cmd", "/c", UPDATE_BAT],
+                startupinfo=si,
+                detached=True
+            )
+        except Exception as e:
+            log.error("[升级] 启动批处理失败: %s", e)
+            return
+
+        # 退出前停止托盘
+        global _tray_icon_ref
+        try:
+            if _tray_icon_ref:
+                _tray_icon_ref.stop()
+        except Exception:
+            pass
+        # 清理本次下载的 update.exe（bat 自己清理自己）
+        try:
+            os.remove(UPDATE_EXE)
+        except Exception:
+            pass
+        os._exit(0)
+    except Exception as e:
+        log.error("[升级] 下载/替换失败: %s", e)
+
+
+def check_and_upgrade():
+    """检查新版本并提示用户升级"""
+    try:
+        result = check_github_latest_version()
+        if not result:
+            return
+        new_version, download_url = result
+        if parse_version(new_version) <= parse_version(__version__):
+            log.debug("[升级] 当前已是最新版本 v%s", __version__)
+            return
+        log.info("[升级] 发现新版本 v%s（当前 v%s）", new_version, __version__)
+        _notify_upgrade(new_version, download_url)
+    except Exception as e:
+        log.warning("[升级] 检查异常: %s", e)
+
+
+def _notify_upgrade(new_version, download_url):
+    """在托盘线程中弹出升级提示"""
+    def _popup():
+        try:
+            from tkinter import messagebox
+            if _tk_root is None:
+                return
+            if messagebox.askyesno(
+                "发现新版本",
+                f"发现新版本 v{new_version}（当前 v{__version__}）\n\n是否立即下载并升级？\n\n"
+                f"升级过程将自动重启客户端",
+                parent=_tk_root
+            ):
+                log.info("[升级] 用户确认，开始下载...")
+                threading.Thread(target=_do_upgrade, args=(download_url, new_version), daemon=True).start()
+            else:
+                log.info("[升级] 用户取消升级")
+        except Exception as e:
+            log.warning("[升级] 弹窗失败: %s", e)
+    if _tk_root:
+        _tk_root.after(0, _popup)
 
 # ═══════════════════════════════════════════════════════════════
 # 工具函数
@@ -1312,6 +1463,9 @@ def main():
     log.info("服务端: %s", SERVER_URL)
     log.info("=" * 50)
 
+    # 确保升级目录存在
+    os.makedirs(UPDATE_DIR, exist_ok=True)
+
     # Windows: 隐藏控制台窗口
     if sys.platform == "win32":
         try:
@@ -1367,6 +1521,7 @@ def _run_monitoring(agent_id, company_name):
     log.info("开始监控探测...")
     consecutive_errors = 0
     topo_next_in = TOPOLOGY_INTERVAL
+    upgrade_next_in = UPDATE_CHECK_INTERVAL  # 首次启动先等一会儿再检查
     while True:
         try:
             cfg = load_config()
@@ -1396,11 +1551,15 @@ def _run_monitoring(agent_id, company_name):
             update_tray_status(False)
 
         topo_next_in -= REPORT_INTERVAL
+        upgrade_next_in -= REPORT_INTERVAL
         if topo_next_in <= 0:
             topo_next_in = TOPOLOGY_INTERVAL
             threading.Thread(target=_do_topology_scan,
                            args=((cfg or {}).get("subnets", []), agent_id),
                            daemon=True, name="topology").start()
+        if upgrade_next_in <= 0:
+            upgrade_next_in = UPDATE_CHECK_INTERVAL
+            threading.Thread(target=check_and_upgrade, daemon=True, name="upgrade").start()
         sleep(REPORT_INTERVAL)
 
     report_offline(agent_id)
