@@ -134,22 +134,14 @@ def save_config(cfg):
 def ping_once(host, timeout=3):
     """ping 一次 host，返回 (成功, 延迟ms)"""
     try:
-        r = subprocess.run(
+        out = subprocess.check_output(
             ["ping", "-c", "1", "-W", str(timeout), host],
-            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
+            stderr=subprocess.DEVNULL, text=True
         )
-        if r.returncode == 0:
-            try:
-                out = subprocess.check_output(
-                    ["ping", "-c", "1", "-W", str(timeout), host],
-                    stderr=subprocess.DEVNULL, text=True
-                )
-                m = re.search(r"time[=<](\d+\.?\d*)", out)
-                rtt = float(m.group(1)) if m else None
-                return True, rtt
-            except Exception:
-                return True, None
-        return False, None
+        # Linux ping 1次输出的 time=Xms 格式（不是 rtt min/avg/max）
+        m = re.search(r"time[=<](\d+\.?\d*)\s*ms?", out, re.IGNORECASE)
+        rtt = float(m.group(1)) if m else None
+        return True, rtt
     except Exception:
         return False, None
 
@@ -341,17 +333,20 @@ def register_agent(company_name, location=""):
         )
         with urllib.request.urlopen(req, timeout=10) as resp:
             result = json.loads(resp.read())
-            return result.get("agent_id")
+            return result.get("agent_id"), result.get("agent_token", "")
     except Exception as e:
         log.error("注册失败: %s", e)
         return None
 
-def report(data, agent_id):
+def report(data, agent_id, token=""):
     try:
+        headers = {"Content-Type": "application/json"}
+        if token:
+            headers["Authorization"] = "Bearer " + token
         req = urllib.request.Request(
             SERVER_URL + "/api/" + agent_id + "/report",
             data=json.dumps(data).encode("utf-8"),
-            headers={"Content-Type": "application/json"},
+            headers=headers,
             method="POST"
         )
         with urllib.request.urlopen(req, timeout=10) as resp:
@@ -375,13 +370,16 @@ def report_offline(agent_id):
         return None
 
 
-def report_uninstall(agent_id):
+def report_uninstall(agent_id, token=""):
     """卸载时通知服务端，标记该设备已卸载"""
     try:
+        headers = {"Content-Type": "application/json"}
+        if token:
+            headers["Authorization"] = "Bearer " + token
         req = urllib.request.Request(
             SERVER_URL + "/api/" + agent_id + "/uninstall",
             data=b"{}",
-            headers={"Content-Type": "application/json"},
+            headers=headers,
             method="POST"
         )
         with urllib.request.urlopen(req, timeout=10) as resp:
@@ -392,16 +390,19 @@ def report_uninstall(agent_id):
         log.warning("[卸载] 通知服务端失败: %s", e)
         return None
 
-def report_topology(devices, agent_id):
+def report_topology(devices, agent_id, token=""):
     try:
         data = json.dumps({
             "devices": devices,
             "agent_id": agent_id,
         }).encode("utf-8")
+        headers = {"Content-Type": "application/json"}
+        if token:
+            headers["Authorization"] = "Bearer " + token
         req = urllib.request.Request(
             SERVER_URL + "/api/" + agent_id + "/topology",
             data=data,
-            headers={"Content-Type": "application/json"},
+            headers=headers,
             method="POST"
         )
         with urllib.request.urlopen(req, timeout=15) as resp:
@@ -678,7 +679,7 @@ def _show_settings_window():
 
             # 3. 后台通知服务端（不阻塞）
             if agent_id:
-                threading.Thread(target=lambda aid=agent_id: report_uninstall(aid),
+                threading.Thread(target=lambda aid=agent_id, at=agent_token: report_uninstall(aid, at),
                                  daemon=True, name="uninstall-notify").start()
 
             # 4. 关进程
@@ -959,7 +960,7 @@ def main():
         log.info("正在注册企业: %s", company_name)
         log.info("监控网段: %s", subnets)
         log.info("监控目标: %s", targets)
-        agent_id = register_agent(company_name, location)
+        agent_id, agent_token = register_agent(company_name, location)
         if not agent_id:
             import tkinter as tk
             from tkinter import messagebox
@@ -974,6 +975,7 @@ def main():
 
         config = {
             "agent_id": agent_id,
+            "agent_token": agent_token,
             "company_name": company_name,
             "subnets": subnets,
             "targets": targets,
@@ -1006,7 +1008,7 @@ def main():
     while True:
         try:
             data = run_probe(subnets)
-            result = report(data, agent_id)
+            result = report(data, agent_id, config.get("agent_token", ""))
             consecutive_errors = 0 if result else consecutive_errors + 1
 
             is_online = data["ping_ok"]
@@ -1031,7 +1033,7 @@ def main():
                 subs = (cfg or {}).get("subnets", [])
                 devices = scan_topology(subs) if subs else scan_topology()
                 if devices:
-                    report_topology(devices, agent_id)
+                    report_topology(devices, agent_id, (cfg or {}).get("agent_token", ""))
 
         except KeyboardInterrupt:
             log.info("收到停止信号")

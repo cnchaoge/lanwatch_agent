@@ -286,7 +286,7 @@ run_diag() {
 
     if ! command_exists traceroute; then
         payload="{\"time\":\"$now_str\",\"target\":\"$(json_escape "$target")\",\"error\":\"traceroute not installed\"}"
-        http_post_json "$SERVER_URL/api/$AGENT_ID/diag" "$payload" "" >/dev/null 2>&1 || true
+        http_post_json "$SERVER_URL/api/$AGENT_ID/diag" "$payload" "$TOKEN" >/dev/null 2>&1 || true
         log "[诊断] traceroute 不存在，已上报缺失信息"
         return
     fi
@@ -295,7 +295,7 @@ run_diag() {
     printf '=== LanWatch OpenWrt 诊断 ===\n时间: %s\n目标: %s\n\n%s\n' "$now_str" "$target" "$output" > "$DIAG_FILE"
 
     payload="{\"time\":\"$now_str\",\"target\":\"$(json_escape "$target")\",\"error\":\"$(json_escape "$output")\"}"
-    http_post_json "$SERVER_URL/api/$AGENT_ID/diag" "$payload" "" >/dev/null 2>&1 || true
+    http_post_json "$SERVER_URL/api/$AGENT_ID/diag" "$payload" "$TOKEN" >/dev/null 2>&1 || true
     log "[诊断] 已执行 traceroute 并上报"
 }
 
@@ -345,7 +345,7 @@ report_topology_if_due() {
     now_ts=$(date +%s)
     [ $((now_ts - LAST_TOPOLOGY_TS)) -lt "$TOPOLOGY_INTERVAL" ] && return 0
     payload=$(build_topology_json)
-    http_post_json "$SERVER_URL/api/$AGENT_ID/topology" "$payload" "" >/dev/null 2>&1 && {
+    http_post_json "$SERVER_URL/api/$AGENT_ID/topology" "$payload" "$TOKEN" >/dev/null 2>&1 && {
         LAST_TOPOLOGY_TS="$now_ts"
         save_state
         log "[拓扑] 已上报"

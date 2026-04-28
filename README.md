@@ -1,167 +1,143 @@
-# LANWatch — 企业网络监控平台
+# 🔭 Lanwatch
 
-**让每一家中小企业的网络，都有人盯着。**
+企业级网络监控平台 — 面向中小企业的轻量级网络监控工具，支持探针上报、SNMP 轮询、拓扑发现、告警推送和引导式故障排查。
 
-[!["版本"](https://img.shields.io/badge/version-v0.8.5-blue.svg)](https://github.com/cnchaoge/lanwatch_agent/releases)
-[!["平台"](https://img.shields.io/badge/platform-Windows%20%7C%20Linux%20%7C%20OpenWRT-green.svg)]()
-[!["架构"](https://img.shields.io/badge/架构-云端%2B端侧协同-purple.svg)]()
+## ✨ 功能
 
----
-
-## 🎯 一句话说明
-
-LANWatch 是一款**云端协同**的企业网络监控工具：企业内网部署一个轻量客户端（Windows / Linux / OpenWRT），探测数据实时上报云端，管理员通过 Web 后台或手机随时掌控网络健康状态。**网络断了？客户比你先知道。**
-
----
-
-## 😟 你的客户是否面临这些痛点
-
-- **故障发现滞后** — 网络断了，客户打电话来才知道
-- **排查时间长** — 断网现场排查，一趟就是半天
-- **运维被动** — 天天救火，疲于奔命
-- **缺乏工具** — 中小企业没有专业网管，网络靠"随缘"
-
-**LANWatch 将"被动响应"变成"主动发现"** — 网络抖动、线路中断、设备离线，在客户感知之前你就已经知道了。
-
----
-
-## 💡 核心能力
-
-### 🔍 断点诊断 — 告诉客户"断在哪一跳"
-
-传统监控只告诉你"网络挂了"，LANWatch 告诉你**断在哪一跳、哪段线路出了问题**。
-
-客户端检测到离线 → 自动触发 traceroute → 结果上报并本地保存 → 打开客户端直接看到"断在第 3 跳（ISP出口）"。
-
-**节省 80% 的现场排查时间。**
-
-### 🗺️ 静默拓扑发现 — 零噪音，不扰人
-
-不 ping 不发包，直接读本机 ARP 缓存表，**3 秒内拿到局域网所有设备**。
-
-- 不触发防火墙
-- 不占带宽
-- 不打扰用户
-
-### 📡 多维度探测 — 不只通不通，更看质量
-
-同时探测：
-- **网关延迟** — 路由器是否正常
-- **DNS 质量** — 百度/阿里/腾讯/网易四路 DNS 延迟
-- **丢包率** — 真实反映线路质量
-
-**真正反映网络健康状况，不只是"通"或"不通"。**
-
-### 🔔 微信即时报警 — 故障第一时间知道
-
-网络离线超过 3 分钟 → Server酱微信推送 → 你和客户同时收到通知。
-
-防轰炸机制：同一故障 5 分钟内不重复提醒。
-
----
-
-## ⚡ 技术架构
-
-```
-客户内网                                    云端服务 (LANWatch)
-┌─────────────────────────────────────┐    ┌──────────────────────────────┐
-│  lanwatch_agent                      │    │  FastAPI 服务端               │
-│  (Windows/Linux/OpenWRT)             │    │  ┌────────────────────────┐  │
-│                                      │    │  │  管理后台 /admin        │  │
-│  每 60s: Ping + DNS                  │    │  │  监控面板 /monitor      │  │
-│  每 300s: ARP拓扑 + 端口扫描         │    │  │  手机端 /mobile         │  │
-│  离线 3 次: 自动 traceroute 诊断      │    │  │  下载中心 /download     │  │
-│                                      │    │  └────────────────────────┘  │
-│  ┌─ 状态指示（托盘图标）            │    │                              │
-│  │  绿=正常  灰=离线  红=故障      │    │  SSE 实时推送 → 浏览器       │
-│  └─ 微信报警（Server酱）            │    │  WebSocket 状态同步          │
-│                                      │    │                              │
-│  TCP/HTTP 上报 ──────────────────────▶│  SQLite 数据库                │
-└─────────────────────────────────────┘    └──────────────────────────────┘
-                                             DNS 探测 / 拓扑数据 / 报警记录
-```
-
-**客户端只有 1 个 exe，下载即用，零配置接入。**
-
----
-
-## 📦 客户端类型
-
-| 类型 | 适用场景 | 部署方式 |
-|------|---------|---------|
-| 🪟 Windows 客户端 | PC/服务器/工控机 | 下载 exe，双击运行 |
-| 🐧 Linux 客户端 | Ubuntu/Debian/CentOS 服务器 | 二进制文件，守护进程 |
-| 📡 OpenWRT 客户端 | 软路由（小米/红米 AX 系列测试通过） | Shell 脚本，路由内置运行 |
-| 🌐 SNMP 设备 | 企业级路由器/交换机（H3C/华为/Cisco） | 后台添加 IP，协议接入 |
-
----
-
-## 🚀 30 秒快速部署
-
-**第一步：下载客户端**
-
-访问 👉 [www.lanwatch.net/download](http://www.lanwatch.net/download)
-
-**第二步：运行注册**
-
-双击 exe → 输入企业名称 → 完成（自动生成设备 ID，保存本地）
-
-**第三步：打开后台**
-
-访问 👉 [www.lanwatch.net/admin](http://www.lanwatch.net/admin)
-
-**30 秒完成，开始监控。**
-
----
-
-## 📊 监控后台能力
-
-| 功能 | 说明 |
+| 模块 | 功能 |
 |------|------|
-| 企业卡片视图 | 企业 → 设备层级，Windows/Linux 分类显示 |
-| 实时延迟趋势图 | 每分钟一条数据，支持导出 |
-| 端口扫描结果 | 设备详情页展示 43 个端口 + 服务识别 |
-| 拓扑设备列表 | MAC 厂商识别，自动判断设备类型 |
-| 微信报警记录 | Server酱推送历史，故障时间线 |
-| SNMP 监控 | 企业级设备无需安装客户端，协议直连 |
+| 🔍 探测 | ICMP / Traceroute / 端口扫描 / DNS / HTTP / SNMP |
+| ⏰ 调度 | APScheduler 定时探测，按设备配置间隔 |
+| 🗺️ 拓扑 | LLDP / CDP / ARP 自动发现，设备类型/厂商推断 |
+| 🔔 告警 | 8 条规则 + Server酱/钉钉/飞书推送 |
+| 🩺 诊断 | 12 条诊断规则 + 引导式排查向导 + 故障传播链 |
+| 📊 前端 | 暗色主题，响应式，六个页面，趋势图表 |
 
----
+## 🚀 快速开始
 
-## 🔄 版本现状
+### Docker（一条命令）
 
-| 组件 | 版本 | 说明 |
-|------|------|------|
-| 服务端 | v0.7.0 | FastAPI + SQLite，已稳定运行 |
-| Windows 客户端 | **v0.8.5** | 自动升级、托盘状态、端口扫描、traceroute 诊断 |
-| Linux 客户端 | v0.7.0 | 功能对齐 Windows 中 |
-| OpenWRT 客户端 | v0.6.4 | 基础探测，端口扫描已支持 |
+```bash
+git clone https://github.com/cnchaoge/lanwatch_agent.git
+cd lanwatch_agent
+docker-compose up -d
+```
 
----
+访问 http://localhost:8000
 
-## 💬 常见问题
+### 手动部署
 
-**Q: 需要专业网管才能用吗？**
-A: 不需要。企业只需要一台能上网的 Windows 电脑，下载运行，5 分钟完成部署。后续操作在 Web 后台完成，有手就会。
+```bash
+cd server
+pip install -r requirements.txt
+export SCKEY=你的Server酱Key   # 可选
+python main.py
+```
 
-**Q: 监控数据存在哪？**
-A: 云端服务器（82.156.229.67），企业间数据完全隔离，每个 Token 只看自己企业的数据。
+访问 http://localhost:8000
 
-**Q: 网络断了怎么通知？**
-A: 微信推送（Server酱）。离线超过 3 分钟自动推送给管理员和客户。
+### 部署 Agent
 
-**Q: 支持多少设备？**
-A: 不限。服务器端横向扩展，每个企业独立数据库。
+```powershell
+# Windows
+cd agent/windows && pip install -r requirements.txt && python main.py
+```
 
----
+```bash
+# Linux
+cd agent/linux && pip install -r requirements.txt && ./lanwatch_agent_linux.sh start
 
-## 🔗 相关链接
+# OpenWrt 路由器
+上传 router_agent.sh，执行 ./router_agent.sh install
+```
 
-- 🌐 官网后台：[www.lanwatch.net/admin](http://www.lanwatch.net/admin)
-- 📥 下载中心：[www.lanwatch.net/download](http://www.lanwatch.net/download)
-- 📱 手机端：[www.lanwatch.net/mobile](http://www.lanwatch.net/mobile)
-- 🐛 问题反馈：[GitHub Issues](https://github.com/cnchaoge/lanwatch_agent/issues)
-- 📦 最新版本：[Releases](https://github.com/cnchaoge/lanwatch_agent/releases)
+## 📖 文档
 
----
+- [完整文档](docs/INSTALL.md)
+- [安装指南](docs/INSTALL.md)
+- [常见问题](docs/FAQ.md)
+- [故障排查](docs/TROUBLESHOOTING.md)
+- [API 参考](docs/API.md)
 
-**LANWatch** — 让网络故障无处可藏。
+## 🏗️ 架构
+
+```
+┌─────────────────────────────────────────────────────┐
+│                    Web UI (SPA)                     │
+│         总览 / 设备 / 拓扑 / 告警 / 历史 / 诊断      │
+└─────────────────────┬───────────────────────────────┘
+                      │ HTTP REST API
+┌─────────────────────▼───────────────────────────────┐
+│                  FastAPI 服务端                      │
+│  ┌─────────┬──────────┬──────────┬──────────────┐  │
+│  │ 探测API │ 告警API  │ 拓扑API  │  诊断API     │  │
+│  └────┬────┴────┬─────┴────┬─────┴──────┬───────┘  │
+│       │         │          │            │           │
+│  ┌────▼────┐ ┌──▼───┐ ┌───▼────┐ ┌────▼────┐       │
+│  │ Ping    │ │Tracer│ │SNMP    │ │诊断引擎 │       │
+│  │ Tracero │ │oute  │ │Manager │ │传播链   │       │
+│  │ Portscan│ │DNS   │ │        │ │向导     │       │
+│  └────┬────┘ └──┬───┘ └───┬────┘ └────┬────┘       │
+│       │         │          │            │           │
+│  ┌────▼─────────▼──────────▼────────────▼────┐       │
+│  │         APScheduler 调度器               │       │
+│  └──────────────────┬───────────────────────┘       │
+│                     │                               │
+│  ┌───────────────────▼───────────────────────┐       │
+│  │              SQLite 数据库                 │       │
+│  │  agents / probe_results / alert_log /     │       │
+│  │  snmp_metrics / topology_nodes / ...       │       │
+│  └────────────────────────────────────────────┘       │
+└──────────────────────────────────────────────────────┘
+
+┌─────────────┐  ┌─────────────┐  ┌─────────────┐
+│ Windows Agent│  │ Linux Agent │  │ OpenWrt     │
+│   (本地PC)   │  │  (服务器)   │  │  (路由器)   │
+└──────┬──────┘  └──────┬──────┘  └──────┬──────┘
+       │                │                │
+       └────────────────┴────────────────┘
+              HTTPS + Bearer Token
+```
+
+## 🛠️ 技术栈
+
+- 后端：Python 3.9+ / FastAPI / APScheduler / SQLite
+- 探测：ICMP / TCP / SNMP (pysnmp)
+- 前端：原生 HTML5 / CSS3 / JavaScript / Chart.js
+- 部署：Docker / docker-compose / Windows Service / systemd
+- 测试：pytest（20+ 测试用例）
+
+## 📦 项目结构
+
+```
+lanwatch_agent/
+├── server/                 # 服务端
+│   ├── main.py            # FastAPI 入口
+│   ├── core/              # 配置/数据库/认证
+│   ├── api/               # REST API（agents/probe/alerts/topology/diagnosis/wizard/propagation）
+│   ├── modules/           # 业务模块（探测/调度/告警/拓扑/诊断）
+│   ├── templates/         # Web 前端（SPA）
+│   └── tests/             # pytest 测试
+├── agent/
+│   ├── windows/           # Windows Agent
+│   ├── linux/             # Linux Agent
+│   └── router/            # OpenWrt 路由器 Agent
+├── docs/                  # 文档
+├── docker-compose.yml     # Docker 部署
+├── Dockerfile
+└── README.md
+```
+
+## 🔧 配置
+
+| 环境变量 | 说明 | 默认值 |
+|---------|------|--------|
+| SCKEY | Server酱 Key | - |
+| DINGTALK_WEBHOOK | 钉钉机器人 Webhook | - |
+| FEISHU_WEBHOOK | 飞书机器人 Webhook | - |
+| ADMIN_PASSWORD | Web UI 管理密码 | admin |
+| CORS_ORIGINS | 允许的 CORS 源（逗号分隔） | - |
+
+## 📄 License
+
+MIT License

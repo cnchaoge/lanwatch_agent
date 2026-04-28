@@ -1,5 +1,8 @@
-fastapi
-uvicorn
-pydantic
-pysnmp==6.1.4
-pyasn1<0.6
+fastapi>=0.100.0
+uvicorn[standard]>=0.23.0
+pysnmp>=5.0.0
+pydantic>=2.0.0
+python-multipart>=0.0.6
+httpx>=0.24.0
+apscheduler>=3.10.0
+dnspython>=2.4.0

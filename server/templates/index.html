@@ -1,0 +1,1586 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lanwatch - 企业网络监控平台</title>
+    <style>
+        :root {
+            --bg-primary: #0d1117;
+            --bg-secondary: #161b22;
+            --bg-tertiary: #21262d;
+            --bg-card: #1c2128;
+            --border: #30363d;
+            --border-light: #3d444d;
+            --text-primary: #e6edf3;
+            --text-secondary: #8b949e;
+            --text-muted: #6e7681;
+            --accent-blue: #58a6ff;
+            --accent-green: #3fb950;
+            --accent-yellow: #d29922;
+            --accent-red: #f85149;
+            --accent-purple: #a371f7;
+            --accent-orange: #db6d28;
+            --radius-sm: 6px;
+            --radius-md: 10px;
+            --radius-lg: 16px;
+            --shadow: 0 4px 24px rgba(0,0,0,0.4);
+            --shadow-sm: 0 1px 8px rgba(0,0,0,0.3);
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei", sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            min-height: 100vh;
+            line-height: 1.6;
+        }
+
+        /* ===== 顶部导航 ===== */
+        .navbar {
+            background: var(--bg-secondary);
+            border-bottom: 1px solid var(--border);
+            height: 60px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 24px;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            backdrop-filter: blur(12px);
+        }
+
+        .navbar-brand {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 18px;
+            font-weight: 700;
+            color: var(--accent-blue);
+            text-decoration: none;
+        }
+
+        .navbar-brand svg { width: 24px; height: 24px; }
+
+        .navbar-nav {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .nav-item {
+            padding: 8px 14px;
+            border-radius: var(--radius-sm);
+            color: var(--text-secondary);
+            cursor: pointer;
+            text-decoration: none;
+            font-size: 14px;
+            font-weight: 500;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            border: none;
+            background: none;
+        }
+
+        .nav-item:hover { background: var(--bg-tertiary); color: var(--text-primary); }
+        .nav-item.active { background: rgba(88,166,255,0.15); color: var(--accent-blue); }
+        .nav-item .icon { font-size: 16px; }
+
+        .status-indicator {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+            background: rgba(63,185,80,0.12);
+            color: var(--accent-green);
+            border: 1px solid rgba(63,185,80,0.3);
+        }
+
+        .status-indicator.warning {
+            background: rgba(210,153,34,0.12);
+            color: var(--accent-yellow);
+            border-color: rgba(210,153,34,0.3);
+        }
+
+        .status-indicator.error {
+            background: rgba(248,81,73,0.12);
+            color: var(--accent-red);
+            border-color: rgba(248,81,73,0.3);
+        }
+
+        .status-dot {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: currentColor;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.4; }
+        }
+
+        /* ===== 汉堡菜单（移动端）===== */
+        .hamburger {
+            display: none;
+            flex-direction: column;
+            gap: 5px;
+            cursor: pointer;
+            padding: 8px;
+            background: none;
+            border: none;
+        }
+
+        .hamburger span {
+            width: 22px;
+            height: 2px;
+            background: var(--text-secondary);
+            border-radius: 2px;
+            transition: all 0.3s;
+        }
+
+        .mobile-nav {
+            display: none;
+            position: fixed;
+            inset: 60px 0 0 0;
+            background: var(--bg-secondary);
+            padding: 16px;
+            flex-direction: column;
+            gap: 4px;
+            border-top: 1px solid var(--border);
+            z-index: 99;
+        }
+
+        .mobile-nav.show { display: flex; }
+
+        .mobile-nav .nav-item {
+            padding: 14px 16px;
+            font-size: 16px;
+            border-radius: var(--radius-md);
+        }
+
+        /* ===== 主容器 ===== */
+        .container {
+            max-width: 1440px;
+            margin: 0 auto;
+            padding: 24px;
+        }
+
+        /* ===== 页面标题 ===== */
+        .page-header {
+            margin-bottom: 24px;
+        }
+
+        .page-title {
+            font-size: 24px;
+            font-weight: 700;
+            color: var(--text-primary);
+            margin-bottom: 4px;
+        }
+
+        .page-subtitle {
+            font-size: 14px;
+            color: var(--text-secondary);
+        }
+
+        /* ===== 统计卡片网格 ===== */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+
+        .stat-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-lg);
+            padding: 20px 24px;
+            position: relative;
+            overflow: hidden;
+            transition: all 0.2s;
+        }
+
+        .stat-card:hover {
+            border-color: var(--border-light);
+            transform: translateY(-2px);
+            box-shadow: var(--shadow);
+        }
+
+        .stat-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 3px;
+            border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+        }
+
+        .stat-card.blue::before { background: var(--accent-blue); }
+        .stat-card.green::before { background: var(--accent-green); }
+        .stat-card.yellow::before { background: var(--accent-yellow); }
+        .stat-card.red::before { background: var(--accent-red); }
+        .stat-card.purple::before { background: var(--accent-purple); }
+
+        .stat-label {
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 8px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .stat-value {
+            font-size: 36px;
+            font-weight: 800;
+            color: var(--text-primary);
+            line-height: 1.1;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .stat-trend {
+            font-size: 12px;
+            margin-top: 8px;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .stat-trend.up { color: var(--accent-green); }
+        .stat-trend.down { color: var(--accent-red); }
+
+        .stat-icon {
+            position: absolute;
+            right: 20px;
+            top: 50%;
+            transform: translateY(-50%);
+            font-size: 36px;
+            opacity: 0.15;
+        }
+
+        /* ===== 卡片 ===== */
+        .card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-lg);
+            margin-bottom: 20px;
+            overflow: hidden;
+            transition: all 0.2s;
+        }
+
+        .card:hover { border-color: var(--border-light); }
+
+        .card-header {
+            padding: 16px 20px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: var(--bg-secondary);
+        }
+
+        .card-title {
+            font-size: 15px;
+            font-weight: 600;
+            color: var(--text-primary);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .card-body { padding: 20px; }
+
+        /* ===== 按钮 ===== */
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 8px 16px;
+            border-radius: var(--radius-sm);
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            border: 1px solid transparent;
+            transition: all 0.15s;
+            text-decoration: none;
+        }
+
+        .btn-primary {
+            background: var(--accent-blue);
+            color: #fff;
+            border-color: var(--accent-blue);
+        }
+
+        .btn-primary:hover { background: #4c9aed; }
+
+        .btn-secondary {
+            background: var(--bg-tertiary);
+            color: var(--text-primary);
+            border-color: var(--border);
+        }
+
+        .btn-secondary:hover { background: var(--border); }
+
+        .btn-danger {
+            background: rgba(248,81,73,0.1);
+            color: var(--accent-red);
+            border-color: rgba(248,81,73,0.3);
+        }
+
+        .btn-danger:hover { background: rgba(248,81,73,0.2); }
+
+        .btn-sm { padding: 5px 10px; font-size: 12px; }
+
+        /* ===== 表格 ===== */
+        table { width: 100%; border-collapse: collapse; }
+
+        th {
+            text-align: left;
+            padding: 10px 16px;
+            font-size: 11px;
+            font-weight: 600;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            border-bottom: 1px solid var(--border);
+            background: var(--bg-secondary);
+        }
+
+        td {
+            padding: 12px 16px;
+            font-size: 14px;
+            border-bottom: 1px solid var(--border);
+            color: var(--text-primary);
+        }
+
+        tr:last-child td { border-bottom: none; }
+        tbody tr { transition: background 0.15s; }
+        tbody tr:hover { background: rgba(255,255,255,0.03); }
+
+        .device-type-badge {
+            display: inline-flex;
+            align-items: center;
+            padding: 3px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: 600;
+            background: var(--bg-tertiary);
+            color: var(--text-secondary);
+        }
+
+        .device-type-badge.router { background: rgba(88,166,255,0.15); color: var(--accent-blue); }
+        .device-type-badge.switch { background: rgba(63,185,80,0.15); color: var(--accent-green); }
+        .device-type-badge.firewall { background: rgba(248,81,73,0.15); color: var(--accent-red); }
+        .device-type-badge.camera { background: rgba(210,153,34,0.15); color: var(--accent-yellow); }
+        .device-type-badge.server { background: rgba(163,113,247,0.15); color: var(--accent-purple); }
+        .device-type-badge.access_point { background: rgba(219,109,40,0.15); color: var(--accent-orange); }
+
+        .online-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            display: inline-block;
+        }
+
+        .online-dot.online { background: var(--accent-green); box-shadow: 0 0 6px var(--accent-green); }
+        .online-dot.offline { background: var(--text-muted); }
+        .online-dot.warn { background: var(--accent-yellow); box-shadow: 0 0 6px var(--accent-yellow); }
+
+        /* ===== 搜索框 ===== */
+        .search-bar {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 16px;
+            flex-wrap: wrap;
+        }
+
+        .search-input {
+            flex: 1;
+            min-width: 200px;
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            padding: 9px 14px;
+            color: var(--text-primary);
+            font-size: 14px;
+            outline: none;
+            transition: border-color 0.15s;
+        }
+
+        .search-input:focus { border-color: var(--accent-blue); }
+        .search-input::placeholder { color: var(--text-muted); }
+
+        /* ===== 告警列表 ===== */
+        .alert-list { display: flex; flex-direction: column; }
+
+        .alert-item {
+            display: flex;
+            align-items: flex-start;
+            gap: 14px;
+            padding: 14px 0;
+            border-bottom: 1px solid var(--border);
+            transition: background 0.15s;
+        }
+
+        .alert-item:last-child { border-bottom: none; }
+        .alert-item:hover { background: rgba(255,255,255,0.02); margin: 0 -20px; padding-left: 20px; padding-right: 20px; }
+
+        .alert-icon { font-size: 22px; line-height: 1; }
+
+        .alert-body { flex: 1; }
+
+        .alert-title { font-size: 14px; font-weight: 600; color: var(--text-primary); margin-bottom: 2px; }
+
+        .alert-desc { font-size: 13px; color: var(--text-secondary); }
+
+        .alert-meta { display: flex; gap: 12px; font-size: 12px; color: var(--text-muted); margin-top: 4px; }
+
+        .alert-time { font-size: 12px; color: var(--text-muted); white-space: nowrap; }
+
+        .alert-level-critical { border-left: 3px solid var(--accent-red); padding-left: 12px; margin-left: -20px; }
+        .alert-level-warning { border-left: 3px solid var(--accent-yellow); padding-left: 12px; margin-left: -20px; }
+        .alert-level-info { border-left: 3px solid var(--accent-blue); padding-left: 12px; margin-left: -20px; }
+
+        /* ===== 拓扑图 ===== */
+        #topology-canvas {
+            width: 100%;
+            height: 520px;
+            background: var(--bg-primary);
+            border-radius: var(--radius-md);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .topo-node {
+            position: absolute;
+            background: var(--bg-card);
+            border: 2px solid var(--border);
+            border-radius: var(--radius-md);
+            padding: 12px 16px;
+            min-width: 130px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+            z-index: 10;
+        }
+
+        .topo-node:hover {
+            transform: scale(1.08) translateY(-4px);
+            box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+            z-index: 20;
+        }
+
+        .topo-node.router { border-color: var(--accent-blue); background: rgba(88,166,255,0.08); }
+        .topo-node.switch { border-color: var(--accent-green); background: rgba(63,185,80,0.08); }
+        .topo-node.firewall { border-color: var(--accent-red); background: rgba(248,81,73,0.08); }
+        .topo-node.camera { border-color: var(--accent-yellow); background: rgba(210,153,34,0.08); }
+        .topo-node.server { border-color: var(--accent-purple); background: rgba(163,113,247,0.08); }
+        .topo-node.access_point { border-color: var(--accent-orange); background: rgba(219,109,40,0.08); }
+
+        .topo-node .node-icon { font-size: 20px; margin-bottom: 4px; }
+        .topo-node .node-name { font-size: 13px; font-weight: 600; color: var(--text-primary); }
+        .topo-node .node-ip { font-size: 11px; color: var(--text-muted); margin-top: 2px; font-family: monospace; }
+        .topo-node .node-status { width: 7px; height: 7px; border-radius: 50%; display: inline-block; margin-right: 4px; }
+        .topo-node .node-status.online { background: var(--accent-green); }
+        .topo-node .node-status.offline { background: var(--accent-red); }
+
+        /* 拓扑连接线（SVG） */
+        .topo-links { position: absolute; inset: 0; pointer-events: none; z-index: 5; }
+        .topo-links line { stroke: var(--border); stroke-width: 1.5; stroke-dasharray: 4 4; opacity: 0.6; }
+
+        /* ===== 图表容器 ===== */
+        .chart-container { position: relative; height: 200px; }
+        .chart-container-sm { position: relative; height: 150px; }
+
+        /* ===== 加载动画 ===== */
+        .skeleton {
+            background: linear-gradient(90deg, var(--bg-tertiary) 25%, var(--bg-card) 50%, var(--bg-tertiary) 75%);
+            background-size: 200% 100%;
+            animation: shimmer 1.5s infinite;
+            border-radius: var(--radius-sm);
+        }
+
+        @keyframes shimmer {
+            0% { background-position: 200% 0; }
+            100% { background-position: -200% 0; }
+        }
+
+        .skeleton-text { height: 14px; margin-bottom: 8px; }
+        .skeleton-title { height: 24px; width: 60%; margin-bottom: 12px; }
+        .skeleton-stat { height: 48px; width: 40%; }
+
+        /* ===== 空状态 ===== */
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: var(--text-secondary);
+        }
+
+        .empty-state .icon { font-size: 52px; margin-bottom: 16px; opacity: 0.6; }
+        .empty-state .title { font-size: 18px; font-weight: 600; color: var(--text-primary); margin-bottom: 8px; }
+        .empty-state .desc { font-size: 14px; color: var(--text-muted); max-width: 400px; margin: 0 auto; }
+
+        /* ===== 弹窗 ===== */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.75);
+            z-index: 1000;
+            justify-content: center;
+            align-items: center;
+            backdrop-filter: blur(4px);
+        }
+
+        .modal-overlay.show { display: flex; }
+
+        .modal {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-lg);
+            width: 90%;
+            max-width: 640px;
+            max-height: 85vh;
+            overflow-y: auto;
+            box-shadow: var(--shadow);
+            animation: modalIn 0.2s ease-out;
+        }
+
+        @keyframes modalIn {
+            from { opacity: 0; transform: scale(0.95) translateY(-10px); }
+            to { opacity: 1; transform: scale(1) translateY(0); }
+        }
+
+        .modal-header {
+            padding: 20px 24px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: var(--bg-secondary);
+        }
+
+        .modal-title { font-size: 18px; font-weight: 700; }
+
+        .modal-close {
+            width: 32px;
+            height: 32px;
+            border-radius: var(--radius-sm);
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border);
+            color: var(--text-secondary);
+            font-size: 20px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.15s;
+        }
+
+        .modal-close:hover { background: var(--border); color: var(--text-primary); }
+
+        .modal-body { padding: 24px; }
+
+        /* ===== Tab 切换 ===== */
+        .tabs {
+            display: flex;
+            gap: 0;
+            border-bottom: 1px solid var(--border);
+            margin-bottom: 20px;
+            overflow-x: auto;
+        }
+
+        .tab {
+            padding: 12px 20px;
+            color: var(--text-secondary);
+            cursor: pointer;
+            border-bottom: 2px solid transparent;
+            font-size: 14px;
+            font-weight: 500;
+            transition: all 0.15s;
+            white-space: nowrap;
+            background: none;
+            border-top: none;
+            border-left: none;
+            border-right: none;
+        }
+
+        .tab:hover { color: var(--text-primary); }
+        .tab.active { color: var(--accent-blue); border-bottom-color: var(--accent-blue); }
+
+        /* ===== Toast ===== */
+        #toast {
+            position: fixed;
+            bottom: 24px;
+            right: 24px;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-md);
+            padding: 12px 20px;
+            display: none;
+            z-index: 3000;
+            font-size: 14px;
+            font-weight: 500;
+            box-shadow: var(--shadow);
+            animation: toastIn 0.3s ease-out;
+            max-width: 360px;
+        }
+
+        #toast.show { display: flex; align-items: center; gap: 10px; }
+
+        @keyframes toastIn {
+            from { transform: translateY(20px); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+
+        #toast.success { border-color: var(--accent-green); color: var(--accent-green); }
+        #toast.error { border-color: var(--accent-red); color: var(--accent-red); }
+        #toast.info { border-color: var(--accent-blue); color: var(--accent-blue); }
+
+        /* ===== 标签筛选 ===== */
+        .filter-tabs {
+            display: flex;
+            gap: 6px;
+            flex-wrap: wrap;
+            margin-bottom: 16px;
+        }
+
+        .filter-tab {
+            padding: 5px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            background: var(--bg-tertiary);
+            color: var(--text-secondary);
+            border: 1px solid var(--border);
+            transition: all 0.15s;
+        }
+
+        .filter-tab:hover { border-color: var(--border-light); color: var(--text-primary); }
+        .filter-tab.active { background: rgba(88,166,255,0.15); color: var(--accent-blue); border-color: rgba(88,166,255,0.3); }
+
+        /* ===== 设备详情网格 ===== */
+        .detail-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+        }
+
+        .detail-item {
+            background: var(--bg-primary);
+            border-radius: var(--radius-sm);
+            padding: 12px 14px;
+        }
+
+        .detail-label { font-size: 11px; color: var(--text-muted); text-transform: uppercase; margin-bottom: 4px; }
+        .detail-value { font-size: 14px; color: var(--text-primary); font-weight: 600; font-family: monospace; }
+
+        /* ===== 进度条 ===== */
+        .progress-bar {
+            height: 6px;
+            background: var(--bg-tertiary);
+            border-radius: 3px;
+            overflow: hidden;
+        }
+
+        .progress-fill {
+            height: 100%;
+            border-radius: 3px;
+            transition: width 0.5s ease;
+        }
+
+        .progress-fill.green { background: var(--accent-green); }
+        .progress-fill.yellow { background: var(--accent-yellow); }
+        .progress-fill.red { background: var(--accent-red); }
+
+        /* ===== 响应式 ===== */
+        @media (max-width: 1024px) {
+            .stats-grid { grid-template-columns: repeat(2, 1fr); }
+        }
+
+        @media (max-width: 768px) {
+            .stats-grid { grid-template-columns: 1fr 1fr; gap: 12px; }
+            .stat-card { padding: 16px; }
+            .stat-value { font-size: 28px; }
+            .navbar-nav { display: none; }
+            .hamburger { display: flex; }
+            .container { padding: 16px; }
+            .detail-grid { grid-template-columns: 1fr; }
+            table { font-size: 13px; }
+            th, td { padding: 8px 10px; }
+        }
+
+        @media (max-width: 480px) {
+            .stats-grid { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+
+<!-- 顶部导航 -->
+<nav class="navbar">
+    <a class="navbar-brand" href="#">
+        <svg viewBox="0 0 24 24" fill="currentColor">
+            <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/>
+        </svg>
+        Lanwatch
+    </a>
+    <div class="navbar-nav" id="desktop-nav">
+        <button class="nav-item active" data-page="overview" onclick="showPage('overview')"><span class="icon">📊</span> 总览</button>
+        <button class="nav-item" data-page="devices" onclick="showPage('devices')"><span class="icon">🖥️</span> 设备</button>
+        <button class="nav-item" data-page="topology" onclick="showPage('topology')"><span class="icon">🗺️</span> 拓扑</button>
+        <button class="nav-item" data-page="alerts" onclick="showPage('alerts')"><span class="icon">🔔</span> 告警</button>
+        <button class="nav-item" data-page="history" onclick="showPage('history')"><span class="icon">📈</span> 历史</button>
+        <button class="nav-item" data-page="wizard" onclick="showPage('wizard')"><span class="icon">🩺</span> 诊断</button>
+    </div>
+    <div id="global-status"></div>
+    <button class="hamburger" onclick="toggleMobileNav()">
+        <span></span><span></span><span></span>
+    </button>
+</nav>
+
+<!-- 移动端导航 -->
+<div class="mobile-nav" id="mobile-nav">
+    <button class="nav-item" onclick="showPage('overview'); toggleMobileNav()">📊 总览</button>
+    <button class="nav-item" onclick="showPage('devices'); toggleMobileNav()">🖥️ 设备</button>
+    <button class="nav-item" onclick="showPage('topology'); toggleMobileNav()">🗺️ 拓扑</button>
+    <button class="nav-item" onclick="showPage('alerts'); toggleMobileNav()">🔔 告警</button>
+    <button class="nav-item" onclick="showPage('history'); toggleMobileNav()">📈 历史</button>
+    <button class="nav-item" onclick="showPage('wizard'); toggleMobileNav()">🩺 诊断</button>
+</div>
+
+<div class="container">
+
+    <!-- 总览页 -->
+    <div id="page-overview" class="page">
+        <div class="page-header">
+            <div class="page-title">总览</div>
+            <div class="page-subtitle">实时网络监控状态 · <span id="current-time">--</span></div>
+        </div>
+
+        <div class="stats-grid">
+            <div class="stat-card green">
+                <div class="stat-label">🟢 在线设备</div>
+                <div class="stat-value" id="stat-online">--</div>
+                <div class="stat-trend" id="stat-devices-trend"><span id="stat-total">--</span> 台设备</div>
+                <div class="stat-icon">🖥️</div>
+            </div>
+            <div class="stat-card red">
+                <div class="stat-label">🔴 今日告警</div>
+                <div class="stat-value" id="stat-alerts">--</div>
+                <div class="stat-trend" id="stat-critical-trend"><span id="stat-critical">--</span> 严重</div>
+                <div class="stat-icon">🔔</div>
+            </div>
+            <div class="stat-card blue">
+                <div class="stat-label">📶 平均延迟</div>
+                <div class="stat-value" id="stat-latency">--</div>
+                <div class="stat-trend up" id="stat-latency-trend">ms</div>
+                <div class="stat-icon">📶</div>
+            </div>
+            <div class="stat-card purple">
+                <div class="stat-label">📈 探测成功率</div>
+                <div class="stat-value" id="stat-success">--<small style="font-size:14px">%</small></div>
+                <div class="stat-trend" id="stat-success-trend">最近 1 小时</div>
+                <div class="stat-icon">📈</div>
+            </div>
+        </div>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px">
+            <div class="card">
+                <div class="card-header">
+                    <div class="card-title">🔥 最近告警</div>
+                    <button class="btn btn-sm btn-secondary" onclick="showPage('alerts')">查看全部 →</button>
+                </div>
+                <div class="card-body" id="recent-alerts">
+                    <div class="empty-state"><div class="icon">✅</div><div>暂无告警</div></div>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-header">
+                    <div class="card-title">📡 探测趋势（24h）</div>
+                </div>
+                <div class="card-body">
+                    <div class="chart-container">
+                        <canvas id="trend-chart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 设备页 -->
+    <div id="page-devices" class="page" style="display:none">
+        <div class="page-header">
+            <div class="page-title">设备管理</div>
+            <div class="page-subtitle">所有注册设备和 SNMP 节点</div>
+        </div>
+
+        <div class="search-bar">
+            <input class="search-input" id="device-search" placeholder="搜索 IP / 主机名 / 厂商..." oninput="filterDevices()">
+            <button class="btn btn-secondary" onclick="loadDevices()">🔄 刷新</button>
+            <button class="btn btn-primary" onclick="showDiscoverModal()">🔍 拓扑发现</button>
+        </div>
+
+        <div class="filter-tabs" id="device-filter-tabs">
+            <button class="filter-tab active" data-filter="" onclick="setDeviceFilter('')">全部</button>
+            <button class="filter-tab" data-filter="router" onclick="setDeviceFilter('router')">路由器</button>
+            <button class="filter-tab" data-filter="switch" onclick="setDeviceFilter('switch')">交换机</button>
+            <button class="filter-tab" data-filter="camera" onclick="setDeviceFilter('camera')">摄像头</button>
+            <button class="filter-tab" data-filter="server" onclick="setDeviceFilter('server')">服务器</button>
+        </div>
+
+        <div class="card">
+            <table>
+                <thead>
+                    <tr>
+                        <th>状态</th>
+                        <th>主机名</th>
+                        <th>IP 地址</th>
+                        <th>类型</th>
+                        <th>厂商</th>
+                        <th>最后活跃</th>
+                        <th>操作</th>
+                    </tr>
+                </thead>
+                <tbody id="device-table">
+                    <tr><td colspan="7"><div class="skeleton skeleton-text" style="width:100%"></div></td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- 拓扑页 -->
+    <div id="page-topology" class="page" style="display:none">
+        <div class="page-header">
+            <div class="page-title">网络拓扑</div>
+            <div class="page-subtitle">自动发现的网络设备连接关系</div>
+        </div>
+
+        <div class="search-bar">
+            <button class="btn btn-secondary" onclick="loadTopology()">🔄 刷新</button>
+            <button class="btn btn-primary" onclick="showDiscoverModal()">🔍 重新发现</button>
+            <select class="search-input" id="topo-filter" style="max-width:160px" onchange="renderTopology()">
+                <option value="">全部设备</option>
+                <option value="router">路由器</option>
+                <option value="switch">交换机</option>
+                <option value="firewall">防火墙</option>
+                <option value="camera">摄像头</option>
+                <option value="server">服务器</option>
+            </select>
+        </div>
+
+        <div class="card">
+            <div class="card-body" style="padding:0">
+                <div id="topology-canvas">
+                    <svg class="topo-links" id="topo-links"></svg>
+                    <div class="empty-state">
+                        <div class="icon">🗺️</div>
+                        <div class="title">暂无拓扑数据</div>
+                        <div class="desc">点击「🔍 重新发现」开始扫描网络拓扑</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:16px">
+            <div class="stat-card blue"><div class="stat-label">总节点</div><div class="stat-value" id="topo-total">-</div></div>
+            <div class="stat-card green"><div class="stat-label">在线</div><div class="stat-value" id="topo-online">-</div></div>
+            <div class="stat-card red"><div class="stat-label">离线</div><div class="stat-value" id="topo-offline">-</div></div>
+            <div class="stat-card yellow"><div class="stat-label">链路</div><div class="stat-value" id="topo-links-count">-</div></div>
+        </div>
+    </div>
+
+    <!-- 告警页 -->
+    <div id="page-alerts" class="page" style="display:none">
+        <div class="page-header">
+            <div class="page-title">告警中心</div>
+            <div class="page-subtitle">实时告警和历史记录</div>
+        </div>
+
+        <div class="search-bar">
+            <select class="search-input" id="alert-level-filter" style="max-width:140px" onchange="loadAlerts()">
+                <option value="">全部级别</option>
+                <option value="critical">🔴 严重</option>
+                <option value="warning">🟡 警告</option>
+                <option value="info">🔵 提示</option>
+            </select>
+            <button class="btn btn-secondary" onclick="loadAlerts()">🔄 刷新</button>
+            <button class="btn btn-danger" onclick="clearAlerts()">🗑️ 清理</button>
+        </div>
+
+        <div class="card">
+            <div class="card-body" id="alert-list">
+                <div class="skeleton skeleton-text" style="width:80%"></div>
+                <div class="skeleton skeleton-text" style="width:60%"></div>
+                <div class="skeleton skeleton-text" style="width:70%"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 历史页 -->
+    <div id="page-history" class="page" style="display:none">
+        <div class="page-header">
+            <div class="page-title">历史数据</div>
+            <div class="page-subtitle">探测结果趋势和统计分析</div>
+        </div>
+
+        <div class="tabs">
+            <button class="tab active" onclick="switchHistoryTab('ping', event)">📶 Ping 延迟</button>
+            <button class="tab" onclick="switchHistoryTab('snmp', event)">📊 SNMP 指标</button>
+        </div>
+
+        <div class="search-bar">
+            <input class="search-input" id="history-target" placeholder="输入目标 IP 或域名" value="8.8.8.8">
+            <select class="search-input" id="history-hours" style="max-width:150px">
+                <option value="6">最近 6 小时</option>
+                <option value="24" selected>最近 24 小时</option>
+                <option value="72">最近 3 天</option>
+                <option value="168">最近 7 天</option>
+            </select>
+            <button class="btn btn-primary" onclick="loadHistory()">查询</button>
+        </div>
+
+        <div class="card">
+            <div class="card-body">
+                <div class="chart-container">
+                    <canvas id="history-chart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 诊断向导页 -->
+    <div id="page-wizard" class="page" style="display:none">
+        <div class="page-header">
+            <div class="page-title">🩺 故障诊断</div>
+            <div class="page-subtitle">引导式故障排查，快速定位问题根因</div>
+        </div>
+
+        <div id="wizard-scenarios" class="stats-grid" style="grid-template-columns:repeat(3,1fr)">
+            <!-- 由 JS 渲染 -->
+        </div>
+
+        <div id="wizard-session" style="display:none">
+            <div class="card">
+                <div class="card-header">
+                    <div class="card-title" id="wizard-title">排查中...</div>
+                    <button class="btn btn-sm btn-secondary" onclick="endWizard()">结束向导</button>
+                </div>
+                <div class="card-body">
+                    <div id="wizard-step" style="margin-bottom:20px">
+                        <div class="skeleton skeleton-text" style="width:100%"></div>
+                        <div class="skeleton skeleton-text" style="width:80%"></div>
+                    </div>
+                    <div id="wizard-options"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 设备详情弹窗 -->
+<div class="modal-overlay" id="device-modal">
+    <div class="modal">
+        <div class="modal-header">
+            <div class="modal-title" id="modal-device-title">设备详情</div>
+            <button class="modal-close" onclick="closeModal()">×</button>
+        </div>
+        <div class="modal-body" id="modal-device-body"></div>
+    </div>
+</div>
+
+<!-- 拓扑发现弹窗 -->
+<div class="modal-overlay" id="discover-modal">
+    <div class="modal">
+        <div class="modal-header">
+            <div class="modal-title">🔍 拓扑发现</div>
+            <button class="modal-close" onclick="closeDiscoverModal()">×</button>
+        </div>
+        <div class="modal-body">
+            <div style="margin-bottom:16px">
+                <label style="font-size:13px;color:var(--text-secondary);display:block;margin-bottom:6px">种子 IP</label>
+                <input class="search-input" id="discover-seed" placeholder="例如：192.168.1.1" value="192.168.1.1">
+            </div>
+            <div style="margin-bottom:16px">
+                <label style="font-size:13px;color:var(--text-secondary);display:block;margin-bottom:6px">SNMP Community</label>
+                <input class="search-input" id="discover-community" value="public">
+            </div>
+            <div style="margin-bottom:16px">
+                <label style="font-size:13px;color:var(--text-secondary);display:block;margin-bottom:6px">最大发现跳数</label>
+                <select class="search-input" id="discover-hops" style="max-width:200px">
+                    <option value="2">2 跳（推荐）</option>
+                    <option value="3" selected>3 跳</option>
+                    <option value="5">5 跳</option>
+                </select>
+            </div>
+            <button class="btn btn-primary" style="width:100%" onclick="doDiscover()">开始发现</button>
+            <div id="discover-status" style="margin-top:12px;text-align:center;color:var(--text-muted);font-size:13px"></div>
+        </div>
+    </div>
+</div>
+
+<!-- Toast -->
+<div id="toast"></div>
+
+<script>
+const API_BASE = window.location.origin;
+let currentPage = 'overview';
+let devices = [];
+let topology = { nodes: [], links: [] };
+let alerts = [];
+let chart = null;
+let historyChart = null;
+let deviceFilter = '';
+let currentWizardSession = null;
+let alertPollingTimer = null;
+
+// ===== 页面切换 =====
+function showPage(page) {
+    document.querySelectorAll('.page').forEach(p => p.style.display = 'none');
+    document.getElementById('page-' + page).style.display = 'block';
+
+    document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+    document.querySelectorAll('.nav-item[data-page="' + page + '"]').forEach(n => n.classList.add('active'));
+
+    currentPage = page;
+
+    if (page === 'overview') { loadOverview(); startAlertPolling(); }
+    else if (page === 'devices') { loadDevices(); stopAlertPolling(); }
+    else if (page === 'topology') { loadTopology(); stopAlertPolling(); }
+    else if (page === 'alerts') { loadAlerts(); stopAlertPolling(); }
+    else if (page === 'history') { initHistoryChart(); stopAlertPolling(); }
+    else if (page === 'wizard') { loadWizardScenarios(); stopAlertPolling(); }
+}
+
+function toggleMobileNav() {
+    document.getElementById('mobile-nav').classList.toggle('show');
+}
+
+function startAlertPolling() {
+    stopAlertPolling();
+    alertPollingTimer = setInterval(() => {
+        if (currentPage === 'overview') loadRecentAlertsOnly();
+    }, 15000);
+}
+
+function stopAlertPolling() {
+    if (alertPollingTimer) { clearInterval(alertPollingTimer); alertPollingTimer = null; }
+}
+
+// ===== API =====
+async function api(url, options = {}) {
+    try {
+        const r = await fetch(API_BASE + url, options);
+        const data = await r.json();
+        if (!r.ok) throw new Error(data.detail || '请求失败');
+        return data;
+    } catch (e) { toast(e.message, 'error'); throw e; }
+}
+
+function toast(msg, type = 'success') {
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.className = 'show ' + type;
+    setTimeout(() => t.classList.remove('show'), 3500);
+}
+
+// ===== 总览页 =====
+async function loadOverview() {
+    updateTime();
+    try {
+        const [statusData, statsData] = await Promise.all([
+            api('/api/history/device_status'),
+            api('/api/alerts/stats?hours=24')
+        ]);
+
+        const devs = statusData.devices || [];
+        const total = devs.length;
+        const now = Date.now();
+        const online = devs.filter(d => d.last_seen && (now - new Date(d.last_seen).getTime()) < 120000).length;
+
+        document.getElementById('stat-total').textContent = total;
+        document.getElementById('stat-online').textContent = online;
+        document.getElementById('stat-alerts').textContent = statsData.current_period?.total || 0;
+        document.getElementById('stat-critical').textContent = statsData.current_period?.by_level?.critical || 0;
+        document.getElementById('stat-latency').textContent = '--';
+        document.getElementById('stat-success').textContent = '--';
+
+        const statusEl = document.getElementById('global-status');
+        if (online === total && total > 0) {
+            statusEl.innerHTML = '<div class="status-indicator"><span class="status-dot"></span> 全部在线</div>';
+        } else if (online === 0) {
+            statusEl.innerHTML = '<div class="status-indicator error"><span class="status-dot"></span> 全部离线</div>';
+        } else {
+            statusEl.innerHTML = '<div class="status-indicator warning"><span class="status-dot"></span> ' + online + '/' + total + ' 在线</div>';
+        }
+
+        await loadRecentAlertsOnly();
+        loadTrendChart();
+    } catch (e) { console.error(e); }
+}
+
+async function loadRecentAlertsOnly() {
+    try {
+        const data = await api('/api/alerts?limit=5');
+        renderRecentAlerts(data.alerts || []);
+    } catch (e) { console.error(e); }
+}
+
+async function loadTrendChart() {
+    try {
+        const data = await api('/api/history/trends/ping?target=8.8.8.8&hours=24');
+        if (!data.data || !data.data.length) return;
+
+        const ctx = document.getElementById('trend-chart').getContext('2d');
+        if (chart) chart.destroy();
+
+        chart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: data.data.map(d => new Date(d.timestamp).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})),
+                datasets: [{
+                    label: '延迟 (ms)',
+                    data: data.data.map(d => d.rtt_ms),
+                    borderColor: '#58a6ff',
+                    backgroundColor: 'rgba(88,166,255,0.08)',
+                    fill: true,
+                    tension: 0.4,
+                    pointRadius: 0,
+                    pointHoverRadius: 4,
+                    borderWidth: 2
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { display: false } },
+                scales: {
+                    x: { grid: { color: 'rgba(48,54,61,0.5)' }, ticks: { color: '#6e7681', maxTicksLimit: 8 } },
+                    y: { grid: { color: 'rgba(48,54,61,0.5)' }, ticks: { color: '#6e7681' } }
+                }
+            }
+        });
+
+        const valid = data.data.filter(d => d.rtt_ms).map(d => d.rtt_ms);
+        if (valid.length) {
+            const avg = Math.round(valid.reduce((a,b) => a+b, 0) / valid.length);
+            document.getElementById('stat-latency').textContent = avg;
+            const success = Math.round((valid.length / data.data.length) * 100);
+            document.getElementById('stat-success').textContent = success;
+        }
+    } catch (e) { console.error(e); }
+}
+
+function renderRecentAlerts(alerts) {
+    const el = document.getElementById('recent-alerts');
+    if (!alerts.length) {
+        el.innerHTML = '<div class="empty-state"><div class="icon">✅</div><div>暂无告警，系统运行正常</div></div>';
+        return;
+    }
+    el.innerHTML = '<div class="alert-list">' + alerts.map(a =>
+        '<div class="alert-item alert-level-' + a.level + '">' +
+            '<div class="alert-icon">' + (a.level === 'critical' ? '🔴' : a.level === 'warning' ? '🟡' : '🔵') + '</div>' +
+            '<div class="alert-body">' +
+                '<div class="alert-title">' + a.alert_type + '</div>' +
+                '<div class="alert-desc">' + a.message + '</div>' +
+                '<div class="alert-meta"><span>' + a.agent_id + '</span></div>' +
+            '</div>' +
+            '<div class="alert-time">' + formatTime(a.created_at) + '</div>' +
+        '</div>'
+    ).join('') + '</div>';
+}
+
+function updateTime() {
+    document.getElementById('current-time').textContent = new Date().toLocaleString('zh-CN');
+}
+
+// ===== 设备页 =====
+async function loadDevices() {
+    try {
+        const data = await api('/api/topology/nodes');
+        devices = data.nodes || [];
+        renderDeviceTable();
+    } catch (e) { console.error(e); }
+}
+
+function renderDeviceTable() {
+    const tbody = document.getElementById('device-table');
+    let filtered = devices;
+
+    const search = document.getElementById('device-search').value.trim().toLowerCase();
+    if (search) {
+        filtered = filtered.filter(d =>
+            (d.ip || '').toLowerCase().includes(search) ||
+            (d.hostname || '').toLowerCase().includes(search) ||
+            (d.vendor || '').toLowerCase().includes(search)
+        );
+    }
+
+    if (deviceFilter) {
+        filtered = filtered.filter(d => d.device_type === deviceFilter);
+    }
+
+    if (!filtered.length) {
+        tbody.innerHTML = '<tr><td colspan="7"><div class="empty-state"><div>未找到设备</div></div></td></tr>';
+        return;
+    }
+
+    const now = Date.now();
+
+    tbody.innerHTML = filtered.map(d => {
+        const isOnline = d.last_seen && (now - new Date(d.last_seen).getTime()) < 120000;
+        const dotClass = isOnline ? 'online' : 'offline';
+        const timeSince = formatTime(d.last_seen);
+        return '<tr onclick="showDeviceDetail(\'' + d.ip + '\')" style="cursor:pointer">' +
+            '<td><span class="online-dot ' + dotClass + '"></span></td>' +
+            '<td>' + (d.hostname || '<span style="color:var(--text-muted)">-</span>') + '</td>' +
+            '<td style="font-family:monospace;font-size:13px">' + d.ip + '</td>' +
+            '<td><span class="device-type-badge ' + (d.device_type || 'unknown') + '">' + (d.device_type || 'unknown') + '</span></td>' +
+            '<td>' + (d.vendor || '<span style="color:var(--text-muted)">-</span>') + '</td>' +
+            '<td style="color:var(--text-secondary);font-size:13px">' + timeSince + '</td>' +
+            '<td><button class="btn btn-sm btn-secondary" onclick="event.stopPropagation(); runProbe(\'' + d.ip + '\')">📡</button></td>' +
+        '</tr>';
+    }).join('');
+}
+
+function filterDevices() { renderDeviceTable(); }
+
+function setDeviceFilter(f) {
+    deviceFilter = f;
+    document.querySelectorAll('.filter-tab').forEach(t => t.classList.toggle('active', t.dataset.filter === f));
+    renderDeviceTable();
+}
+
+async function runProbe(ip) {
+    try {
+        await api('/api/probe/ping?host=' + ip + '&count=4');
+        toast('探测完成', 'success');
+    } catch (e) {}
+}
+
+// ===== 拓扑页 =====
+async function loadTopology() {
+    try {
+        const [topoData, statsData] = await Promise.all([
+            api('/api/topology'),
+            api('/api/topology/stats')
+        ]);
+        topology = { nodes: topoData.nodes || [], links: topoData.links || [] };
+
+        document.getElementById('topo-total').textContent = statsData.total_nodes;
+        document.getElementById('topo-online').textContent = statsData.online_nodes;
+        document.getElementById('topo-offline').textContent = statsData.offline_nodes;
+        document.getElementById('topo-links-count').textContent = statsData.total_links;
+
+        renderTopology();
+    } catch (e) { console.error(e); }
+}
+
+function renderTopology() {
+    const canvas = document.getElementById('topology-canvas');
+    const filter = document.getElementById('topo-filter').value;
+    let nodes = topology.nodes;
+
+    if (filter) nodes = nodes.filter(n => n.device_type === filter);
+    if (!nodes.length) {
+        canvas.innerHTML = '<svg class="topo-links"></svg><div class="empty-state"><div class="icon">🗺️</div><div class="title">暂无拓扑数据</div></div>';
+        return;
+    }
+
+    const layers = { router:[], switch:[], firewall:[], other:[] };
+    const typeIcons = { router:'🔰', switch:'🔃', firewall:'🛡️', camera:'📷', server:'🖥️', access_point:'📡', unknown:'❓' };
+
+    nodes.forEach(n => {
+        const t = n.device_type || 'unknown';
+        if (['router','switch','firewall'].includes(t)) layers[t].push(n);
+        else layers.other.push(n);
+    });
+
+    canvas.innerHTML = '<svg class="topo-links" id="topo-links"></svg>';
+
+    const svg = document.getElementById('topo-links');
+    const W = canvas.offsetWidth;
+    const H = canvas.offsetHeight;
+    svg.setAttribute('viewBox', '0 0 ' + W + ' ' + H);
+
+    const layerGap = 130;
+    const nodeGap = 150;
+    const startX = 60;
+    const positions = {};
+
+    let offsetY = 50;
+    for (const [layer, items] of Object.entries(layers)) {
+        if (!items.length) continue;
+        let offsetX = startX + (W - startX - items.length * nodeGap) / 2;
+        items.forEach(node => {
+            positions[node.ip] = { x: offsetX, y: offsetY };
+            const el = document.createElement('div');
+            el.className = 'topo-node ' + (node.device_type || 'unknown');
+            el.style.left = offsetX + 'px';
+            el.style.top = offsetY + 'px';
+            const isOnline = node.last_seen && (Date.now() - new Date(node.last_seen).getTime()) < 120000;
+            el.innerHTML =
+                '<div class="node-icon">' + (typeIcons[node.device_type] || '❓') + '</div>' +
+                '<div class="node-name"><span class="node-status ' + (isOnline ? 'online' : 'offline') + '"></span>' + (node.hostname || node.device_type || '设备') + '</div>' +
+                '<div class="node-ip">' + node.ip + '</div>';
+            el.onclick = () => showDeviceDetail(node.ip);
+            canvas.appendChild(el);
+            offsetX += nodeGap;
+        });
+        offsetY += layerGap;
+    }
+
+    topology.links.forEach(link => {
+        const a = positions[link.node_a_ip];
+        const b = positions[link.node_b_ip];
+        if (a && b) {
+            const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+            line.setAttribute('x1', a.x + 65);
+            line.setAttribute('y1', a.y + 30);
+            line.setAttribute('x2', b.x + 65);
+            line.setAttribute('y2', b.y + 30);
+            svg.appendChild(line);
+        }
+    });
+}
+
+// ===== 告警页 =====
+async function loadAlerts() {
+    try {
+        const level = document.getElementById('alert-level-filter').value;
+        const data = await api('/api/alerts?limit=100' + (level ? '&level=' + level : ''));
+        alerts = data.alerts || [];
+        renderAlertList();
+    } catch (e) { console.error(e); }
+}
+
+function renderAlertList() {
+    const el = document.getElementById('alert-list');
+    if (!alerts.length) {
+        el.innerHTML = '<div class="empty-state"><div class="icon">✅</div><div class="title">暂无告警</div><div>系统运行正常</div></div>';
+        return;
+    }
+    el.innerHTML = '<div class="alert-list">' + alerts.map(a =>
+        '<div class="alert-item alert-level-' + a.level + '">' +
+            '<div class="alert-icon">' + (a.level === 'critical' ? '🔴' : a.level === 'warning' ? '🟡' : '🔵') + '</div>' +
+            '<div class="alert-body">' +
+                '<div class="alert-title">' + a.alert_type + '</div>' +
+                '<div class="alert-desc">' + a.message + '</div>' +
+                '<div class="alert-meta"><span>' + a.agent_id + '</span></div>' +
+            '</div>' +
+            '<div class="alert-time">' + formatTime(a.created_at) + '</div>' +
+        '</div>'
+    ).join('') + '</div>';
+}
+
+async function clearAlerts() {
+    if (!confirm('确定清理 7 天前的告警记录？')) return;
+    try {
+        await api('/api/alerts/clear?before_hours=168', { method: 'DELETE' });
+        toast('已清理', 'success');
+        loadAlerts();
+    } catch (e) {}
+}
+
+// ===== 历史页 =====
+function initHistoryChart() {
+    const ctx = document.getElementById('history-chart').getContext('2d');
+    if (historyChart) historyChart.destroy();
+    historyChart = new Chart(ctx, {
+        type: 'line',
+        data: { labels: [], datasets: [{ label: '延迟 (ms)', data: [], borderColor: '#58a6ff', tension: 0.4, borderWidth: 2 }] },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { legend: { display: false } },
+            scales: {
+                x: { grid: { color: 'rgba(48,54,61,0.5)' }, ticks: { color: '#6e7681', maxTicksLimit: 10 } },
+                y: { grid: { color: 'rgba(48,54,61,0.5)' }, ticks: { color: '#6e7681' } }
+            }
+        }
+    });
+}
+
+async function loadHistory() {
+    const target = document.getElementById('history-target').value.trim();
+    const hours = document.getElementById('history-hours').value;
+    if (!target) { toast('请输入目标', 'error'); return; }
+    try {
+        const data = await api('/api/history/trends/ping?target=' + encodeURIComponent(target) + '&hours=' + hours);
+        if (!data.data?.length) { toast('无数据', 'error'); return; }
+        historyChart.data.labels = data.data.map(d => new Date(d.timestamp).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}));
+        historyChart.data.datasets[0].data = data.data.map(d => d.rtt_ms);
+        historyChart.update();
+    } catch (e) { console.error(e); }
+}
+
+function switchHistoryTab(tab, e) {
+    document.querySelectorAll('.tabs .tab').forEach(t => t.classList.remove('active'));
+    e.target.classList.add('active');
+}
+
+// ===== 诊断向导页 =====
+async function loadWizardScenarios() {
+    try {
+        const data = await api('/api/wizard/scenarios');
+        const el = document.getElementById('wizard-scenarios');
+        const icons = { net_unreachable:'🔌', net_high_latency:'📶', dns_failure:'🌐', http_error:'🌍', service_down:'🖥️' };
+        const descs = { net_unreachable:'目标主机 ping 不通', net_high_latency:'网络延迟明显偏高', dns_failure:'域名无法解析', http_error:'网站或服务无法访问', service_down:'服务进程无响应' };
+
+        el.innerHTML = data.scenarios.map(s =>
+            '<div class="stat-card blue" style="cursor:pointer" onclick="startWizard(\'' + s.id + '\')">' +
+                '<div class="stat-label">' + (icons[s.id] || '❓') + ' ' + s.title + '</div>' +
+                '<div style="font-size:13px;color:var(--text-secondary);margin-top:4px">' + (descs[s.id] || s.description) + '</div>' +
+            '</div>'
+        ).join('');
+    } catch (e) { console.error(e); }
+}
+
+async function startWizard(scenario_id) {
+    try {
+        const data = await api('/api/wizard/start?scenario_id=' + scenario_id, { method: 'POST' });
+        currentWizardSession = data.session_id;
+        document.getElementById('wizard-scenarios').style.display = 'none';
+        document.getElementById('wizard-session').style.display = 'block';
+        document.getElementById('wizard-title').textContent = data.scenario;
+        renderWizardStep(data.step);
+    } catch (e) { console.error(e); }
+}
+
+async function answerWizard(response) {
+    try {
+        const data = await api('/api/wizard/' + currentWizardSession + '/answer?response=' + encodeURIComponent(response), { method: 'POST' });
+        if (data.finished) {
+            toast(data.message || '排查完成', 'success');
+            endWizard();
+        } else {
+            renderWizardStep(data.step);
+        }
+    } catch (e) {}
+}
+
+function renderWizardStep(step) {
+    const stepEl = document.getElementById('wizard-step');
+    const optsEl = document.getElementById('wizard-options');
+    stepEl.innerHTML = '<div style="font-size:16px;font-weight:600;margin-bottom:16px">' + step.question + '</div>';
+
+    if (step.options && step.options.length) {
+        optsEl.innerHTML = '<div style="display:flex;flex-direction:column;gap:8px">' + step.options.map(opt =>
+            '<button class="btn btn-secondary" style="text-align:left" onclick="answerWizard(\'' + opt.replace(/'/g, "\\'") + '\')">' + opt + '</button>'
+        ).join('') + '</div>';
+    } else if (step.step_type === 'yesno') {
+        optsEl.innerHTML =
+            '<div style="display:flex;gap:10px">' +
+                '<button class="btn btn-primary" onclick="answerWizard(\'是\')">✅ 是</button>' +
+                '<button class="btn btn-secondary" onclick="answerWizard(\'否\')">❌ 否</button>' +
+            '</div>';
+    } else {
+        optsEl.innerHTML = '<div style="color:var(--text-muted);font-size:13px">请根据实际情况在本地执行相应命令进行排查。</div>';
+    }
+}
+
+function endWizard() {
+    currentWizardSession = null;
+    document.getElementById('wizard-session').style.display = 'none';
+    document.getElementById('wizard-scenarios').style.display = 'grid';
+}
+
+// ===== 设备详情弹窗 =====
+async function showDeviceDetail(ip) {
+    document.getElementById('device-modal').classList.add('show');
+    document.getElementById('modal-device-title').textContent = ip;
+    document.getElementById('modal-device-body').innerHTML = '<div class="skeleton skeleton-text" style="width:100%"></div>';
+    try {
+        const data = await api('/api/topology/node/' + encodeURIComponent(ip));
+        const n = data.node;
+        const isOnline = n.last_seen && (Date.now() - new Date(n.last_seen).getTime()) < 120000;
+        document.getElementById('modal-device-body').innerHTML =
+            '<div class="detail-grid">' +
+                '<div class="detail-item"><div class="detail-label">IP</div><div class="detail-value">' + n.ip + '</div></div>' +
+                '<div class="detail-item"><div class="detail-label">主机名</div><div class="detail-value">' + (n.hostname || '-') + '</div></div>' +
+                '<div class="detail-item"><div class="detail-label">类型</div><div class="detail-value"><span class="device-type-badge ' + n.device_type + '">' + (n.device_type || 'unknown') + '</span></div></div>' +
+                '<div class="detail-item"><div class="detail-label">厂商</div><div class="detail-value">' + (n.vendor || 'Unknown') + '</div></div>' +
+                '<div class="detail-item"><div class="detail-label">MAC</div><div class="detail-value">' + (n.mac || '-') + '</div></div>' +
+                '<div class="detail-item"><div class="detail-label">状态</div><div class="detail-value"><span class="online-dot ' + (isOnline ? 'online' : 'offline') + '"></span> ' + (isOnline ? '在线' : '离线') + '</div></div>' +
+            '</div>' +
+            (data.alerts && data.alerts.length ?
+                '<div style="margin-top:20px"><div style="font-size:14px;font-weight:600;margin-bottom:8px">最近告警</div>' +
+                data.alerts.map(a => '<div class="alert-item alert-level-' + a.level + '" style="margin:0">' +
+                    '<div class="alert-icon">' + (a.level==='critical'?'🔴':'🟡') + '</div>' +
+                    '<div class="alert-body"><div class="alert-desc">' + a.message + '</div></div>' +
+                    '<div class="alert-time">' + formatTime(a.created_at) + '</div>' +
+                '</div>').join('') +
+                '</div>' : ''
+            );
+    } catch (e) {
+        document.getElementById('modal-device-body').innerHTML = '<div style="color:var(--accent-red)">加载失败</div>';
+    }
+}
+
+function closeModal() { document.getElementById('device-modal').classList.remove('show'); }
+
+// ===== 拓扑发现弹窗 =====
+function showDiscoverModal() {
+    document.getElementById('discover-modal').classList.add('show');
+    document.getElementById('discover-status').textContent = '';
+}
+
+function closeDiscoverModal() { document.getElementById('discover-modal').classList.remove('show'); }
+
+async function doDiscover() {
+    const seed = document.getElementById('discover-seed').value.trim();
+    const community = document.getElementById('discover-community').value.trim();
+    const max_hops = parseInt(document.getElementById('discover-hops').value);
+    if (!seed) { toast('请输入种子 IP', 'error'); return; }
+    const statusEl = document.getElementById('discover-status');
+    statusEl.textContent = '⏳ 正在发现...';
+    try {
+        await api('/api/topology/discover', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ agent_id: 'web-ui', seed_ips: [seed], community, max_hops, max_devices: 50 })
+        });
+        statusEl.textContent = '✅ 发现完成！';
+        toast('拓扑更新成功', 'success');
+        setTimeout(() => { closeDiscoverModal(); loadTopology(); }, 1500);
+    } catch (e) { statusEl.textContent = '❌ ' + e.message; }
+}
+
+// ===== 工具 =====
+function formatTime(ts) {
+    if (!ts) return '-';
+    const d = new Date(ts);
+    const diff = Date.now() - d.getTime();
+    if (diff < 60000) return '刚刚';
+    if (diff < 3600000) return Math.floor(diff/60000) + ' 分钟前';
+    if (diff < 86400000) return Math.floor(diff/3600000) + ' 小时前';
+    return d.toLocaleDateString();
+}
+
+// ===== 初始化 =====
+document.addEventListener('DOMContentLoaded', function() {
+    var s = document.createElement('script');
+    s.src = 'https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js';
+    document.head.appendChild(s);
+    s.onload = function() { showPage('overview'); setInterval(updateTime, 1000); };
+    s.onerror = function() { toast('Chart.js 加载失败', 'error'); showPage('overview'); };
+});
+</script>
+</body>
+</html>

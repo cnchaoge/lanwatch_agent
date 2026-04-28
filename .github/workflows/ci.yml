@@ -1,0 +1,53 @@
+name: CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+jobs:
+  test-server:
+    name: Server Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          cd server
+          pip install -r requirements.txt
+          pip install pytest pytest-asyncio httpx
+
+      - name: Run unit tests
+        run: |
+          cd server
+          pytest tests/ -v --tb=short
+
+      - name: Check syntax
+        run: |
+          cd server
+          python -m py_compile main.py
+          python -m py_compile core/__init__.py
+          python -m py_compile api/__init__.py
+          python -m py_compile modules/__init__.py
+
+  lint:
+    name: Code Quality
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Run flake8
+        run: |
+          pip install flake8
+          flake8 server/ --max-line-length=120 --ignore=E501,W503 --count
+        continue-on-error: true

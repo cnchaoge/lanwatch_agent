@@ -1,0 +1,73 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+*.egg
+.eggs/
+*.whl
+
+# Virtual environments
+venv/
+.venv/
+ENV/
+env/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# 测试
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+
+# 数据库
+*.db
+*.sqlite
+*.sqlite3
+monitor.db
+
+# 日志
+*.log
+logs/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# 服务端
+server/monitor.db
+server/*.db
+
+# Windows
+*.pyc
+*.pyo
+
+# Docker
+.docker/
+
+# Node（前端如果用到）
+node_modules/
+
+# 临时文件
+tmp/
+temp/
+*.tmp
+
+# Agent 配置（包含 token）
+agent/windows/config.json
+agent/linux/agent.json
+agent/router/config.sh
+
+# 本地环境变量
+.env.local
+.env.production
+
+# IDE 补充
+.vs/

@@ -683,13 +683,16 @@ def register_agent(company_name, phone="", location=""):
         return None
 
 
-def report(data, agent_id):
+def report(data, agent_id, token=""):
     """上报探测数据"""
     try:
+        headers = {"Content-Type": "application/json"}
+        if token:
+            headers["Authorization"] = "Bearer " + token
         req = urllib.request.Request(
             SERVER_URL + "/api/" + agent_id + "/report",
             data=json.dumps(data).encode(),
-            headers={"Content-Type": "application/json"},
+            headers=headers,
             method="POST"
         )
         with urllib.request.urlopen(req, timeout=10) as resp:
@@ -715,13 +718,16 @@ def report_offline(agent_id):
         pass
 
 
-def report_uninstall(agent_id, timeout=10):
+def report_uninstall(agent_id, token="", timeout=10):
     """卸载时通知服务端，标记该设备已卸载"""
     try:
+        headers = {"Content-Type": "application/json"}
+        if token:
+            headers["Authorization"] = "Bearer " + token
         req = urllib.request.Request(
             SERVER_URL + "/api/" + agent_id + "/uninstall",
             data=b"{}",
-            headers={"Content-Type": "application/json"},
+            headers=headers,
             method="POST"
         )
         with urllib.request.urlopen(req, timeout=timeout) as resp:
@@ -790,13 +796,16 @@ def run_offline_diag():
     return diag
 
 
-def report_diag(diag_data, agent_id):
+def report_diag(diag_data, agent_id, token=""):
     """上报诊断结果到服务端"""
     try:
+        headers = {"Content-Type": "application/json"}
+        if token:
+            headers["Authorization"] = "Bearer " + token
         req = urllib.request.Request(
             SERVER_URL + "/api/" + agent_id + "/diag",
             data=json.dumps(diag_data).encode(),
-            headers={"Content-Type": "application/json"},
+            headers=headers,
             method="POST"
         )
         with urllib.request.urlopen(req, timeout=10) as resp:
@@ -806,13 +815,16 @@ def report_diag(diag_data, agent_id):
         log.warning("[诊断] 上报失败: %s", e)
         return None
 
-def report_topology(devices, agent_id):
+def report_topology(devices, agent_id, token=""):
     """上报拓扑数据"""
     try:
+        headers = {"Content-Type": "application/json"}
+        if token:
+            headers["Authorization"] = "Bearer " + token
         req = urllib.request.Request(
             SERVER_URL + "/api/" + agent_id + "/topology",
             data=json.dumps({"devices": devices}).encode(),
-            headers={"Content-Type": "application/json"},
+            headers=headers,
             method="POST"
         )
         with urllib.request.urlopen(req, timeout=10) as resp:
@@ -1014,6 +1026,7 @@ def _do_uninstall_confirm():
     log.info("[卸载] 开始卸载...")
     config = load_config()
     agent_id = config.get("agent_id") if config else None
+    agent_token = config.get("agent_token", "") if config else ""
 
     # 1. 删除自启动
     set_autostart(False)
@@ -1022,7 +1035,7 @@ def _do_uninstall_confirm():
     # 2. 同步通知服务端（卸载时不能用 daemon 线程 + os._exit，否则线程会来不及发出请求）
     if agent_id:
         log.info("[卸载] 正在通知服务端...")
-        report_uninstall(agent_id, timeout=3)
+        report_uninstall(agent_id, agent_token, timeout=3)
 
     # 3. 删除配置文件
     try:
@@ -1398,12 +1411,14 @@ def _show_setup_window(root):
                     return
                 agent_id = reg["agent_id"]
                 token    = reg["token"]
+                agent_token = reg.get("agent_token", "")
                 log.info("注册成功，Agent ID: %s", agent_id)
                 cfg = {
                     "agent_id": agent_id, "company_name": company_name,
                     "phone": phone, "location": location,
                     "subnets": [subnet] if subnet and subnet != "无法检测" else [],
                     "targets": [{"name": "网关", "host": get_gateway()}],
+                    "agent_token": agent_token,
                 }
                 save_config(cfg)
                 if autostart_var.get():
@@ -1647,8 +1662,9 @@ def _run_monitoring(agent_id, company_name):
             cfg = load_config()
             subnets = (cfg or {}).get("subnets", [])
             targets = (cfg or {}).get("targets", DEFAULT_TARGETS)
+            agent_token = (cfg or {}).get("agent_token", "")
             data = run_probe(subnets)
-            result = report(data, agent_id)
+            result = report(data, agent_id, agent_token)
             if result:
                 consecutive_errors = 0
                 update_tray_status(data.get("dns_ms") is not None)
@@ -1660,7 +1676,7 @@ def _run_monitoring(agent_id, company_name):
                 log.warning("[探测] 上报失败 (连续失败 %d 次)", consecutive_errors)
                 if consecutive_errors >= 3:
                     diag = run_offline_diag()
-                    threading.Thread(target=lambda: report_diag(diag, agent_id), daemon=True, name="diag").start()
+                    threading.Thread(target=lambda: report_diag(diag, agent_id, agent_token), daemon=True, name="diag").start()
                 update_tray_status(False)
         except KeyboardInterrupt:
             log.info("收到停止信号")
