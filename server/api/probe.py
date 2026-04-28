@@ -1,6 +1,7 @@
 from fastapi import APIRouter, HTTPException, Header, Body
 from typing import Optional, List, Dict, Any
 from datetime import datetime
+import json
 from core.database import get_db
 from core.auth import verify_agent_token
 from modules.ping import ping_host
@@ -9,24 +10,41 @@ router = APIRouter()
 
 
 @router.post("/{agent_id}/report")
-async def report(agent_id: str, reports: List[dict], authorization: Optional[str] = Header(None)):
+async def report(agent_id: str, body: Any = Body(...), authorization: Optional[str] = Header(None)):
     verified_id = verify_agent_token(authorization)
     if verified_id != agent_id:
         raise HTTPException(status_code=403, detail="token 与 agent_id 不匹配")
+    # 客户端发单个 dict 或 {{"reports": [{{...}}]}} 或纯列表，统一处理
+    if isinstance(body, dict):
+        items = body.get("reports", [body])
+    elif isinstance(body, list):
+        items = body
+    else:
+        items = [body]
     with get_db() as conn:
         cursor = conn.cursor()
-        for r in reports:
+        for r in items:
             cursor.execute("INSERT INTO probe_results (agent_id, probe_type, target, status, rtt_ms, raw_output) VALUES (?, ?, ?, ?, ?, ?)",
-                (agent_id, r.get("probe_type"), r.get("target"), r.get("status"), r.get("rtt_ms"), str(r.get("output")) if r.get("output") else None))
+                (agent_id, r.get("probe_type"), r.get("target"), r.get("status"), r.get("rtt_ms"), json.dumps(r, ensure_ascii=False) if r else None))
         cursor.execute("UPDATE agents SET last_seen = ? WHERE agent_id = ?", (datetime.now().isoformat(), agent_id))
-    return {"success": True, "received": len(reports)}
+    return {"success": True, "received": len(items)}
 
 
 @router.post("/{agent_id}/topology")
-async def report_topology(agent_id: str, nodes: List[Dict[str, Any]] = Body(...), links: List[Dict[str, Any]] = Body(default=[]), authorization: Optional[str] = Header(None)):
+async def report_topology(agent_id: str, body: Any = Body(...), authorization: Optional[str] = Header(None)):
     verified_id = verify_agent_token(authorization)
     if verified_id != agent_id:
         raise HTTPException(status_code=403, detail="token 与 agent_id 不匹配")
+    # 客户端发 {"devices": [...]}，服务端也直接支持 {"nodes": [...]} 或 {"devices": [...]} 或纯列表
+    if isinstance(body, dict):
+        nodes = body.get("nodes", body.get("devices", []))
+        links = body.get("links", [])
+    elif isinstance(body, list):
+        nodes = body
+        links = []
+    else:
+        nodes = []
+        links = []
     with get_db() as conn:
         cursor = conn.cursor()
         for node in nodes:
@@ -36,6 +54,18 @@ async def report_topology(agent_id: str, nodes: List[Dict[str, Any]] = Body(...)
             cursor.execute("INSERT OR REPLACE INTO topology_links (node_a_ip, node_a_port, node_b_ip, node_b_port, link_type) VALUES (?, ?, ?, ?, ?)",
                 (link.get("from",""), link.get("from_port",""), link.get("to",""), link.get("to_port",""), link.get("type","ethernet")))
     return {"success": True, "nodes": len(nodes), "links": len(links)}
+
+
+@router.post("/{agent_id}/offline")
+async def report_offline(agent_id: str, authorization: Optional[str] = Header(None)):
+    """客户端下线通知"""
+    verified_id = verify_agent_token(authorization)
+    if verified_id != agent_id:
+        raise HTTPException(status_code=403, detail="token 与 agent_id 不匹配")
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute("UPDATE agents SET last_seen = ? WHERE agent_id = ?", (datetime.now().isoformat(), agent_id))
+    return {"success": True}
 
 
 @router.post("/{agent_id}/diag")

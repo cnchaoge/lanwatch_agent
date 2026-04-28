@@ -170,11 +170,7 @@ def _do_upgrade(download_url, new_version):
                 _tray_icon_ref.stop()
         except Exception:
             pass
-        # 清理本次下载的 update.exe（bat 自己清理自己）
-        try:
-            os.remove(UPDATE_EXE)
-        except Exception:
-            pass
+        # 由 bat 脚本自己清理 update.exe，此处不删除
         os._exit(0)
     except Exception as e:
         log.error("[升级] 下载/替换失败: %s", e)
@@ -610,6 +606,38 @@ def scan_device_ports(host, timeout=PORT_SCAN_TIMEOUT, workers=PORT_SCAN_WORKERS
     return open_ports
 
 
+def _ping_scan_subnet(subnet_prefix, timeout=1, max_concurrency=50):
+    """
+    对指定网段进行 ping 探测，填充 ARP 缓存表。
+    subnet_prefix: 如 "192.168.1"
+    """
+    results = []
+
+    def ping_host(ip):
+        try:
+            if sys.platform == "win32":
+                _run_hidden(f'ping -n 1 -w {timeout*1000} {ip}', timeout=timeout + 1)
+            else:
+                _run_hidden(f'ping -c 1 -W {timeout} {ip}', timeout=timeout + 1)
+            return ip
+        except Exception:
+            return None
+
+    threads = []
+    for i in range(1, 255):
+        ip = f"{subnet_prefix}.{i}"
+        t = threading.Thread(target=lambda _ip=ip: results.append(_ip) if ping_host(_ip) else None)
+        t.start()
+        threads.append(t)
+        if len(threads) >= max_concurrency:
+            for t in threads:
+                t.join()
+            threads = []
+    for t in threads:
+        t.join()
+    return results
+
+
 def get_all_devices_from_arp():
     """读取本机 ARP 缓存表，获取局域网已知设备（不发包，速度快）"""
     devices = []
@@ -622,9 +650,7 @@ def get_all_devices_from_arp():
             line = line.strip()
             # Windows: 192.168.1.1    60:de:44:67:12:1a     动态
             # Linux: 192.168.1.1                      (ether) 60:de:44:67:12:1a  eth0
-            m = re.search(r'(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})\s+([0-9a-fA-F:]{17})', line)
-            if not m:
-                m = re.search(r'(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})\s+([0-9a-fA-F]{2}[-:][0-9a-fA-F]{2}[:][0-9a-fA-F]{2}[:][0-9a-fA-F]{2}[:][0-9a-fA-F]{2}[:][0-9a-fA-F]{2})', line)
+            m = re.search(r'(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})\s+(?:[0-9a-fA-F]{2}[:-]){5}[0-9a-fA-F]{2}', line)
             if m:
                 ip, mac = m.group(1), m.group(2).replace('-', ':').upper()
                 # 过滤广播/组播地址
@@ -647,11 +673,25 @@ def get_all_devices_from_arp():
 
 def scan_topology(subnets=None):
     """
-    读取本机 ARP 缓存表获取局域网设备（不发包，静默扫描）
-    仅在未配置 subnets 时自动检测本机所在网段的 ARP 条目
+    扫描局域网内设备：
+    1. 自动检测本机所在网段（如未指定 subnets）
+    2. 对该网段进行 ping 探测，填充 ARP 缓存表
+    3. 读取 ARP 缓存表获取设备列表
     """
+    if not subnets:
+        prefix = get_subnet_prefix()
+        if not prefix:
+            log.warning("[拓扑] 无法检测本机网段，跳过拓扑扫描")
+            return []
+        subnets = [prefix]
+        log.info("[拓扑] 自动检测到网段: %s.0/24", prefix)
+
+    for subnet in subnets:
+        log.info("[拓扑] 开始 ping 扫描网段 %s.0/24 ...", subnet)
+        _ping_scan_subnet(subnet)
+
     devices = get_all_devices_from_arp()
-    log.info("[拓扑] ARP 扫描完成，发现 %d 台设备", len(devices))
+    log.info("[拓扑] 扫描完成，发现 %d 台设备", len(devices))
     return devices
 
 
@@ -1423,10 +1463,14 @@ def _show_setup_window(root):
                 save_config(cfg)
                 if autostart_var.get():
                     set_autostart(True)
-                win.destroy()
-                # 同步显示成功窗口（需要在 root.mainloop 退出前调用）
-                _show_success_window(root, company_name, agent_id, token)
-                root.quit()
+                # 在主线程操作 Tkinter，避免线程安全问题
+                register_done = threading.Event()
+                def _show_success_on_main():
+                    win.destroy()
+                    _show_success_window(root, company_name, agent_id, token)
+                    register_done.set()
+                root.after(0, _show_success_on_main)
+                register_done.wait()
             except Exception as e:
                 import traceback
                 log.error("注册异常: %s", e)
@@ -1646,6 +1690,16 @@ def main():
         _run_monitoring(agent_id, company_name)
     threading.Thread(target=run_monitor, daemon=True, name="monitor").start()
 
+    # 启动时立即触发一次拓扑扫描（后台线程，不阻塞主程序）
+    def do_initial_topology():
+        import time
+        time.sleep(3)  # 等待主循环加载完配置
+        cfg = load_config()
+        agent_token = (cfg or {}).get("agent_token", "")
+        subnets = (cfg or {}).get("subnets", [])
+        _do_topology_scan(subnets, agent_id, agent_token)
+    threading.Thread(target=do_initial_topology, daemon=True, name="topology-init").start()
+
     # 运行 Tk 主循环，处理 after() 回调和 action 队列
     _tk_root.mainloop()
     log.info("Agent 已停止")
@@ -1691,7 +1745,7 @@ def _run_monitoring(agent_id, company_name):
         if topo_next_in <= 0:
             topo_next_in = TOPOLOGY_INTERVAL
             threading.Thread(target=_do_topology_scan,
-                           args=((cfg or {}).get("subnets", []), agent_id),
+                           args=((cfg or {}).get("subnets", []), agent_id, agent_token),
                            daemon=True, name="topology").start()
         if upgrade_next_in <= 0:
             upgrade_next_in = UPDATE_CHECK_INTERVAL
@@ -1707,12 +1761,12 @@ def _run_monitoring(agent_id, company_name):
 
 
 
-def _do_topology_scan(subnets, agent_id):
+def _do_topology_scan(subnets, agent_id, agent_token):
     """执行拓扑扫描并上报（后台线程调用）"""
     try:
         devices = scan_topology(subnets) if subnets else scan_topology()
         if devices:
-            report_topology(devices, agent_id)
+            report_topology(devices, agent_id, agent_token)
     except Exception as e:
         log.error("[拓扑] 扫描异常: %s", e)
 
