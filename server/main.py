@@ -92,6 +92,7 @@ async def generic_exception_handler(request: Request, exc: Exception):
 
 # ── 路由注册 ────────────────────────────────────────────────────────
 
+app.include_router(agents_router, prefix="/api")   # 静态 /agents 必须在 /{agent_id} 之前
 app.include_router(probe_router, prefix="/api")
 app.include_router(diag_router, prefix="/api")
 app.include_router(probes_router, prefix="/api")
@@ -103,7 +104,6 @@ app.include_router(topology_router, prefix="/api")
 app.include_router(diagnosis_router, prefix="/api")
 app.include_router(wizard_router, prefix="/api")
 app.include_router(propagation_router, prefix="/api")
-app.include_router(agents_router, prefix="/api")
 
 register_web(app)
 
