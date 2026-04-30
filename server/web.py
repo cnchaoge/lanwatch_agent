@@ -1,8 +1,9 @@
-"""Web 前端服务 — 根路径返回 index.html"""
+"""Web 前端服务 — Jinja2 模板渲染 + 静态文件"""
 from pathlib import Path
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse
+from fastapi.templating import Jinja2Templates
+from fastapi.responses import HTMLResponse
 
 
 def register_web(app: FastAPI):
@@ -13,13 +14,51 @@ def register_web(app: FastAPI):
     templates_dir.mkdir(exist_ok=True)
     static_dir.mkdir(exist_ok=True)
 
+    templates = Jinja2Templates(directory=str(templates_dir))
+
     if static_dir.exists():
         app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
 
-    @app.get("/")
-    async def serve_index():
-        index_file = templates_dir / "index.html"
-        if index_file.exists():
-            return FileResponse(str(index_file), media_type="text/html")
-        return {"error": "index.html not found", "hint": "place index.html in templates/"}
+    @app.get("/", response_class=HTMLResponse)
+    async def serve_index(request: Request):
+        return templates.TemplateResponse("index.html", {"request": request})
 
+    from fastapi.responses import RedirectResponse
+
+    named_pages = ["admin", "ping_overview", "download", "monitor", "setup", "mobile"]
+    for name in named_pages:
+
+        def _add_redirect(page=name):
+            @app.get(f"/{page}", response_class=RedirectResponse)
+            async def redirect_to_html():
+                return RedirectResponse(url=f"/{page}.html")
+
+        _add_redirect()
+
+    @app.get("/{page_name}.html", response_class=HTMLResponse)
+    async def serve_page(page_name: str, request: Request):
+        tmpl = f"{page_name}.html"
+        if (templates_dir / tmpl).is_file():
+            return templates.TemplateResponse(tmpl, {"request": request})
+        static_file = static_dir / tmpl
+        if static_file.is_file():
+            from fastapi.responses import FileResponse
+            return FileResponse(str(static_file), media_type="text/html")
+        from fastapi.responses import JSONResponse
+        return JSONResponse(
+            status_code=404,
+            content={"success": False, "error": f"页面 {tmpl} 不存在"},
+        )
+
+    # Detail pages with path parameters (JS reads ID from URL)
+    @app.get("/agent/{agent_id}", response_class=HTMLResponse)
+    async def agent_detail(request: Request, agent_id: str):
+        return templates.TemplateResponse("agent_detail.html", {"request": request})
+
+    @app.get("/ping_detail/{monitor_id}", response_class=HTMLResponse)
+    async def ping_detail(request: Request, monitor_id: str):
+        return templates.TemplateResponse("ping_detail.html", {"request": request})
+
+    @app.get("/snmp_detail/{device_id}", response_class=HTMLResponse)
+    async def snmp_detail(request: Request, device_id: str):
+        return templates.TemplateResponse("snmp_detail.html", {"request": request})

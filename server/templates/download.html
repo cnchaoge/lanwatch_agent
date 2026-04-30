@@ -1,0 +1,152 @@
+{% extends "base.html" %}
+{% block title %}下载中心 - Lanwatch{% endblock %}
+
+{% block nav_items %}
+<a class="nav-item" href="/">📊 总览</a>
+<a class="nav-item active" href="/download.html">📥 下载中心</a>
+<a class="nav-item" href="/admin.html">⚙️ 管理后台</a>
+<a class="nav-item" href="/ping_overview.html">📡 掉线检测</a>
+{% endblock %}
+
+{% block mobile_nav_items %}
+<a class="nav-item" href="/">📊 总览</a>
+<a class="nav-item" href="/download.html">📥 下载中心</a>
+<a class="nav-item" href="/admin.html">⚙️ 管理后台</a>
+<a class="nav-item" href="/ping_overview.html">📡 掉线检测</a>
+{% endblock %}
+
+{% block head_extra %}
+<style>
+:root {
+  --surface: var(--bg-card);
+  --surface-hover: rgba(255,255,255,0.03);
+  --muted: var(--text-secondary);
+  --primary: var(--accent-blue);
+  --green: var(--accent-green);
+  --yellow: var(--accent-yellow);
+}
+
+.page-header { padding: 0 0 28px 0; }
+.page-header h1 { font-size: 22px; font-weight: 800; margin-bottom: 4px; }
+.page-header p { font-size: 14px; color: var(--muted); }
+
+.info-note {
+  background: rgba(88,166,255,0.08); border: 1px solid rgba(88,166,255,0.18);
+  border-radius: var(--radius-md); padding: 14px 18px;
+  font-size: 13px; color: var(--accent-blue); line-height: 1.7;
+  margin-bottom: 28px;
+}
+
+.platform-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 14px; margin-bottom: 32px; }
+.platform-card {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius-lg); padding: 20px;
+  display: flex; flex-direction: column; gap: 8px;
+  transition: background 0.15s, transform 0.2s;
+}
+.platform-card:hover { background: var(--surface-hover); transform: translateY(-2px); }
+.platform-icon { font-size: 28px; margin-bottom: 4px; }
+.platform-name { font-size: 15px; font-weight: 700; }
+.platform-desc { font-size: 12px; color: var(--muted); flex: 1; line-height: 1.6; }
+.platform-version { font-size: 11px; color: var(--muted); }
+
+.section { margin-top: 40px; }
+.section-title { font-size: 18px; font-weight: 700; margin-bottom: 16px; display: flex; align-items: center; gap: 8px; }
+
+.snmp-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.snmp-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 22px; }
+.snmp-card h4 { font-size: 15px; font-weight: 700; margin-bottom: 12px; }
+.snmp-card p, .snmp-card .step { font-size: 13px; color: var(--muted); line-height: 1.8; }
+.param-row { display: flex; gap: 10px; font-size: 13px; line-height: 1.9; margin-bottom: 4px; }
+.param-name { color: var(--muted); min-width: 90px; flex-shrink: 0; }
+.param-val { font-family: "Menlo", monospace; background: var(--bg-tertiary); padding: 0 8px; border-radius: 6px; font-size: 12px; color: var(--text-primary); }
+.snmp-warn { background: rgba(210,153,34,0.08); border: 1px solid rgba(210,153,34,0.18); border-radius: 8px; padding: 10px 14px; font-size: 12px; color: var(--accent-yellow); margin-top: 12px; line-height: 1.7; }
+
+@media (max-width: 640px) { .snmp-grid { grid-template-columns: 1fr; } }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container" style="padding-top:28px;">
+  <div class="page-header">
+    <h1>📥 下载中心</h1>
+    <p>选择对应平台安装包，下载后双击运行即可完成部署。</p>
+  </div>
+
+  <div class="info-note">
+    💡 <strong>首次安装：</strong>下载对应平台的安装包，双击运行，填写企业名称完成注册。<br>
+    数据将自动上报至服务器，随时可通过管理后台查看网络状态。
+  </div>
+
+  <div class="platform-grid">
+    <div class="platform-card">
+      <div class="platform-icon">🪟</div>
+      <div class="platform-name">Windows 客户端</div>
+      <div class="platform-desc">适用于 Windows 10/11 系统，桌面后台运行，开机自启</div>
+      <div class="platform-version">v0.9.8 · 2026-04-27</div>
+      <a class="btn btn-primary platform-link" href="/client.exe" style="display:block;text-align:center">立即下载 (.exe)</a>
+    </div>
+
+    <div class="platform-card">
+      <div class="platform-icon">🐧</div>
+      <div class="platform-name">Linux 客户端</div>
+      <div class="platform-desc">适用于 Debian/Ubuntu/CentOS 系统，命令行运行</div>
+      <div class="platform-version">v0.9.8 · 2026-04-27</div>
+      <a class="btn btn-primary platform-link" href="/client-linux.tar.gz" style="display:block;text-align:center">立即下载 (二进制)</a>
+    </div>
+
+    <div class="platform-card">
+      <div class="platform-icon">🍎</div>
+      <div class="platform-name">macOS 客户端</div>
+      <div class="platform-desc">适用于 macOS 10.15+ 系统</div>
+      <div class="platform-version">规划中</div>
+      <a class="btn btn-secondary platform-link" href="javascript:void(0)" style="display:block;text-align:center">敬请期待</a>
+    </div>
+
+    <div class="platform-card">
+      <div class="platform-icon">📡</div>
+      <div class="platform-name">OpenWRT 路由器</div>
+      <div class="platform-desc">适用于 OpenWRT 系统路由器</div>
+      <div class="platform-version">v0.9.8 · 2026-04-27</div>
+      <a class="btn btn-primary platform-link" href="/download/openwrt" style="display:block;text-align:center">下载路由客户端</a>
+    </div>
+
+    <div class="platform-card">
+      <div class="platform-icon">📱</div>
+      <div class="platform-name">手机端查看</div>
+      <div class="platform-desc">微信内直接访问，无需安装 App，扫码即用</div>
+      <div class="platform-version">访问地址：/mobile?id=设备ID</div>
+      <a class="btn btn-secondary platform-link" href="/mobile?id=demo" style="display:block;text-align:center">手机扫码演示</a>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">🌐 企业路由器 / 交换机 — SNMP 监控配置</div>
+    <p style="font-size:13px;color:var(--text-secondary);margin-bottom:18px;line-height:1.7;">
+      如果您的设备无法安装 Agent 客户端（如企业级路由器、硬件防火墙、核心交换机），可通过 SNMP 协议接入平台监控。
+    </p>
+
+    <div class="snmp-grid">
+      <div class="snmp-card">
+        <h4>📋 SNMP V2c 配置参数</h4>
+        <div class="param-row"><span class="param-name">SNMP 版本</span><span class="param-val">V2c</span></div>
+        <div class="param-row"><span class="param-name">Community</span><span class="param-val">public</span></div>
+        <div class="param-row"><span class="param-name">目的主机</span><span class="param-val">82.156.229.67</span></div>
+        <div class="snmp-warn">
+          ⚠️ 确保 Community 为 <code style="font-family:monospace;">public</code>
+        </div>
+      </div>
+
+      <div class="snmp-card">
+        <h4>📖 配置步骤</h4>
+        <p class="step">1. 登录路由器管理后台（通常为 192.168.1.1）</p>
+        <p class="step">2. 找到「SNMP」或「网络管理」配置项</p>
+        <p class="step">3. 启用 SNMP V2c，Community 填写 public</p>
+        <p class="step">4. 配置 Trap/目的主机</p>
+        <p class="step">5. 保存设置，重启 SNMP 服务</p>
+        <p style="margin-top:10px;font-size:13px;">📌 配置完成后，在管理后台添加设备即可开始监控。</p>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

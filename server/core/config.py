@@ -14,6 +14,7 @@ class Config:
     TRACEROUTE_MAX_HOPS = 30
     TRACEROUTE_TIMEOUT = 3
     ALERT_COOLDOWN_SECONDS = 300
+    LOG_LEVEL = os.environ.get("LOG_LEVEL", "INFO")
     DINGTALK_WEBHOOK = os.environ.get("DINGTALK_WEBHOOK", "")
     FEISHU_WEBHOOK = os.environ.get("FEISHU_WEBHOOK", "")
 

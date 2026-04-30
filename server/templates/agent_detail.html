@@ -1,0 +1,184 @@
+{% extends "base.html" %}
+{% block title %}设备详情 - Lanwatch{% endblock %}
+
+{% block navbar_brand %}
+<a class="navbar-brand" href="/" style="font-size:15px">Lanwatch</a>
+{% endblock %}
+
+{% block nav_items %}
+<a class="nav-item" href="/">📊 总览</a>
+<a class="nav-item" href="/admin.html">⚙️ 管理后台</a>
+{% endblock %}
+
+{% block mobile_nav_items %}
+<a class="nav-item" href="/">📊 总览</a>
+<a class="nav-item" href="/admin.html">⚙️ 管理后台</a>
+{% endblock %}
+
+{% block head_extra %}
+<style>
+:root {
+  --surface: var(--bg-card);
+  --muted: var(--text-secondary);
+  --primary: var(--accent-blue);
+  --green: var(--accent-green);
+  --red: var(--accent-red);
+  --primary-dim: rgba(88,166,255,0.12);
+}
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 20px; margin-bottom: 16px; }
+.card-title { font-size: 15px; font-weight: 600; margin-bottom: 12px; }
+.info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.info-item { display: flex; flex-direction: column; gap: 2px; }
+.info-label { font-size: 11px; color: var(--muted); }
+.info-value { font-size: 13px; font-weight: 500; }
+.status-online { color: var(--green); } .status-offline { color: var(--red); }
+.metrics-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 16px; }
+.metric-item { display: flex; align-items: center; gap: 8px; font-size: 13px; }
+.metric-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+.dot-green { background: var(--green); box-shadow: 0 0 5px rgba(63,185,80,0.5); }
+.dot-orange { background: var(--accent-yellow); box-shadow: 0 0 5px rgba(210,153,34,0.5); }
+.dot-red { background: var(--red); box-shadow: 0 0 5px rgba(248,81,73,0.5); }
+.dot-grey { background: var(--text-muted); }
+.metric-label { color: var(--muted); }
+.metric-val { font-weight: 600; margin-left: auto; }
+.val-green { color: var(--green); } .val-orange { color: var(--accent-yellow); } .val-red { color: var(--red); } .val-grey { color: var(--text-muted); }
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+th { text-align: left; padding: 8px 12px; background: var(--bg-tertiary); color: var(--muted); font-weight: 500; border-bottom: 1px solid var(--border); }
+td { padding: 10px 12px; border-bottom: 1px solid var(--border); }
+tr:last-child td { border-bottom: none; }
+.type-badge { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 500; background: var(--bg-tertiary); color: var(--text-secondary); }
+.online-dot { width: 6px; height: 6px; border-radius: 50%; display: inline-block; margin-right: 4px; }
+.online-dot.on { background: var(--green); } .online-dot.off { background: var(--red); }
+.empty { text-align: center; padding: 32px; color: var(--muted); font-size: 13px; }
+.tip { font-size: 11px; color: var(--muted); margin-top: 6px; }
+canvas { max-height: 180px; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container" style="max-width:900px">
+  <p style="margin-bottom:16px"><a href="javascript:history.back()" style="color:var(--accent-blue);font-size:13px;">← 返回列表</a></p>
+  <div id="content"><div class="empty">加载中...</div></div>
+</div>
+
+<div style="text-align:center;font-size:11px;color:var(--text-muted);padding:16px 0;border-top:1px solid var(--border);margin-top:24px;">
+  Lanwatch · 企业网络监控<br>
+  © 2026
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script>
+var SERVER = location.origin;
+var agentId = location.pathname.split('/agent/')[1];
+
+var THRESHOLDS = {
+  ping_rtt_ms:   { warn: 80,  crit: 150 },
+  ping_loss_pct: { warn: 5,   crit: 20  },
+  dns_ms:        { warn: 100, crit: 300 },
+  target_rtt_ms: { warn: 100, crit: 300 },
+};
+
+function dotClass(v, t) {
+  if (v === null || v === undefined) return 'dot-grey';
+  if (v >= t.crit) return 'dot-red';
+  if (v >= t.warn) return 'dot-orange';
+  return 'dot-green';
+}
+function valClass(v, t) {
+  if (v === null || v === undefined) return 'val-grey';
+  if (v >= t.crit) return 'val-red';
+  if (v >= t.warn) return 'val-orange';
+  return 'val-green';
+}
+function fmt(v) { return (v === null || v === undefined) ? '-' : v.toFixed(1); }
+function timeAgo(ts) {
+  if (!ts) return '无数据';
+  var s = Math.floor(Date.now()/1000 - ts);
+  if (s < 60) return s + '秒前';
+  if (s < 3600) return Math.floor(s/60) + '分钟前';
+  return Math.floor(s/3600) + '小时前';
+}
+
+function load() {
+  var xhr = new XMLHttpRequest();
+  xhr.open('GET', SERVER + '/api/agents/' + agentId, false);
+  xhr.send(null);
+  var agent = xhr.status === 200 ? JSON.parse(xhr.responseText) : {};
+
+  var xhr2 = new XMLHttpRequest();
+  xhr2.open('GET', SERVER + '/api/' + agentId + '/latest', false);
+  xhr2.send(null);
+  var latest = xhr2.status === 200 ? JSON.parse(xhr2.responseText) : null;
+
+  var xhr3 = new XMLHttpRequest();
+  xhr3.open('GET', SERVER + '/api/' + agentId + '/topology', false);
+  xhr3.send(null);
+  var topology = xhr3.status === 200 ? JSON.parse(xhr3.responseText) : [];
+
+  var xhr4 = new XMLHttpRequest();
+  xhr4.open('GET', SERVER + '/api/' + agentId + '/history?limit=60', false);
+  xhr4.send(null);
+  var history = xhr4.status === 200 ? JSON.parse(xhr4.responseText) : [];
+
+  var isOnline = latest && (Date.now()/1000 - latest.timestamp) < 300;
+  var statusClass = isOnline ? 'status-online' : 'status-offline';
+  var statusText = isOnline ? '● 在线' : '● 离线';
+  var ago = latest ? timeAgo(latest.timestamp) : '无数据';
+
+  var metrics = [
+    { key: 'ping_rtt_ms',    label: '网关延迟',  unit: 'ms', t: THRESHOLDS.ping_rtt_ms },
+    { key: 'ping_loss_pct',  label: '丢包率',    unit: '%',  t: THRESHOLDS.ping_loss_pct },
+    { key: 'dns_ms',         label: 'DNS延迟',  unit: 'ms', t: THRESHOLDS.dns_ms },
+    { key: 'target_rtt_ms',  label: (latest && latest.target_name ? latest.target_name : '目标') + '延迟', unit: 'ms', t: THRESHOLDS.target_rtt_ms },
+  ];
+
+  var metricsHtml = '<div class="metrics-grid">';
+  metrics.forEach(function(m) {
+    var v = latest ? latest[m.key] : null;
+    metricsHtml += '<div class="metric-item"><span class="metric-dot ' + dotClass(v, m.t) + '"></span><span class="metric-label">' + m.label + '</span><span class="metric-val ' + valClass(v, m.t) + '">' + fmt(v) + (v !== null && v !== undefined ? m.unit : '') + '</span></div>';
+  });
+  metricsHtml += '</div>';
+
+  var topoHtml = topology.length === 0
+    ? '<div class="empty">暂无拓扑数据</div>'
+    : '<table><thead><tr><th>IP</th><th>MAC</th><th>主机名</th><th>厂商</th><th>类型</th><th>端口</th><th>状态</th></tr></thead><tbody>' +
+      topology.map(function(dev) {
+        var isRecent = (Date.now()/1000 - dev.last_seen) < 3600;
+        return '<tr><td style="font-weight:600;">' + dev.ip + '</td><td style="font-size:12px;color:var(--muted);font-family:monospace;">' + (dev.mac||'-') + '</td><td>' + (dev.hostname||'-') + '</td><td style="font-size:12px;">' + (dev.vendor||'-') + '</td><td><span class="type-badge">' + (dev.device_type||'unknown') + '</span></td><td>' + (dev.open_ports ? dev.open_ports.slice(0,5).join(', ') : '-') + '</td><td><span class="online-dot ' + (isRecent?'on':'off') + '"></span>' + (isRecent?'在线':'离线') + '</td></tr>';
+      }).join('') + '</tbody></table>';
+
+  var html = '<div class="card"><div class="card-title">' + (agent.name || '未知设备') + ' <span class="' + statusClass + '">' + statusText + '</span></div>' +
+    '<div class="info-grid">' +
+    '<div class="info-item"><span class="info-label">企业名称</span><span class="info-value">' + (agent.customer_name || '-') + '</span></div>' +
+    '<div class="info-item"><span class="info-label">最后活跃</span><span class="info-value">' + ago + '</span></div>' +
+    '<div class="info-item"><span class="info-label">Agent ID</span><span class="info-value" style="font-size:11px;font-family:monospace;">' + agent.id + '</span></div>' +
+    '<div class="info-item"><span class="info-label">安装位置</span><span class="info-value">' + (agent.location || '-') + '</span></div>' +
+    '<div class="info-item"><span class="info-label">本地网段</span><span class="info-value">' + (agent.subnets || '-') + '</span></div></div></div>' +
+    '<div class="card"><div class="card-title">当前状态</div>' + metricsHtml + '</div>' +
+    '<div class="card"><div class="card-title">局域网拓扑 (' + topology.length + ' 台设备)</div>' + topoHtml + '</div>' +
+    '<div class="card"><div class="card-title">延迟趋势 (最近 ' + history.length + ' 条)</div><div style="margin-top:12px;"><canvas id="trendChart"></canvas></div></div>';
+
+  document.getElementById('content').innerHTML = html;
+
+  if (history.length > 0 && window.chartRendered === undefined) {
+    window.chartRendered = true;
+    var labels = history.slice().reverse().map(function(h) { return new Date(h.timestamp * 1000).toLocaleTimeString('zh-CN', {hour:'2-digit',minute:'2-digit'}); });
+    var pingData = history.slice().reverse().map(function(h) { return h.ping_rtt_ms; });
+    var dnsData = history.slice().reverse().map(function(h) { return h.dns_ms; });
+    var tgtData = history.slice().reverse().map(function(h) { return h.target_rtt_ms; });
+    new Chart(document.getElementById('trendChart').getContext('2d'), {
+      type: 'line',
+      data: { labels: labels, datasets: [
+        { label: '网关延迟', data: pingData, borderColor: '#3fb950', backgroundColor: 'rgba(63,185,80,0.1)', tension: 0.3, fill: true },
+        { label: 'DNS延迟', data: dnsData, borderColor: '#58a6ff', backgroundColor: 'rgba(88,166,255,0.05)', tension: 0.3, fill: false },
+        { label: '目标延迟', data: tgtData, borderColor: '#d29922', backgroundColor: 'rgba(210,153,34,0.05)', tension: 0.3, fill: false },
+      ]},
+      options: { responsive: true, maintainAspectRatio: true, plugins: { legend: { position: 'top', labels: { font: { size: 11 } } } }, scales: { x: { ticks: { maxTicksLimit: 8, font: { size: 10 } } }, y: { beginAtZero: true, ticks: { font: { size: 10 } } } } }
+    });
+  }
+}
+load();
+</script>
+{% endblock %}

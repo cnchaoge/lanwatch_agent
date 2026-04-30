@@ -1,3 +1,4 @@
+import logging
 import uvicorn
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
@@ -5,6 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 from core.config import config
 from core.database import init_db
+from core.logging import setup_logging
 from api.agents import router as agents_router
 from api.probe import router as probe_router
 from api.diag import router as diag_router
@@ -22,26 +24,40 @@ from modules.scheduler import scheduler
 from modules.snmp_manager import snmp_manager
 from modules.dataretention import run_cleanup, get_retention_info, start_cleanup_scheduler, stop_cleanup_scheduler
 
+logger = logging.getLogger("lanwatch")
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    setup_logging(log_level=config.LOG_LEVEL)
     init_db()
-    print(f"[lanwatch_agent] 数据库初始化完成: {config.DB_PATH}")
+    logger.info("数据库初始化完成: %s", config.DB_PATH)
     scheduler.reload_jobs_from_db()
     snmp_manager.ensure_snmp_jobs()
     scheduler.start()
-    print(f"[lanwatch_agent] 探测调度器已启动")
+    logger.info("探测调度器已启动")
     start_cleanup_scheduler()
     yield
     stop_cleanup_scheduler()
     scheduler.shutdown()
-    print(f"[lanwatch_agent] 探测调度器已停止")
+    logger.info("探测调度器已停止")
 
 
 app = FastAPI(title="Lanwatch", version="1.0.0", description="企业网络监控平台 - 服务端 API", lifespan=lifespan)
 
+import time
+
 if config.CORS_ORIGINS:
     app.add_middleware(CORSMiddleware, allow_origins=config.CORS_ORIGINS, allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
+
+
+@app.middleware("http")
+async def request_logging(request: Request, call_next):
+    start = time.monotonic()
+    response = await call_next(request)
+    cost = (time.monotonic() - start) * 1000
+    logger.info("%s %s -> %d (%.0fms)", request.method, request.url.path, response.status_code, cost)
+    return response
 
 
 # ── 全局异常处理 ────────────────────────────────────────────────────
