@@ -14,7 +14,7 @@ async def report(agent_id: str, body: Any = Body(...), authorization: Optional[s
     verified_id = verify_agent_token(authorization)
     if verified_id != agent_id:
         raise HTTPException(status_code=403, detail="token 与 agent_id 不匹配")
-    # 客户端发单个 dict 或 {{"reports": [{{...}}]}} 或纯列表，统一处理
+    # 客户端发单个 dict 或 {"reports": [...]} 或纯列表，统一处理
     if isinstance(body, dict):
         items = body.get("reports", [body])
     elif isinstance(body, list):
@@ -24,8 +24,13 @@ async def report(agent_id: str, body: Any = Body(...), authorization: Optional[s
     with get_db() as conn:
         cursor = conn.cursor()
         for r in items:
-            cursor.execute("INSERT INTO probe_results (agent_id, probe_type, target, status, rtt_ms, raw_output) VALUES (?, ?, ?, ?, ?, ?)",
-                (agent_id, r.get("probe_type"), r.get("target"), r.get("status"), r.get("rtt_ms"), json.dumps(r, ensure_ascii=False) if r else None))
+            # 兼容 Windows 客户端发送的扁平 metrics dict（不含 probe_type）
+            if isinstance(r, dict) and "probe_type" not in r and "target" not in r:
+                cursor.execute("INSERT INTO probe_results (agent_id, probe_type, target, status, rtt_ms, raw_output) VALUES (?, ?, ?, ?, ?, ?)",
+                    (agent_id, "metrics", "all", "ok", r.get("ping_rtt_ms"), json.dumps(r, ensure_ascii=False)))
+            else:
+                cursor.execute("INSERT INTO probe_results (agent_id, probe_type, target, status, rtt_ms, raw_output) VALUES (?, ?, ?, ?, ?, ?)",
+                    (agent_id, r.get("probe_type"), r.get("target"), r.get("status"), r.get("rtt_ms"), json.dumps(r, ensure_ascii=False) if r else None))
         cursor.execute("UPDATE agents SET last_seen = ? WHERE agent_id = ?", (datetime.now().isoformat(), agent_id))
     return {"success": True, "received": len(items)}
 
