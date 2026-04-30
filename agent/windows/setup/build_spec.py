@@ -1,20 +1,23 @@
 """
-PyInstaller 打包配置：
+PyInstaller 打包配置（GUI 版本）
 运行：pip install pyinstaller && python build_spec.py
-
-这会生成单一的可执行文件 LanwatchAgent.exe
+生成单一可执行文件 LanwatchAgent.exe
 """
+from PyInstaller.building.build_main import Analysis, PYZ
+from PyInstaller.building.datastruct import Tree
+from PyInstaller.building.make_main import EXE
+
 block_cipher = None
 
 a = Analysis(
-    ["../main.py"],
+    ["../lanwatch_agent.py"],
     pathex=[".."],
     binaries=[],
     datas=[],
     hiddenimports=[
         "pysnmp.hlapi", "pysnmp.hlapi.asyncio",
         "httpx", "dns.resolver", "dns.exception",
-        "win32serviceutil", "win32service", "win32event", "servicemanager"
+        "tkinter",
     ],
     win_private_assemblies=True,
     cipher=block_cipher
@@ -32,6 +35,6 @@ exe = EXE(
     debug=False,
     strip=False,
     upx=True,
-    console=True,  # 保留控制台以便查看日志
-    version="version_info.txt"  # 可选：Windows 版本信息
+    console=False,
+    version="version_info.txt"
 )

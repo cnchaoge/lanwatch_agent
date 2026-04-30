@@ -39,8 +39,7 @@ app = FastAPI(title="Lanwatch", version="1.0.0", description="企业网络监控
 if config.CORS_ORIGINS:
     app.add_middleware(CORSMiddleware, allow_origins=config.CORS_ORIGINS, allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
 
-app.include_router(agents_router)
-app.include_router(probe_router)
+app.include_router(probe_router, prefix="/api")
 app.include_router(diag_router)
 app.include_router(probes_router, prefix="/api")
 app.include_router(scheduler_router, prefix="/api")
@@ -51,6 +50,7 @@ app.include_router(topology_router, prefix="/api")
 app.include_router(diagnosis_router, prefix="/api")
 app.include_router(wizard_router, prefix="/api")
 app.include_router(propagation_router, prefix="/api")
+app.include_router(agents_router, prefix="/api")
 
 register_web(app)
 

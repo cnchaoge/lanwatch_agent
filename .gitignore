@@ -66,6 +66,7 @@ agent/linux/agent.json
 agent/router/config.sh
 
 # 本地环境变量
+.env
 .env.local
 .env.production
 

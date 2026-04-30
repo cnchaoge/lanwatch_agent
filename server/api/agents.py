@@ -14,16 +14,18 @@ def _generate_token() -> str:
 
 @router.post("/register")
 async def register_agent(payload: dict):
+    # 为 Windows/Linux 客户端生成 agent_id（客户端不传则自动生成）
+    agent_id = payload.get("agent_id") or secrets.token_hex(16)
     with get_db() as conn:
         cursor = conn.cursor()
-        cursor.execute("SELECT id, token FROM agents WHERE agent_id = ?", (payload.get("agent_id"),))
+        cursor.execute("SELECT id, token FROM agents WHERE agent_id = ?", (agent_id,))
         existing = cursor.fetchone()
         if existing:
-            return {"success": True, "message": "设备已注册", "agent_token": existing["token"], "interval": payload.get("interval", config.AGENT_DEFAULT_INTERVAL)}
+            return {"success": True, "message": "设备已注册", "agent_id": agent_id, "token": existing["token"], "interval": payload.get("interval", config.AGENT_DEFAULT_INTERVAL)}
         token = _generate_token()
         cursor.execute("INSERT INTO agents (agent_id, name, ip, os_type, token, interval) VALUES (?, ?, ?, ?, ?, ?)",
-            (payload.get("agent_id"), payload.get("name",""), payload.get("ip",""), payload.get("os_type",""), token, payload.get("interval", config.AGENT_DEFAULT_INTERVAL)))
-        return {"success": True, "message": "注册成功", "agent_token": token, "interval": payload.get("interval", config.AGENT_DEFAULT_INTERVAL)}
+            (agent_id, payload.get("name",""), payload.get("ip",""), payload.get("os_type",""), token, payload.get("interval", config.AGENT_DEFAULT_INTERVAL)))
+        return {"success": True, "message": "注册成功", "agent_id": agent_id, "token": token, "interval": payload.get("interval", config.AGENT_DEFAULT_INTERVAL)}
 
 
 @router.get("/agents")
