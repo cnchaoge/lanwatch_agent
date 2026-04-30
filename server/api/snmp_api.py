@@ -1,12 +1,44 @@
 """SNMP 设备管理 API：注册/删除/查询/采集"""
 from fastapi import APIRouter, Query, HTTPException
-from typing import Optional
+from typing import Optional, Dict
 from pydantic import BaseModel
 from modules.snmp_manager import snmp_manager
 from core.auth import verify_admin_password
 from core.config import config
+from core.database import get_db
+from datetime import datetime
 
 router = APIRouter()
+
+# 前端展示用的常用 OID → 友好名映射
+_OID_FRIENDLY: Dict[str, str] = {
+    "1.3.6.1.2.1.1.3.0": "sysUpTime",
+    "1.3.6.1.2.1.1.5.0": "sysName",
+    "1.3.6.1.2.1.1.1.0": "sysDescr",
+    "1.3.6.1.4.1.9.2.1.57.0": "ciscoCpu",
+    "1.3.6.1.4.1.9.2.1.8.0": "ciscoMemory",
+}
+# 接口相关的 OID 前缀（用于匹配 ifInOctets.1, ifOutOctets.2 等）
+_OID_PREFIX_MAP: Dict[str, str] = {
+    "1.3.6.1.2.1.2.2.1.10": "ifInOctets",
+    "1.3.6.1.2.1.2.2.1.16": "ifOutOctets",
+    "1.3.6.1.2.1.2.2.1.8":  "ifOperStatus",
+    "1.3.6.1.2.1.2.2.1.2":  "ifDescr",
+    "1.3.6.1.2.1.25.3.3.1.2": "hrProcessorLoad",
+    "1.3.6.1.2.1.25.2.3.1.6": "hrStorageUsed",
+    "1.3.6.1.2.1.25.2.3.1.5": "hrStorageSize",
+}
+
+
+def _oid_to_friendly(oid: str) -> str:
+    """将 OID 转为友好名称，优先匹配前缀"""
+    if oid in _OID_FRIENDLY:
+        return _OID_FRIENDLY[oid]
+    for prefix, name in _OID_PREFIX_MAP.items():
+        if oid.startswith(prefix):
+            return name
+    # 取最后一段作为 fallback
+    return oid.split(".")[-1]
 
 
 class SNMPDeviceRegister(BaseModel):
@@ -86,3 +118,53 @@ async def collect_all_snmp(password: Optional[str] = Query(None)):
 
     snmp_manager.collect_all_devices()
     return {"success": True, "message": "已触发全量采集"}
+
+
+@router.get("/snmp/latest")
+async def get_snmp_devices_latest():
+    """返回所有 SNMP 设备及最新指标（监控面板使用）"""
+    from datetime import datetime
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM snmp_devices ORDER BY created_at DESC")
+        devices = [dict(r) for r in cursor.fetchall()]
+
+        result = []
+        for dev in devices:
+            ip = dev["ip"]
+            # 取该设备最新的指标
+            cursor.execute(
+                "SELECT oid, value, timestamp FROM snmp_metrics WHERE device_ip = ? "
+                "AND timestamp >= datetime('now', '-1 hour') ORDER BY timestamp DESC LIMIT 200",
+                (ip,)
+            )
+            rows = cursor.fetchall()
+            metrics = {}
+            for r in rows:
+                name = _oid_to_friendly(r["oid"])
+                metrics[name] = r["value"]
+
+            # 判断在线状态：有最新指标且在 5 分钟内
+            last_poll = None
+            status = 0
+            if rows:
+                ts = rows[0]["timestamp"]
+                if ts:
+                    try:
+                        last_dt = datetime.fromisoformat(ts)
+                        last_poll = last_dt.timestamp()
+                        status = 1 if (datetime.now() - last_dt).total_seconds() < 300 else 0
+                    except Exception:
+                        pass
+
+            entry = {
+                "name": dev.get("description") or f"SNMP-{ip}",
+                "ip": ip,
+                "type": dev.get("snmp_version", "v2c"),
+                "status": status,
+                "last_poll": last_poll,
+                "metrics": metrics,
+            }
+            result.append(entry)
+
+        return result

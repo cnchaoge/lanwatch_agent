@@ -103,7 +103,7 @@ function timeAgo(ts) {
 
 function load() {
   var xhr = new XMLHttpRequest();
-  xhr.open('GET', SERVER + '/api/agents/' + agentId, false);
+  xhr.open('GET', SERVER + '/api/' + agentId, false);
   xhr.send(null);
   var agent = xhr.status === 200 ? JSON.parse(xhr.responseText) : {};
 
@@ -113,9 +113,10 @@ function load() {
   var latest = xhr2.status === 200 ? JSON.parse(xhr2.responseText) : null;
 
   var xhr3 = new XMLHttpRequest();
-  xhr3.open('GET', SERVER + '/api/' + agentId + '/topology', false);
+  xhr3.open('GET', SERVER + '/api/topology/nodes?agent_id=' + agentId, false);
   xhr3.send(null);
-  var topology = xhr3.status === 200 ? JSON.parse(xhr3.responseText) : [];
+  var topology = [];
+  if (xhr3.status === 200) { var td = JSON.parse(xhr3.responseText); topology = td.nodes || []; }
 
   var xhr4 = new XMLHttpRequest();
   xhr4.open('GET', SERVER + '/api/' + agentId + '/history?limit=60', false);
@@ -151,11 +152,11 @@ function load() {
 
   var html = '<div class="card"><div class="card-title">' + (agent.name || '未知设备') + ' <span class="' + statusClass + '">' + statusText + '</span></div>' +
     '<div class="info-grid">' +
-    '<div class="info-item"><span class="info-label">企业名称</span><span class="info-value">' + (agent.customer_name || '-') + '</span></div>' +
+    '<div class="info-item"><span class="info-label">IP地址</span><span class="info-value">' + (agent.ip || '-') + '</span></div>' +
     '<div class="info-item"><span class="info-label">最后活跃</span><span class="info-value">' + ago + '</span></div>' +
-    '<div class="info-item"><span class="info-label">Agent ID</span><span class="info-value" style="font-size:11px;font-family:monospace;">' + agent.id + '</span></div>' +
-    '<div class="info-item"><span class="info-label">安装位置</span><span class="info-value">' + (agent.location || '-') + '</span></div>' +
-    '<div class="info-item"><span class="info-label">本地网段</span><span class="info-value">' + (agent.subnets || '-') + '</span></div></div></div>' +
+    '<div class="info-item"><span class="info-label">Agent ID</span><span class="info-value" style="font-size:11px;font-family:monospace;">' + (agent.agent_id || agent.id || agentId) + '</span></div>' +
+    '<div class="info-item"><span class="info-label">系统</span><span class="info-value">' + (agent.os_type || '-') + '</span></div>' +
+    '<div class="info-item"><span class="info-label">采集间隔</span><span class="info-value">' + (agent.interval || 60) + 's</span></div></div></div>' +
     '<div class="card"><div class="card-title">当前状态</div>' + metricsHtml + '</div>' +
     '<div class="card"><div class="card-title">局域网拓扑 (' + topology.length + ' 台设备)</div>' + topoHtml + '</div>' +
     '<div class="card"><div class="card-title">延迟趋势 (最近 ' + history.length + ' 条)</div><div style="margin-top:12px;"><canvas id="trendChart"></canvas></div></div>';

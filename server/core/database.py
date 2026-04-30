@@ -34,12 +34,14 @@ def init_db():
         CREATE TABLE IF NOT EXISTS diag_reports (id INTEGER PRIMARY KEY AUTOINCREMENT, agent_id TEXT NOT NULL, report_json TEXT NOT NULL, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP);
         CREATE TABLE IF NOT EXISTS alert_log (id INTEGER PRIMARY KEY AUTOINCREMENT, agent_id TEXT NOT NULL, alert_type TEXT NOT NULL, message TEXT, level TEXT DEFAULT 'warning', created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP);
         CREATE TABLE IF NOT EXISTS scheduler_jobs (id INTEGER PRIMARY KEY AUTOINCREMENT, job_id TEXT UNIQUE NOT NULL, agent_id TEXT NOT NULL, probe_type TEXT NOT NULL, target TEXT NOT NULL, interval_seconds INTEGER DEFAULT 300, enabled INTEGER DEFAULT 1, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP);
+        CREATE TABLE IF NOT EXISTS agent_metrics (id INTEGER PRIMARY KEY AUTOINCREMENT, agent_id TEXT NOT NULL, metric_key TEXT NOT NULL, metric_value REAL, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP);
         CREATE INDEX IF NOT EXISTS idx_probe_results_agent_type ON probe_results(agent_id, probe_type);
         CREATE INDEX IF NOT EXISTS idx_probe_results_created ON probe_results(created_at);
         CREATE INDEX IF NOT EXISTS idx_snmp_metrics_device_time ON snmp_metrics(device_ip, timestamp);
         CREATE INDEX IF NOT EXISTS idx_alert_log_agent_time ON alert_log(agent_id, created_at);
         CREATE INDEX IF NOT EXISTS idx_topology_nodes_ip ON topology_nodes(ip);
         CREATE INDEX IF NOT EXISTS idx_diag_reports_agent_time ON diag_reports(agent_id, created_at);
+        CREATE INDEX IF NOT EXISTS idx_agent_metrics_key_time ON agent_metrics(agent_id, metric_key, created_at);
         """
         cursor.executescript(sql)
         conn.commit()

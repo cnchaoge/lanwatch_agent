@@ -120,7 +120,7 @@ function load() {
         var tgtRtt=latest?latest.target_rtt_ms:null, tgtOk=latest?latest.target_reachable:null;
         var tgtName=latest?(latest.target_name||'目标'):'目标';
         var mobileUrl=SERVER+'/mobile?id='+agent.id, qrUrl=SERVER+'/api/qr?text='+encodeURIComponent(mobileUrl);
-        html+='<div class="card"><div class="card-title">'+(agent.customer_name||agent.name)+' '+status+'</div>'+
+        html+='<div class="card"><div class="card-title">'+(agent.name||'未知设备')+' '+status+'</div>'+
           '<div class="card-meta">'+agent.name+' · '+ago+'</div>'+
           '<div class="metrics-grid">'+
           (pRtt==null&&dns!=null?'<div class="metric-item"><span class="metric-dot dot-grey"></span><span class="metric-label">ICMP</span><span class="metric-value val-grey">不支持</span></div>':(pLoss>0?'<div class="metric-item"><span class="metric-dot dot-orange"></span><span class="metric-label">ICMP</span><span class="metric-value" style="color:var(--orange)">丢包'+pLoss+'%</span></div>':'<div class="metric-item"><span class="metric-dot dot-green"></span><span class="metric-label">ICMP</span><span class="metric-value val-green">正常</span></div>'))+

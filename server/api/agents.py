@@ -36,7 +36,7 @@ async def get_agents(password: str = Query(None)):
         cursor = conn.cursor()
         cursor.execute("SELECT agent_id, name, ip, os_type, interval, last_seen FROM agents ORDER BY created_at DESC")
         rows = cursor.fetchall()
-        return [{"agent_id": r["agent_id"], "name": r["name"] or "", "ip": r["ip"] or "", "os_type": r["os_type"] or "", "interval": r["interval"] or config.AGENT_DEFAULT_INTERVAL, "last_seen": r["last_seen"], "online": _is_recent(r["last_seen"])} for r in rows]
+        return [{"id": r["agent_id"], "agent_id": r["agent_id"], "name": r["name"] or "", "ip": r["ip"] or "", "os_type": r["os_type"] or "", "interval": r["interval"] or config.AGENT_DEFAULT_INTERVAL, "last_seen": r["last_seen"], "online": _is_recent(r["last_seen"])} for r in rows]
 
 
 @router.delete("/agents/{agent_id}")
