@@ -1,5 +1,6 @@
 import uvicorn
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 from core.config import config
@@ -42,8 +43,41 @@ app = FastAPI(title="Lanwatch", version="1.0.0", description="企业网络监控
 if config.CORS_ORIGINS:
     app.add_middleware(CORSMiddleware, allow_origins=config.CORS_ORIGINS, allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
 
+
+# ── 全局异常处理 ────────────────────────────────────────────────────
+
+from fastapi.exceptions import RequestValidationError
+from starlette.exceptions import HTTPException as StarletteHTTPException
+
+
+@app.exception_handler(RequestValidationError)
+async def validation_handler(request: Request, exc: RequestValidationError):
+    return JSONResponse(
+        status_code=422,
+        content={"success": False, "error": "请求参数错误", "detail": exc.errors()},
+    )
+
+
+@app.exception_handler(StarletteHTTPException)
+async def http_exception_handler(request: Request, exc: StarletteHTTPException):
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={"success": False, "error": exc.detail},
+    )
+
+
+@app.exception_handler(Exception)
+async def generic_exception_handler(request: Request, exc: Exception):
+    return JSONResponse(
+        status_code=500,
+        content={"success": False, "error": "服务器内部错误"},
+    )
+
+
+# ── 路由注册 ────────────────────────────────────────────────────────
+
 app.include_router(probe_router, prefix="/api")
-app.include_router(diag_router)
+app.include_router(diag_router, prefix="/api")
 app.include_router(probes_router, prefix="/api")
 app.include_router(scheduler_router, prefix="/api")
 app.include_router(snmp_router, prefix="/api")
