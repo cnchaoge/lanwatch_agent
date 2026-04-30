@@ -19,6 +19,7 @@ from api.propagation_api import router as propagation_router
 from web import register_web
 from modules.scheduler import scheduler
 from modules.snmp_manager import snmp_manager
+from modules.dataretention import run_cleanup, get_retention_info, start_cleanup_scheduler, stop_cleanup_scheduler
 
 
 @asynccontextmanager
@@ -29,7 +30,9 @@ async def lifespan(app: FastAPI):
     snmp_manager.ensure_snmp_jobs()
     scheduler.start()
     print(f"[lanwatch_agent] 探测调度器已启动")
+    start_cleanup_scheduler()
     yield
+    stop_cleanup_scheduler()
     scheduler.shutdown()
     print(f"[lanwatch_agent] 探测调度器已停止")
 
@@ -62,6 +65,19 @@ async def api_version():
 @app.get("/health")
 async def health_check():
     return {"status": "ok", "db": config.DB_PATH}
+
+
+@app.post("/api/cleanup")
+async def manual_cleanup():
+    """手动触发数据清理"""
+    result = run_cleanup()
+    return {"success": True, "data": result}
+
+
+@app.get("/api/cleanup/info")
+async def cleanup_info():
+    """查看保留天数配置和各表数据量"""
+    return {"success": True, "data": get_retention_info()}
 
 
 if __name__ == "__main__":
