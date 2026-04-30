@@ -14,6 +14,7 @@ a = Analysis(
         'logging', 'threading', 'queue', 'concurrent.futures',
         'ctypes', 're', 'subprocess', 'uuid', 'time', 'os', 'sys',
         'winreg', 'msvcrt', 'subprocess', 'logging.handlers',
+        'sqlite3', 'platform', 'ctypes.wintypes',
     ],
     hookspath=[],
     hooksconfig={},
