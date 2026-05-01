@@ -19,9 +19,10 @@ def register_web(app: FastAPI):
     if static_dir.exists():
         app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
 
+    # Starlette 1.0: TemplateResponse(request, name, context?)
     @app.get("/", response_class=HTMLResponse)
     async def serve_index(request: Request):
-        return templates.TemplateResponse("index.html", {"request": request})
+        return templates.TemplateResponse(request, "index.html")
 
     from fastapi.responses import RedirectResponse
 
@@ -39,7 +40,7 @@ def register_web(app: FastAPI):
     async def serve_page(page_name: str, request: Request):
         tmpl = f"{page_name}.html"
         if (templates_dir / tmpl).is_file():
-            return templates.TemplateResponse(tmpl, {"request": request})
+            return templates.TemplateResponse(request, tmpl)
         static_file = static_dir / tmpl
         if static_file.is_file():
             from fastapi.responses import FileResponse
@@ -53,12 +54,16 @@ def register_web(app: FastAPI):
     # Detail pages with path parameters (JS reads ID from URL)
     @app.get("/agent/{agent_id}", response_class=HTMLResponse)
     async def agent_detail(request: Request, agent_id: str):
-        return templates.TemplateResponse("agent_detail.html", {"request": request})
+        return templates.TemplateResponse(request, "agent_detail.html")
+
+    @app.get("/enterprise/{agent_id}", response_class=HTMLResponse)
+    async def enterprise_dashboard(request: Request, agent_id: str):
+        return templates.TemplateResponse(request, "enterprise.html")
 
     @app.get("/ping_detail/{monitor_id}", response_class=HTMLResponse)
     async def ping_detail(request: Request, monitor_id: str):
-        return templates.TemplateResponse("ping_detail.html", {"request": request})
+        return templates.TemplateResponse(request, "ping_detail.html")
 
     @app.get("/snmp_detail/{device_id}", response_class=HTMLResponse)
     async def snmp_detail(request: Request, device_id: str):
-        return templates.TemplateResponse("snmp_detail.html", {"request": request})
+        return templates.TemplateResponse(request, "snmp_detail.html")

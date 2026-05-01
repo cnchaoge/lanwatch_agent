@@ -25,8 +25,7 @@ async def get_alerts(
     limit: int = Query(default=100, ge=1, le=500),
 ):
     """查询告警历史"""
-    cutoff = (datetime.now() - timedelta(hours=hours)).isoformat()
-
+    cutoff = (datetime.now() - timedelta(hours=hours)).strftime("%Y-%m-%d %H:%M:%S")
     with get_db() as conn:
         cursor = conn.cursor()
         sql = "SELECT * FROM alert_log WHERE created_at >= ?"
@@ -55,7 +54,7 @@ async def get_alerts(
 @router.get("/alerts/stats")
 async def get_alert_stats(hours: int = Query(default=24, ge=1, le=720)):
     """告警统计：按级别、设备、类型分布 + 环比"""
-    cutoff = (datetime.now() - timedelta(hours=hours)).isoformat()
+    cutoff = (datetime.now() - timedelta(hours=hours)).strftime("%Y-%m-%d %H:%M:%S")
     cutoff_prev = (datetime.now() - timedelta(hours=hours * 2)).isoformat()
 
     with get_db() as conn:

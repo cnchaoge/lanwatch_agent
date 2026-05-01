@@ -1,0 +1,294 @@
+{% extends "base.html" %}
+{% block title %}企业仪表板 - Lanwatch{% endblock %}
+
+{% block navbar_brand %}
+<a class="navbar-brand" href="/" style="font-size:15px">← 返回</a>
+{% endblock %}
+
+{% block nav_items %}
+<a class="nav-item" href="/" style="font-size:13px">📊 企业列表</a>
+{% endblock %}
+
+{% block mobile_nav_items %}
+<a class="nav-item" href="/">📊 企业列表</a>
+{% endblock %}
+
+{% block head_extra %}
+<style>
+:root {
+  --surface: var(--bg-card);
+  --muted: var(--text-secondary);
+  --green: var(--accent-green);
+  --red: var(--accent-red);
+  --orange: var(--accent-yellow);
+  --blue: var(--accent-blue);
+}
+.hero {
+  background: linear-gradient(135deg, #161b22 0%, #0d1117 100%);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 28px 32px;
+  margin-bottom: 20px;
+}
+.hero-top { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; }
+.hero-name { font-size: 22px; font-weight: 800; }
+.hero-status { font-size: 13px; }
+.hero-online { color: var(--green); }
+.hero-offline { color: var(--red); }
+.hero-meta { display: flex; gap: 20px; margin-top: 10px; font-size: 13px; color: var(--muted); flex-wrap: wrap; }
+.hero-meta span { display: flex; align-items: center; gap: 4px; }
+
+.stats-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 20px; }
+.stat-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 16px 20px; }
+.stat-label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; }
+.stat-value { font-size: 24px; font-weight: 700; margin-top: 4px; }
+.stat-value.green { color: var(--green); }
+.stat-value.red { color: var(--red); }
+.stat-value.blue { color: var(--blue); }
+.stat-value.orange { color: var(--orange); }
+
+.section { margin-bottom: 24px; }
+.section-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+.section-title { font-size: 15px; font-weight: 600; }
+
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 20px; }
+
+.empty-state { text-align: center; padding: 32px; color: var(--muted); font-size: 13px; }
+.loading { text-align: center; padding: 32px; color: var(--muted); font-size: 13px; }
+
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+th { text-align: left; padding: 8px 12px; background: var(--bg-tertiary); color: var(--muted); font-weight: 500; border-bottom: 1px solid var(--border); font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; }
+td { padding: 10px 12px; border-bottom: 1px solid var(--border); }
+tr:last-child td { border-bottom: none; }
+
+.online-dot { width: 7px; height: 7px; border-radius: 50%; display: inline-block; margin-right: 4px; }
+.online-dot.on { background: var(--green); box-shadow: 0 0 5px rgba(63,185,80,0.5); }
+.online-dot.off { background: var(--red); }
+
+.type-badge { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 500; background: var(--bg-tertiary); color: var(--text-secondary); }
+
+.alert-list { display: flex; flex-direction: column; gap: 0; }
+.alert-item { display: flex; align-items: flex-start; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--border); }
+.alert-item:last-child { border-bottom: none; }
+.alert-icon { font-size: 14px; flex-shrink: 0; margin-top: 1px; }
+.alert-body { flex: 1; min-width: 0; }
+.alert-title { font-size: 13px; font-weight: 600; }
+.alert-desc { font-size: 12px; color: var(--muted); margin-top: 1px; }
+.alert-meta { font-size: 11px; color: var(--muted); margin-top: 4px; }
+.alert-time { font-size: 11px; color: var(--muted); white-space: nowrap; flex-shrink: 0; }
+
+.topo-wrapper { position: relative; min-height: 200px; }
+.topo-node { position: absolute; background: var(--bg-card); border: 2px solid var(--border); border-radius: var(--radius-md); padding: 10px 14px; min-width: 110px; text-align: center; cursor: pointer; transition: all 0.25s; z-index: 10; font-size: 12px; }
+.topo-node:hover { border-color: var(--blue); box-shadow: 0 0 12px rgba(88,166,255,0.15); }
+.topo-node .node-name { font-weight: 600; }
+.topo-node .node-ip { font-size: 10px; color: var(--text-muted); font-family: monospace; margin-top: 2px; }
+.topo-links { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; }
+.topo-links line { stroke: var(--border); stroke-width: 1.5; stroke-dasharray: 4 4; opacity: 0.6; }
+
+.chart-container { position: relative; height: 180px; }
+
+.diag-btns { display: flex; gap: 10px; flex-wrap: wrap; }
+.diag-btns .btn { font-size: 12px; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container" style="max-width:960px;padding-top:20px;">
+  <div id="dashboard"><div class="loading">加载中...</div></div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script>
+var SERVER = location.origin;
+var agentId = location.pathname.split('/enterprise/')[1];
+var chart = null;
+var topoChart = null;
+
+function fmt(v) { return (v === null || v === undefined) ? '-' : v; }
+function timeAgo(ts) {
+  if (!ts) return '无数据';
+  var s = Math.floor(Date.now()/1000 - ts);
+  if (s < 60) return s + '秒前';
+  if (s < 3600) return Math.floor(s/60) + '分钟前';
+  return Math.floor(s/3600) + '小时前';
+}
+
+function parseProbeCreatedAt(createdAt) {
+  return new Date(createdAt.replace(' ', 'T')).getTime() / 1000;
+}
+
+function load() {
+  var el = document.getElementById('dashboard');
+  Promise.all([
+    // 企业名称和状态从 /api/enterprises 获取
+    fetch(SERVER + '/api/enterprises').then(function(r){return r.json()}).then(function(list){
+      for (var i=0;i<list.length;i++) if (list[i].agent_id===agentId) return list[i];
+      return null;
+    }),
+    // 最新指标从 /api/history/probe_results 获取
+    fetch(SERVER + '/api/history/probe_results?agent_id=' + agentId + '&limit=1').then(function(r){return r.json()}).then(function(d){
+      if (d.results && d.results.length>0) {
+        try {
+          var parsed = JSON.parse(d.results[0].raw_output);
+          parsed.timestamp = parseProbeCreatedAt(d.results[0].created_at);
+          return parsed;
+        } catch(e) { return null; }
+      }
+      return null;
+    }),
+    fetch(SERVER + '/api/topology/nodes?agent_id=' + agentId).then(function(r){return r.json()}),
+    fetch(SERVER + '/api/alerts?agent_id=' + agentId + '&limit=10').then(function(r){return r.json()}),
+    // 历史趋势从 /api/history/probe_results 获取
+    fetch(SERVER + '/api/history/probe_results?agent_id=' + agentId + '&limit=60').then(function(r){return r.json()}).then(function(d){
+      if (d.results) {
+        return d.results.map(function(r){
+          try {
+            var parsed = JSON.parse(r.raw_output);
+            parsed.timestamp = parseProbeCreatedAt(r.created_at);
+            return parsed;
+          } catch(e) { return null; }
+        }).filter(function(x){return x!==null;});
+      }
+      return [];
+    }),
+  ]).then(function(results) {
+    var agent = results[0] || {};
+    var latest = results[1];
+    var topo = results[2] || {};
+    var alertData = results[3] || {};
+    var history = results[4] || [];
+    var nodes = topo.nodes || [];
+    // 把本机（运行客户端的 Windows 电脑）也加入设备列表
+    if (agent.agent_id) {
+      nodes.unshift({
+        ip: agent.ip || '-',
+        hostname: agent.name || '本机',
+        device_type: '客户端',
+        vendor: 'Windows',
+        last_seen: agent.last_seen,
+      });
+    }
+    var alerts = alertData.alerts || [];
+
+    var isOnline = agent.online ? true : (latest && (Date.now()/1000 - latest.timestamp) < 300);
+    var lastSeenTs = agent.last_seen ? new Date(agent.last_seen.replace(" ", "T")).getTime()/1000 : (latest ? latest.timestamp : null);
+    var ago = lastSeenTs ? timeAgo(lastSeenTs) : '无数据';
+
+    // Hero
+    var heroHtml = '<div class="hero">' +
+      '<div class="hero-top"><span class="hero-name">' + (agent.name || '未知企业') + '</span>' +
+      '<span class="hero-status ' + (isOnline?'hero-online':'hero-offline') + '">' + (isOnline?'● 在线':'● 离线') + '</span></div>' +
+      '<div class="hero-meta"><span>Agent: ' + agentId.slice(0,16) + '...</span><span>最后上报: ' + ago + '</span></div></div>';
+
+    // Stats
+    var pRtt = latest ? latest.ping_rtt_ms : null;
+    var pLoss = latest ? latest.ping_loss_pct : null;
+    var dns = latest ? latest.dns_ms : null;
+    var statsHtml = '<div class="stats-row">' +
+      '<div class="stat-card"><div class="stat-label">在线设备</div><div class="stat-value green">' + nodes.filter(function(n){return n.last_seen && (Date.now()-new Date(n.last_seen).getTime())<3600000}).length + '</div><div style="font-size:12px;color:var(--muted);margin-top:2px">共 ' + nodes.length + ' 台</div></div>' +
+      '<div class="stat-card"><div class="stat-label">24h 告警</div><div class="stat-value ' + (alerts.filter(function(a){return a.level==='critical'}).length>0?'red':'orange') + '">' + alerts.length + '</div><div style="font-size:12px;color:var(--muted);margin-top:2px">严重 ' + alerts.filter(function(a){return a.level==='critical'}).length + '</div></div>' +
+      '<div class="stat-card"><div class="stat-label">网关延迟</div><div class="stat-value blue">' + (pRtt!=null ? pRtt.toFixed(0) : '-') + '</div><div style="font-size:12px;color:var(--muted);margin-top:2px">' + (pLoss!=null ? '丢包 ' + pLoss.toFixed(1) + '%' : 'ms') + '</div></div>' +
+      '<div class="stat-card"><div class="stat-label">DNS 延迟</div><div class="stat-value blue">' + (dns!=null ? dns.toFixed(0) : '-') + '</div><div style="font-size:12px;color:var(--muted);margin-top:2px">ms</div></div>' +
+      '</div>';
+
+    // Topology
+    var topoHtml = '<div class="section"><div class="section-header"><div class="section-title">🗺️ 网络拓扑 (' + nodes.length + ' 台设备)</div></div><div class="card topo-wrapper" id="topo-wrapper">';
+    if (nodes.length === 0) {
+      topoHtml += '<div class="empty-state">暂无拓扑数据</div>';
+    } else {
+      topoHtml += '<svg class="topo-links" id="enterprise-topo-links"></svg>';
+      // Star topology: gateway centered top, other devices below, lines from gw to each
+      var gw = null, others = [];
+      for (var i=0;i<nodes.length;i++) {
+        var t = (nodes[i].device_type||'').toLowerCase();
+        if (t.indexOf('路由')>=0 || t.indexOf('网关')>=0 || t.indexOf('router')>=0 || t.indexOf('gateway')>=0) {
+          if (!gw) gw = nodes[i];
+          else others.push(nodes[i]);
+        } else {
+          others.push(nodes[i]);
+        }
+      }
+      if (!gw && nodes.length>0) { gw = nodes[0]; others = nodes.slice(1); }
+      var W = 880, gap = 140, perRow = Math.min(others.length||1,6), positions = {};
+      // Gateway centered in first row
+      if (gw) {
+        positions[gw.ip] = {x: W/2-55, y: 28};
+        var gwOn = gw.last_seen && (Date.now()-new Date(gw.last_seen).getTime())<3600000;
+        topoHtml += '<div class="topo-node" style="left:'+(W/2-55)+'px;top:28px;border-color:var(--accent-blue);z-index:11">'+
+          '<div class="node-name"><span class="online-dot '+(gwOn?'on':'off')+'"></span>'+(gw.hostname||'网关')+'</div>'+
+          '<div class="node-ip">'+gw.ip+'</div></div>';
+      }
+      // Other devices in rows below, centered
+      var rowWidth = Math.min(others.length,perRow)*gap;
+      var startX = (W-rowWidth)/2;
+      others.forEach(function(node,idx){
+        var col=idx%perRow, row=Math.floor(idx/perRow);
+        var ox=startX+col*gap, oy=140+row*110;
+        positions[node.ip]={x:ox,y:oy};
+        var on=node.last_seen && (Date.now()-new Date(node.last_seen).getTime())<3600000;
+        topoHtml += '<div class="topo-node" style="left:'+ox+'px;top:'+oy+'px">'+
+          '<div class="node-name"><span class="online-dot '+(on?'on':'off')+'"></span>'+(node.hostname||node.device_type||'设备')+'</div>'+
+          '<div class="node-ip">'+node.ip+'</div></div>';
+      });
+      // Calculate container height based on last device position
+      var maxY = 80;
+      for (var k in positions) { if (positions[k].y + 44 > maxY) maxY = positions[k].y + 44; }
+      topoHtml += '<div style="height:' + maxY + 'px"></div></div>';
+      // Draw lines from gateway to each device
+      topoHtml += '<script>setTimeout(function(){var s=document.getElementById("enterprise-topo-links");if(!s)return;var pos='+JSON.stringify(positions)+';var gwIp='+JSON.stringify(gw?gw.ip:'')+';if(!gwIp||!pos[gwIp])return;var gx=pos[gwIp].x+55,gy=pos[gwIp].y+22;for(var k in pos){if(k===gwIp)continue;var p=pos[k];if(p){var l=document.createElementNS("http://www.w3.org/2000/svg","line");l.setAttribute("x1",gx);l.setAttribute("y1",gy);l.setAttribute("x2",p.x+55);l.setAttribute("y2",p.y+22);s.appendChild(l);}}},200);<\/script>';
+    }
+
+    // Device table
+    var deviceRows = nodes.length === 0 ? '<tr><td colspan="5"><div class="empty-state">暂无设备</div></td></tr>' :
+      nodes.map(function(n) {
+        var online = n.last_seen && (Date.now() - new Date(n.last_seen).getTime()) < 3600000;
+        return '<tr><td><span class="online-dot ' + (online?'on':'off') + '"></span></td><td style="font-weight:600">' + (n.hostname||'-') + '</td><td style="font-family:monospace">' + n.ip + '</td><td><span class="type-badge">' + (n.device_type||'unknown') + '</span></td><td>' + (n.vendor||'-') + '</td></tr>';
+      }).join('');
+    var deviceHtml = '<div class="section"><div class="section-header"><div class="section-title">🖥️ 设备列表</div></div><div class="card"><table><thead><tr><th>状态</th><th>主机名</th><th>IP</th><th>类型</th><th>厂商</th></tr></thead><tbody>' + deviceRows + '</tbody></table></div></div>';
+
+    // Alerts
+    var alertHtml = '<div class="section"><div class="section-header"><div class="section-title">🔔 最近告警</div></div><div class="card">';
+    if (alerts.length === 0) {
+      alertHtml += '<div class="empty-state">✅ 暂无告警</div>';
+    } else {
+      alertHtml += '<div class="alert-list">' + alerts.map(function(a) {
+        return '<div class="alert-item alert-level-' + a.level + '"><div class="alert-icon">' + (a.level==='critical'?'🔴':'🟡') + '</div><div class="alert-body"><div class="alert-title">' + a.alert_type + '</div><div class="alert-desc">' + a.message + '</div></div><div class="alert-time">' + timeAgo(new Date(a.created_at).getTime()/1000) + '</div></div>';
+      }).join('') + '</div>';
+    }
+    alertHtml += '</div></div>';
+
+    // Trend chart
+    var trendHtml = '<div class="section"><div class="section-header"><div class="section-title">📈 延迟趋势 (24h)</div></div><div class="card"><div class="chart-container"><canvas id="trend-chart"></canvas></div></div></div>';
+
+    // Diagnosis
+    var diagHtml = '<div class="section"><div class="section-header"><div class="section-title">🩺 快捷诊断</div></div><div class="card"><div class="diag-btns">' +
+      '<a class="btn btn-sm btn-secondary" href="/ping_detail/' + agentId + '">📡 Ping</a>' +
+      '<a class="btn btn-sm btn-secondary" href="/api/' + agentId + '/diag">📋 查看诊断报告</a>' +
+      '</div></div></div>';
+
+    el.innerHTML = heroHtml + statsHtml + topoHtml + deviceHtml + alertHtml + trendHtml + diagHtml;
+
+    // Render trend chart
+    if (history.length > 0 && !chart) {
+      var labels = history.slice().reverse().map(function(h){return new Date(h.timestamp*1000).toLocaleTimeString('zh-CN',{hour:'2-digit',minute:'2-digit'});});
+      chart = new Chart(document.getElementById('trend-chart').getContext('2d'), {
+        type: 'line',
+        data: { labels: labels, datasets: [
+          {label:'网关延迟',data:history.slice().reverse().map(function(h){return h.ping_rtt_ms}),borderColor:'#3fb950',backgroundColor:'rgba(63,185,80,0.1)',tension:0.3,fill:true},
+          {label:'DNS延迟',data:history.slice().reverse().map(function(h){return h.dns_ms}),borderColor:'#58a6ff',backgroundColor:'rgba(88,166,255,0.05)',tension:0.3,fill:false},
+        ]},
+        options: {responsive:true,maintainAspectRatio:true,plugins:{legend:{position:'top',labels:{font:{size:11}}}},scales:{x:{ticks:{maxTicksLimit:8,font:{size:10}}},y:{beginAtZero:true,ticks:{font:{size:10}}}}}
+      });
+    }
+  })['catch'](function(e){el.innerHTML='<div class="empty-state">加载失败: '+e.message+'</div>';});
+}
+
+var topoData = {links:[]};
+// Load topology links
+fetch(SERVER + '/api/topology/links').then(function(r){return r.json()}).then(function(d){topoData.links = d.links||[];}).catch(function(){});
+
+load();
+</script>
+{% endblock %}

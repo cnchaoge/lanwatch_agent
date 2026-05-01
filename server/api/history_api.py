@@ -16,7 +16,7 @@ async def get_probe_history(
     limit: int = Query(default=200, ge=1, le=1000),
 ):
     """查询探测结果历史"""
-    cutoff = (datetime.now() - timedelta(hours=hours)).isoformat()
+    cutoff = (datetime.now() - timedelta(hours=hours)).strftime("%Y-%m-%d %H:%M:%S")
 
     with get_db() as conn:
         cursor = conn.cursor()
@@ -53,7 +53,7 @@ async def get_ping_trends(
     hours: int = Query(default=24, ge=1, le=168),
 ):
     """获取 ping 延迟趋势数据（用于绘图）"""
-    cutoff = (datetime.now() - timedelta(hours=hours)).isoformat()
+    cutoff = (datetime.now() - timedelta(hours=hours)).strftime("%Y-%m-%d %H:%M:%S")
 
     with get_db() as conn:
         cursor = conn.cursor()
@@ -95,13 +95,11 @@ async def get_device_status_summary():
         cursor.execute(
             """SELECT pr.* FROM probe_results pr
                INNER JOIN (
-                   SELECT agent_id, probe_type, target, MAX(created_at) as max_time
+                   SELECT agent_id, MAX(created_at) as max_time
                    FROM probe_results
-                   GROUP BY agent_id, probe_type, target
+                   GROUP BY agent_id
                ) latest
                ON pr.agent_id = latest.agent_id
-                AND pr.probe_type = latest.probe_type
-                AND pr.target = latest.target
                 AND pr.created_at = latest.max_time
                ORDER BY pr.created_at DESC
                LIMIT 200"""
@@ -124,6 +122,15 @@ async def get_device_status_summary():
             ):
                 device_status[aid]["last_seen"] = row["created_at"]
 
+        # last_seen 是 SQLite UTC 字符串，转 epoch 秒供前端比较
+        for dev in device_status.values():
+            if dev["last_seen"]:
+                try:
+                    dt = datetime.fromisoformat(dev["last_seen"])
+                    dev["last_seen_ts"] = dt.timestamp()
+                except Exception:
+                    pass
+
         return {
             "count": len(device_status),
             "devices": list(device_status.values()),
@@ -138,7 +145,7 @@ async def get_snmp_metrics_history(
     limit: int = Query(default=500, ge=1, le=2000),
 ):
     """查询 SNMP 指标历史"""
-    cutoff = (datetime.now() - timedelta(hours=hours)).isoformat()
+    cutoff = (datetime.now() - timedelta(hours=hours)).strftime("%Y-%m-%d %H:%M:%S")
 
     with get_db() as conn:
         cursor = conn.cursor()

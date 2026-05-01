@@ -1,5 +1,7 @@
 import secrets
+import io
 from fastapi import APIRouter, HTTPException, Header, Query
+from fastapi.responses import Response
 from typing import Optional, List
 from core.database import get_db
 from core.config import config
@@ -16,15 +18,24 @@ def _generate_token() -> str:
 async def register_agent(payload: dict):
     # 为 Windows/Linux 客户端生成 agent_id（客户端不传则自动生成）
     agent_id = payload.get("agent_id") or secrets.token_hex(16)
+    company_name = (payload.get("name") or "").strip()
+    if not company_name:
+        raise HTTPException(status_code=400, detail="企业名称不能为空")
     with get_db() as conn:
         cursor = conn.cursor()
-        cursor.execute("SELECT id, token FROM agents WHERE agent_id = ?", (agent_id,))
+        # 按企业名称查重（每个企业对应一个唯一的 agent）
+        cursor.execute("SELECT agent_id, token FROM agents WHERE name = ?", (company_name,))
         existing = cursor.fetchone()
         if existing:
-            return {"success": True, "message": "设备已注册", "agent_id": agent_id, "token": existing["token"], "interval": payload.get("interval", config.AGENT_DEFAULT_INTERVAL)}
+            raise HTTPException(status_code=409, detail=f"企业「{company_name}」已注册，请勿重复注册")
+        # agent_id 查重（存量兼容）
+        cursor.execute("SELECT token FROM agents WHERE agent_id = ?", (agent_id,))
+        existing_by_id = cursor.fetchone()
+        if existing_by_id:
+            return {"success": True, "message": "设备已注册", "agent_id": agent_id, "token": existing_by_id["token"], "interval": payload.get("interval", config.AGENT_DEFAULT_INTERVAL)}
         token = _generate_token()
         cursor.execute("INSERT INTO agents (agent_id, name, ip, os_type, token, interval) VALUES (?, ?, ?, ?, ?, ?)",
-            (agent_id, payload.get("name",""), payload.get("ip",""), payload.get("os_type",""), token, payload.get("interval", config.AGENT_DEFAULT_INTERVAL)))
+            (agent_id, company_name, payload.get("ip",""), payload.get("os_type",""), token, payload.get("interval", config.AGENT_DEFAULT_INTERVAL)))
         return {"success": True, "message": "注册成功", "agent_id": agent_id, "token": token, "interval": payload.get("interval", config.AGENT_DEFAULT_INTERVAL)}
 
 
@@ -39,6 +50,34 @@ async def get_agents(password: str = Query(None)):
         return [{"id": r["agent_id"], "agent_id": r["agent_id"], "name": r["name"] or "", "ip": r["ip"] or "", "os_type": r["os_type"] or "", "interval": r["interval"] or config.AGENT_DEFAULT_INTERVAL, "last_seen": r["last_seen"], "online": _is_recent(r["last_seen"])} for r in rows]
 
 
+@router.get("/enterprises")
+async def get_enterprises():
+    """返回所有企业列表（含设备数、告警数）"""
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT agent_id, name, ip, os_type, interval, last_seen, created_at FROM agents ORDER BY created_at DESC")
+        rows = cursor.fetchall()
+        result = []
+        for r in rows:
+            aid = r["agent_id"]
+            device_count = cursor.execute(
+                "SELECT COUNT(*) FROM topology_nodes WHERE agent_id = ?", (aid,)
+            ).fetchone()[0]
+            alert_count = cursor.execute(
+                "SELECT COUNT(*) FROM alert_log WHERE agent_id = ? AND created_at >= datetime('now', '-24 hours')", (aid,)
+            ).fetchone()[0]
+            result.append({
+                "agent_id": aid,
+                "name": r["name"] or "",
+                "ip": r["ip"] or "",
+                "last_seen": r["last_seen"],
+                "online": _is_recent(r["last_seen"]),
+                "device_count": device_count,
+                "alert_24h": alert_count,
+            })
+        return result
+
+
 @router.delete("/agents/{agent_id}")
 async def delete_agent(agent_id: str, password: str = Query(...)):
     verify_admin_password(password)
@@ -48,6 +87,18 @@ async def delete_agent(agent_id: str, password: str = Query(...)):
         if cursor.rowcount == 0:
             raise HTTPException(status_code=404, detail="设备不存在")
         return {"success": True, "message": f"设备 {agent_id} 已删除"}
+
+
+@router.get("/qr")
+async def generate_qr(text: str = Query(...)):
+    """生成二维码图片"""
+    import qrcode
+    from qrcode.image.pil import PilImage
+    img = qrcode.make(text)
+    buf = io.BytesIO()
+    img.save(buf, format="PNG")
+    buf.seek(0)
+    return Response(content=buf.getvalue(), media_type="image/png")
 
 
 def _is_recent(last_seen: Optional[str], seconds: int = 120) -> bool:

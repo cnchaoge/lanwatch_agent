@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, Header, Body
+from fastapi import APIRouter, HTTPException, Header, Body, Request
 from typing import Optional, List, Dict, Any
 from datetime import datetime
 import json
@@ -32,7 +32,7 @@ def _write_agent_metrics(cursor, agent_id: str, data: dict):
 
 
 @router.post("/{agent_id}/report")
-async def report(agent_id: str, body: Any = Body(...), authorization: Optional[str] = Header(None)):
+async def report(agent_id: str, body: Any = Body(...), authorization: Optional[str] = Header(None), request: Request = None):
     verified_id = verify_agent_token(authorization)
     if verified_id != agent_id:
         raise HTTPException(status_code=403, detail="token 与 agent_id 不匹配")
@@ -55,7 +55,10 @@ async def report(agent_id: str, body: Any = Body(...), authorization: Optional[s
             else:
                 cursor.execute("INSERT INTO probe_results (agent_id, probe_type, target, status, rtt_ms, raw_output) VALUES (?, ?, ?, ?, ?, ?)",
                     (agent_id, r.get("probe_type"), r.get("target"), r.get("status"), r.get("rtt_ms"), json.dumps(r, ensure_ascii=False) if r else None))
-        cursor.execute("UPDATE agents SET last_seen = ? WHERE agent_id = ?", (datetime.now().isoformat(), agent_id))
+        client_ip = ""
+        if request:
+            client_ip = (request.headers.get("x-forwarded-for","").split(",")[0].strip() or (request.client.host if request.client else ""))
+        cursor.execute("UPDATE agents SET last_seen = ?, ip = COALESCE(NULLIF(ip,''), ?) WHERE agent_id = ?", (datetime.now().isoformat(), client_ip, agent_id))
     return {"success": True, "received": len(items)}
 
 
@@ -86,14 +89,17 @@ async def report_topology(agent_id: str, body: Any = Body(...), authorization: O
 
 
 @router.post("/{agent_id}/offline")
-async def report_offline(agent_id: str, authorization: Optional[str] = Header(None)):
+async def report_offline(agent_id: str, authorization: Optional[str] = Header(None), request: Request = None):
     """客户端下线通知"""
     verified_id = verify_agent_token(authorization)
     if verified_id != agent_id:
         raise HTTPException(status_code=403, detail="token 与 agent_id 不匹配")
     with get_db() as conn:
         cursor = conn.cursor()
-        cursor.execute("UPDATE agents SET last_seen = ? WHERE agent_id = ?", (datetime.now().isoformat(), agent_id))
+        client_ip = ""
+        if request:
+            client_ip = (request.headers.get("x-forwarded-for","").split(",")[0].strip() or (request.client.host if request.client else ""))
+        cursor.execute("UPDATE agents SET last_seen = ?, ip = COALESCE(NULLIF(ip,''), ?) WHERE agent_id = ?", (datetime.now().isoformat(), client_ip, agent_id))
     return {"success": True}
 
 

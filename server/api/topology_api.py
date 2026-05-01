@@ -68,7 +68,27 @@ async def get_topology_nodes(
         cursor.execute(sql, params)
         rows = cursor.fetchall()
 
-        return {"count": len(rows), "nodes": [dict(row) for row in rows]}
+        # 过滤非局域网 IP（组播、链路本地、回环、Docker 网桥）
+        def _is_lan_ip(ip: str) -> bool:
+            parts = ip.split(".")
+            if len(parts) != 4:
+                return False
+            try:
+                first = int(parts[0])
+            except ValueError:
+                return False
+            if 224 <= first <= 239:  # 组播
+                return False
+            if first == 169 and int(parts[1]) == 254:  # 链路本地
+                return False
+            if first == 127:  # 回环
+                return False
+            if first == 172 and int(parts[1]) == 17:  # Docker 网桥
+                return False
+            return True
+
+        nodes = [dict(r) for r in rows if _is_lan_ip(r["ip"])]
+        return {"count": len(nodes), "nodes": nodes}
 
 
 @router.get("/topology/links")

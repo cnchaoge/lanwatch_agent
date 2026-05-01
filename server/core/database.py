@@ -42,6 +42,7 @@ def init_db():
         CREATE INDEX IF NOT EXISTS idx_topology_nodes_ip ON topology_nodes(ip);
         CREATE INDEX IF NOT EXISTS idx_diag_reports_agent_time ON diag_reports(agent_id, created_at);
         CREATE INDEX IF NOT EXISTS idx_agent_metrics_key_time ON agent_metrics(agent_id, metric_key, created_at);
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_agents_name ON agents(name) WHERE name != '';
         """
         cursor.executescript(sql)
         conn.commit()

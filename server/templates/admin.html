@@ -256,6 +256,43 @@
 var SERVER = location.origin;
 var allUsers = [];
 var editUserId = null;
+var ADMIN_TIMEOUT = 300000; // 5分钟无操作自动退出
+var adminTimer = null;
+
+function _resetAdminTimer() {
+  if (adminTimer) clearTimeout(adminTimer);
+  adminTimer = setTimeout(autoLogout, ADMIN_TIMEOUT);
+}
+
+function _startActivityWatch() {
+  document.addEventListener('mousemove', _resetAdminTimer);
+  document.addEventListener('keydown', _resetAdminTimer);
+  document.addEventListener('click', _resetAdminTimer);
+  _resetAdminTimer();
+}
+
+function _stopActivityWatch() {
+  if (adminTimer) clearTimeout(adminTimer);
+  adminTimer = null;
+  document.removeEventListener('mousemove', _resetAdminTimer);
+  document.removeEventListener('keydown', _resetAdminTimer);
+  document.removeEventListener('click', _resetAdminTimer);
+}
+
+function showAdminPage() {
+  document.getElementById('login-page').style.display = 'none';
+  document.getElementById('admin-page').style.display = 'block';
+  document.getElementById('login-error').style.display = 'none';
+  loadData();
+  _startActivityWatch();
+}
+
+function autoLogout() {
+  localStorage.removeItem('admin_session');
+  _stopActivityWatch();
+  document.getElementById('login-page').style.display = 'flex';
+  document.getElementById('admin-page').style.display = 'none';
+}
 
 function doLogin() {
   var pw = document.getElementById('pw').value;
@@ -265,9 +302,8 @@ function doLogin() {
     body: JSON.stringify({password: pw})
   }).then(function(r) {
     if (r.ok) {
-      document.getElementById('login-page').style.display = 'none';
-      document.getElementById('admin-page').style.display = 'block';
-      loadData();
+      localStorage.setItem('admin_session', Date.now());
+      showAdminPage();
     } else {
       document.getElementById('login-error').style.display = 'block';
     }
@@ -275,6 +311,14 @@ function doLogin() {
     document.getElementById('login-error').style.display = 'block';
   });
 }
+
+// 页面加载时检查会话是否有效（5 分钟内）
+(function() {
+  var t = localStorage.getItem('admin_session');
+  if (t && Date.now() - parseInt(t) < ADMIN_TIMEOUT) {
+    showAdminPage();
+  }
+})();
 
 function timeAgo(ts) {
   if (!ts) return '-';

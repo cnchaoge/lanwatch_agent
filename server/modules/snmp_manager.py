@@ -105,10 +105,16 @@ class SNMPManager:
         """采集指定设备的 SNMP 指标"""
         with get_db() as conn:
             cursor = conn.cursor()
-            cursor.execute(
-                "SELECT port, community, snmp_version FROM snmp_devices WHERE agent_id=? AND ip=?",
-                (agent_id, ip),
-            )
+            if agent_id:
+                cursor.execute(
+                    "SELECT port, community, snmp_version FROM snmp_devices WHERE agent_id=? AND ip=?",
+                    (agent_id, ip),
+                )
+            else:
+                cursor.execute(
+                    "SELECT port, community, snmp_version FROM snmp_devices WHERE ip=? LIMIT 1",
+                    (ip,),
+                )
             row = cursor.fetchone()
             if not row:
                 return {"success": False, "error": "设备未注册"}
@@ -168,13 +174,14 @@ class SNMPManager:
             cursor = conn.cursor()
             cursor.execute("SELECT * FROM snmp_devices")
             for row in cursor.fetchall():
+                d = dict(row)
                 self.register_device(
-                    agent_id=row["agent_id"],
-                    ip=row["ip"],
-                    port=row["port"],
-                    community=row["community"],
-                    snmp_version=row["snmp_version"],
-                    description=row.get("description", ""),
+                    agent_id=d["agent_id"],
+                    ip=d["ip"],
+                    port=d["port"],
+                    community=d["community"],
+                    snmp_version=d["snmp_version"],
+                    description=d.get("description", ""),
                 )
 
 
