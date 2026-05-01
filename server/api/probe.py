@@ -153,7 +153,7 @@ async def get_latest_metrics(agent_id: str):
         if result.get("created_at"):
             from datetime import datetime
             try:
-                ts = datetime.fromisoformat(result["created_at"]).timestamp()
+                ts = datetime.fromisoformat(result["created_at"] + "+00:00").timestamp()
                 result["timestamp"] = ts
             except Exception:
                 result["timestamp"] = 0
@@ -225,7 +225,7 @@ async def get_agent_history(agent_id: str, limit: int = 60):
                 continue
             # 添加 timestamp
             try:
-                ts = datetime.fromisoformat(r["created_at"]).timestamp()
+                ts = datetime.fromisoformat(r["created_at"] + "+00:00").timestamp()
             except Exception:
                 ts = 0
             metrics["timestamp"] = ts

@@ -126,7 +126,7 @@ async def get_device_status_summary():
         for dev in device_status.values():
             if dev["last_seen"]:
                 try:
-                    dt = datetime.fromisoformat(dev["last_seen"])
+                    dt = datetime.fromisoformat(dev["last_seen"] + "+00:00")
                     dev["last_seen_ts"] = dt.timestamp()
                 except Exception:
                     pass

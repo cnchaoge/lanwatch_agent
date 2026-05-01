@@ -94,11 +94,11 @@ async def generic_exception_handler(request: Request, exc: Exception):
 # ── 路由注册 ────────────────────────────────────────────────────────
 
 app.include_router(agents_router, prefix="/api")   # 静态 /agents 必须在 /{agent_id} 之前
+app.include_router(snmp_router, prefix="/api")     # 必须在 probe_router 之前，避免 /snmp/latest 被 /{agent_id}/latest 拦截
 app.include_router(probe_router, prefix="/api")
 app.include_router(diag_router, prefix="/api")
 app.include_router(probes_router, prefix="/api")
 app.include_router(scheduler_router, prefix="/api")
-app.include_router(snmp_router, prefix="/api")
 app.include_router(alert_router, prefix="/api")
 app.include_router(history_router, prefix="/api")
 app.include_router(topology_router, prefix="/api")

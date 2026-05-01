@@ -5,14 +5,14 @@
 <a class="nav-item" href="/">📊 总览</a>
 <a class="nav-item active" href="/download.html">📥 下载中心</a>
 <a class="nav-item" href="/admin.html">⚙️ 管理后台</a>
-<a class="nav-item" href="/ping_overview.html">📡 掉线检测</a>
+<a class="nav-item" href="/ping_overview.html">📡 连通性监控</a>
 {% endblock %}
 
 {% block mobile_nav_items %}
 <a class="nav-item" href="/">📊 总览</a>
 <a class="nav-item" href="/download.html">📥 下载中心</a>
 <a class="nav-item" href="/admin.html">⚙️ 管理后台</a>
-<a class="nav-item" href="/ping_overview.html">📡 掉线检测</a>
+<a class="nav-item" href="/ping_overview.html">📡 连通性监控</a>
 {% endblock %}
 
 {% block head_extra %}
@@ -37,7 +37,9 @@
   margin-bottom: 28px;
 }
 
-.platform-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 14px; margin-bottom: 32px; }
+.platform-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-bottom: 32px; }
+@media (max-width: 800px) { .platform-grid { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 480px) { .platform-grid { grid-template-columns: 1fr; } }
 .platform-card {
   background: var(--surface); border: 1px solid var(--border);
   border-radius: var(--radius-lg); padding: 20px;
@@ -49,6 +51,7 @@
 .platform-name { font-size: 15px; font-weight: 700; }
 .platform-desc { font-size: 12px; color: var(--muted); flex: 1; line-height: 1.6; }
 .platform-version { font-size: 11px; color: var(--muted); }
+.platform-link { margin-top: 6px; }
 
 .section { margin-top: 40px; }
 .section-title { font-size: 18px; font-weight: 700; margin-bottom: 16px; display: flex; align-items: center; gap: 8px; }
@@ -83,7 +86,7 @@
       <div class="platform-icon">🪟</div>
       <div class="platform-name">Windows 客户端</div>
       <div class="platform-desc">适用于 Windows 10/11 系统，桌面后台运行，开机自启</div>
-      <div class="platform-version">v0.9.8 · 2026-04-27</div>
+      <div class="platform-version">v1.0.1 · 2026-04-30</div>
       <a class="btn btn-primary platform-link" href="/client.exe" style="display:block;text-align:center">立即下载 (.exe)</a>
     </div>
 
@@ -93,14 +96,6 @@
       <div class="platform-desc">适用于 Debian/Ubuntu/CentOS 系统，命令行运行</div>
       <div class="platform-version">v0.9.8 · 2026-04-27</div>
       <a class="btn btn-primary platform-link" href="/client-linux.tar.gz" style="display:block;text-align:center">立即下载 (二进制)</a>
-    </div>
-
-    <div class="platform-card">
-      <div class="platform-icon">🍎</div>
-      <div class="platform-name">macOS 客户端</div>
-      <div class="platform-desc">适用于 macOS 10.15+ 系统</div>
-      <div class="platform-version">规划中</div>
-      <a class="btn btn-secondary platform-link" href="javascript:void(0)" style="display:block;text-align:center">敬请期待</a>
     </div>
 
     <div class="platform-card">
@@ -138,13 +133,40 @@
       </div>
 
       <div class="snmp-card">
-        <h4>📖 配置步骤</h4>
+        <h4>📖 V2c 配置步骤</h4>
         <p class="step">1. 登录路由器管理后台（通常为 192.168.1.1）</p>
         <p class="step">2. 找到「SNMP」或「网络管理」配置项</p>
         <p class="step">3. 启用 SNMP V2c，Community 填写 public</p>
         <p class="step">4. 配置 Trap/目的主机</p>
         <p class="step">5. 保存设置，重启 SNMP 服务</p>
         <p style="margin-top:10px;font-size:13px;">📌 配置完成后，在管理后台添加设备即可开始监控。</p>
+      </div>
+    </div>
+
+    <div class="snmp-grid" style="margin-top:20px;">
+      <div class="snmp-card">
+        <h4>📋 SNMP V3 配置参数</h4>
+        <div class="param-row"><span class="param-name">SNMP 版本</span><span class="param-val">V3</span></div>
+        <div class="param-row"><span class="param-name">安全级别</span><span class="param-val">authPriv</span></div>
+        <div class="param-row"><span class="param-name">用户名</span><span class="param-val">自定义</span></div>
+        <div class="param-row"><span class="param-name">认证协议</span><span class="param-val">MD5 / SHA</span></div>
+        <div class="param-row"><span class="param-name">加密协议</span><span class="param-val">DES / AES</span></div>
+        <div class="param-row"><span class="param-name">目的主机</span><span class="param-val">82.156.229.67</span></div>
+        <div class="snmp-warn">
+          ⚠️ 配置的用户名、认证密码、加密密码需与平台管理后台填写一致
+        </div>
+      </div>
+
+      <div class="snmp-card">
+        <h4>📖 V3 配置步骤</h4>
+        <p class="step">1. 登录路由器管理后台（通常为 192.168.1.1）</p>
+        <p class="step">2. 找到「SNMP」或「网络管理」配置项</p>
+        <p class="step">3. 启用 SNMP V3，选择 authPriv 安全级别</p>
+        <p class="step">4. 配置用户名、认证协议 (MD5/SHA) 及密码</p>
+        <p class="step">5. 配置加密协议 (DES/AES) 及密码</p>
+        <p class="step">6. 配置 Trap/目的主机</p>
+        <p class="step">7. 保存设置，重启 SNMP 服务</p>
+        <p style="margin-top:10px;font-size:13px;">📌 配置完成后，在管理后台添加设备，选择 V3 并填入对应信息。</p>
       </div>
     </div>
   </div>

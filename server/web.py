@@ -19,6 +19,15 @@ def register_web(app: FastAPI):
     if static_dir.exists():
         app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
 
+    # 客户端下载文件
+    from fastapi.responses import FileResponse
+    client_exe = static_dir / "client.exe"
+    if client_exe.exists():
+        @app.get("/client.exe")
+        async def download_client():
+            return FileResponse(str(client_exe), media_type="application/octet-stream",
+                                filename="LanwatchAgent.exe")
+
     # Starlette 1.0: TemplateResponse(request, name, context?)
     @app.get("/", response_class=HTMLResponse)
     async def serve_index(request: Request):

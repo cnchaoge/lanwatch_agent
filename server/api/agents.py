@@ -52,7 +52,7 @@ async def get_agents(password: str = Query(None)):
 
 @router.get("/enterprises")
 async def get_enterprises():
-    """返回所有企业列表（含设备数、告警数）"""
+    """返回所有企业列表（含设备数、告警数、连通性监控状态）"""
     with get_db() as conn:
         cursor = conn.cursor()
         cursor.execute("SELECT agent_id, name, ip, os_type, interval, last_seen, created_at FROM agents ORDER BY created_at DESC")
@@ -66,6 +66,65 @@ async def get_enterprises():
             alert_count = cursor.execute(
                 "SELECT COUNT(*) FROM alert_log WHERE agent_id = ? AND created_at >= datetime('now', '-24 hours')", (aid,)
             ).fetchone()[0]
+            # 查询 ping 状态（优先 agent_id 匹配，再按 IP 匹配）
+            ping_status = None
+            ping_row = cursor.execute(
+                """SELECT pr.status as last_status, pr.rtt_ms as last_rtt,
+                          pr.created_at as last_check
+                   FROM scheduler_jobs sj
+                   LEFT JOIN (
+                       SELECT target, status, rtt_ms, created_at,
+                              ROW_NUMBER() OVER (PARTITION BY target ORDER BY created_at DESC) rn
+                       FROM probe_results WHERE probe_type='ping'
+                   ) pr ON sj.target = pr.target AND pr.rn = 1
+                   WHERE sj.probe_type='ping'
+                     AND (sj.agent_id=? OR (sj.agent_id='admin' AND sj.target=?))
+                   ORDER BY CASE WHEN sj.agent_id=? THEN 0 ELSE 1 END
+                   LIMIT 1""",
+                (aid, r["ip"], aid),
+            ).fetchone()
+            if ping_row:
+                pr = dict(ping_row)
+                ping_status = {
+                    "status": "online" if pr.get("last_status") == "ok" else "offline",
+                    "rtt_ms": pr.get("last_rtt"),
+                }
+                if pr.get("last_check"):
+                    try:
+                        ping_status["last_seen"] = datetime.fromisoformat(pr["last_check"] + "+00:00").timestamp()
+                    except Exception:
+                        pass
+
+            # 查询上线方式
+            methods = []
+            # 1. Agent 客户端
+            os_type = (r["os_type"] or "").lower()
+            has_agent = _is_recent(r["last_seen"]) or bool(os_type)
+            if has_agent:
+                label = "Windows 客户端" if os_type == "windows" else "Linux 客户端" if os_type == "linux" else "客户端"
+                methods.append(label)
+            # 2. SNMP 设备
+            snmp_count = cursor.execute(
+                "SELECT COUNT(*) FROM snmp_devices WHERE agent_id=?",
+                (aid,),
+            ).fetchone()[0]
+            has_snmp = snmp_count > 0
+            if has_snmp:
+                methods.append("SNMP 设备")
+            # 3. SNMP 设备通过 IP 匹配（agent_id='admin' 但 IP 匹配）
+            if not has_snmp and r["ip"]:
+                snmp_admin_count = cursor.execute(
+                    "SELECT COUNT(*) FROM snmp_devices WHERE agent_id='admin' AND ip=?",
+                    (r["ip"],),
+                ).fetchone()[0]
+                if snmp_admin_count > 0:
+                    methods.append("SNMP 设备")
+                    has_snmp = True
+            # 4. 被动 Ping
+            has_ping = ping_status is not None
+            if has_ping:
+                methods.append("被动 Ping")
+
             result.append({
                 "agent_id": aid,
                 "name": r["name"] or "",
@@ -74,6 +133,11 @@ async def get_enterprises():
                 "online": _is_recent(r["last_seen"]),
                 "device_count": device_count,
                 "alert_24h": alert_count,
+                "ping": ping_status,
+                "methods": methods,
+                "has_agent": has_agent,
+                "has_snmp": has_snmp,
+                "has_ping": has_ping,
             })
         return result
 
@@ -104,9 +168,9 @@ async def generate_qr(text: str = Query(...)):
 def _is_recent(last_seen: Optional[str], seconds: int = 120) -> bool:
     if not last_seen:
         return False
-    from datetime import datetime, timedelta
+    from datetime import datetime, timedelta, timezone
     try:
-        last = datetime.fromisoformat(last_seen)
-        return datetime.now() - last < timedelta(seconds=seconds)
+        last = datetime.fromisoformat(last_seen + "+00:00")
+        return datetime.now(timezone.utc) - last < timedelta(seconds=seconds)
     except Exception:
         return False

@@ -1,8 +1,8 @@
 """
 版本号管理。
 """
-version = "1.0.0"
-__version_info__ = (1, 0, 0)
+version = "1.0.1"
+__version_info__ = (1, 0, 1)
 __release_date__ = "2026-04-30"
 author = "cnchaoge"
 license = "MIT"

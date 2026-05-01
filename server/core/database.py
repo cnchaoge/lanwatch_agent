@@ -26,7 +26,7 @@ def init_db():
         cursor = conn.cursor()
         sql = """
         CREATE TABLE IF NOT EXISTS agents (id INTEGER PRIMARY KEY AUTOINCREMENT, agent_id TEXT UNIQUE NOT NULL, name TEXT DEFAULT '', ip TEXT DEFAULT '', os_type TEXT DEFAULT '', token TEXT DEFAULT '', secret_key TEXT, interval INTEGER DEFAULT 60, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, last_seen TIMESTAMP);
-        CREATE TABLE IF NOT EXISTS snmp_devices (id INTEGER PRIMARY KEY AUTOINCREMENT, agent_id TEXT NOT NULL, ip TEXT NOT NULL, port INTEGER DEFAULT 161, community TEXT DEFAULT 'public', snmp_version TEXT DEFAULT '2c', description TEXT, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, UNIQUE(agent_id, ip));
+        CREATE TABLE IF NOT EXISTS snmp_devices (id INTEGER PRIMARY KEY AUTOINCREMENT, agent_id TEXT NOT NULL, ip TEXT NOT NULL, port INTEGER DEFAULT 161, community TEXT DEFAULT 'public', snmp_version TEXT DEFAULT '2c', description TEXT, snmpv3_username TEXT DEFAULT '', snmpv3_auth_protocol TEXT DEFAULT 'MD5', snmpv3_auth_key TEXT DEFAULT '', snmpv3_priv_protocol TEXT DEFAULT 'DES', snmpv3_priv_key TEXT DEFAULT '', created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, UNIQUE(agent_id, ip));
         CREATE TABLE IF NOT EXISTS snmp_metrics (id INTEGER PRIMARY KEY AUTOINCREMENT, device_ip TEXT NOT NULL, oid TEXT NOT NULL, value TEXT, raw_hex TEXT, raw_len INTEGER, timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP);
         CREATE TABLE IF NOT EXISTS probe_results (id INTEGER PRIMARY KEY AUTOINCREMENT, agent_id TEXT NOT NULL, probe_type TEXT NOT NULL, target TEXT NOT NULL, status TEXT, rtt_ms REAL, raw_output TEXT, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP);
         CREATE TABLE IF NOT EXISTS topology_nodes (id INTEGER PRIMARY KEY AUTOINCREMENT, agent_id TEXT, ip TEXT UNIQUE NOT NULL, mac TEXT, hostname TEXT, device_type TEXT, vendor TEXT, raw_data TEXT, last_seen TIMESTAMP DEFAULT CURRENT_TIMESTAMP);
@@ -52,5 +52,17 @@ def init_db():
         if "token" not in cols:
             cursor.execute("ALTER TABLE agents ADD COLUMN token TEXT DEFAULT ''")
             conn.commit()
+        # 检查并添加 SNMP v3 列（迁移兼容）
+        cursor.execute("PRAGMA table_info(snmp_devices)")
+        snmp_cols = [row[1] for row in cursor.fetchall()]
+        for col in ["snmpv3_username", "snmpv3_auth_protocol", "snmpv3_auth_key", "snmpv3_priv_protocol", "snmpv3_priv_key"]:
+            if col not in snmp_cols:
+                cursor.execute(f"ALTER TABLE snmp_devices ADD COLUMN {col} TEXT DEFAULT ''")
+        # 检查并添加 scheduler_jobs name 列（迁移兼容）
+        cursor.execute("PRAGMA table_info(scheduler_jobs)")
+        sched_cols = [row[1] for row in cursor.fetchall()]
+        if "name" not in sched_cols:
+            cursor.execute("ALTER TABLE scheduler_jobs ADD COLUMN name TEXT DEFAULT ''")
+        conn.commit()
     finally:
         conn.close()

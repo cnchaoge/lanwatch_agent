@@ -1,6 +1,6 @@
 """SNMP 设备管理：注册/删除设备、自动配置探测任务、定时采集指标"""
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Dict, Any, Optional, List
 from core.database import get_db
 from core.config import config
@@ -34,19 +34,33 @@ class SNMPManager:
         community: str = "public",
         snmp_version: str = "2c",
         description: str = "",
+        snmpv3_username: str = "",
+        snmpv3_auth_protocol: str = "MD5",
+        snmpv3_auth_key: str = "",
+        snmpv3_priv_protocol: str = "DES",
+        snmpv3_priv_key: str = "",
     ) -> Dict[str, Any]:
         """注册 SNMP 设备，自动创建 ping + snmp 采集任务"""
         with get_db() as conn:
             cursor = conn.cursor()
             cursor.execute(
-                """INSERT INTO snmp_devices (agent_id, ip, port, community, snmp_version, description)
-                   VALUES (?, ?, ?, ?, ?, ?)
+                """INSERT INTO snmp_devices (agent_id, ip, port, community, snmp_version, description,
+                   snmpv3_username, snmpv3_auth_protocol, snmpv3_auth_key,
+                   snmpv3_priv_protocol, snmpv3_priv_key)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                    ON CONFLICT(agent_id, ip) DO UPDATE SET
                        port=excluded.port,
                        community=excluded.community,
                        snmp_version=excluded.snmp_version,
-                       description=excluded.description""",
-                (agent_id, ip, port, community, snmp_version, description),
+                       description=excluded.description,
+                       snmpv3_username=excluded.snmpv3_username,
+                       snmpv3_auth_protocol=excluded.snmpv3_auth_protocol,
+                       snmpv3_auth_key=excluded.snmpv3_auth_key,
+                       snmpv3_priv_protocol=excluded.snmpv3_priv_protocol,
+                       snmpv3_priv_key=excluded.snmpv3_priv_key""",
+                (agent_id, ip, port, community, snmp_version, description,
+                 snmpv3_username, snmpv3_auth_protocol, snmpv3_auth_key,
+                 snmpv3_priv_protocol, snmpv3_priv_key),
             )
             cursor.execute("SELECT interval FROM agents WHERE agent_id=?", (agent_id,))
             row = cursor.fetchone()
@@ -68,7 +82,7 @@ class SNMPManager:
             interval_seconds=max(interval * 5, 300),
         )
 
-        logger.info(f"注册 SNMP 设备: {agent_id} -> {ip}:{port}")
+        logger.info(f"注册 SNMP 设备: {agent_id} -> {ip}:{port} v{snmp_version}")
         return {
             "success": True,
             "agent_id": agent_id,
@@ -102,34 +116,49 @@ class SNMPManager:
             return [dict(row) for row in cursor.fetchall()]
 
     def collect_snmp_metrics(self, agent_id: str, ip: str) -> Dict[str, Any]:
-        """采集指定设备的 SNMP 指标"""
+        """采集指定设备的 SNMP 指标，支持 v2c 和 v3"""
         with get_db() as conn:
             cursor = conn.cursor()
             if agent_id:
                 cursor.execute(
-                    "SELECT port, community, snmp_version FROM snmp_devices WHERE agent_id=? AND ip=?",
+                    "SELECT port, community, snmp_version, snmpv3_username, snmpv3_auth_protocol, snmpv3_auth_key, snmpv3_priv_protocol, snmpv3_priv_key FROM snmp_devices WHERE agent_id=? AND ip=?",
                     (agent_id, ip),
                 )
             else:
                 cursor.execute(
-                    "SELECT port, community, snmp_version FROM snmp_devices WHERE ip=? LIMIT 1",
+                    "SELECT port, community, snmp_version, snmpv3_username, snmpv3_auth_protocol, snmpv3_auth_key, snmpv3_priv_protocol, snmpv3_priv_key FROM snmp_devices WHERE ip=? LIMIT 1",
                     (ip,),
                 )
             row = cursor.fetchone()
             if not row:
                 return {"success": False, "error": "设备未注册"}
 
-            port = row["port"]
-            community = row["community"]
+            dev = dict(row)
+            port = dev["port"]
+            community = dev["community"]
+            snmp_version = dev.get("snmp_version", "2c")
 
         results: Dict[str, str] = {}
 
         for oid, name in COMMON_OIDS.items():
-            ok, val = snmp_get(ip, oid, community, port=port)
+            ok, val = snmp_get(ip, oid, community, port=port,
+                               snmp_version=snmp_version,
+                               v3_username=dev.get("snmpv3_username", ""),
+                               v3_auth_protocol=dev.get("snmpv3_auth_protocol", "MD5"),
+                               v3_auth_key=dev.get("snmpv3_auth_key", ""),
+                               v3_priv_protocol=dev.get("snmpv3_priv_protocol", "DES"),
+                               v3_priv_key=dev.get("snmpv3_priv_key", ""))
             if ok:
                 results[name] = str(val)
 
-        if_rows = snmp_bulkwalk(ip, IF_OPER_STATUS, community, port=port, max_rows=50)
+        if_rows = snmp_bulkwalk(ip, IF_OPER_STATUS, community, port=port,
+                                snmp_version=snmp_version,
+                                v3_username=dev.get("snmpv3_username", ""),
+                                v3_auth_protocol=dev.get("snmpv3_auth_protocol", "MD5"),
+                                v3_auth_key=dev.get("snmpv3_auth_key", ""),
+                                v3_priv_protocol=dev.get("snmpv3_priv_protocol", "DES"),
+                                v3_priv_key=dev.get("snmpv3_priv_key", ""),
+                                max_rows=50)
         for oid_str, val_str in if_rows:
             try:
                 idx = oid_str.rsplit(".", 1)[-1]
@@ -137,7 +166,7 @@ class SNMPManager:
             except Exception:
                 pass
 
-        now = datetime.now().isoformat()
+        now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
         with get_db() as conn:
             cursor = conn.cursor()
             for oid, value in results.items():
@@ -147,6 +176,11 @@ class SNMPManager:
                        VALUES (?, ?, ?, ?, ?, ?)""",
                     (ip, oid, value, raw_hex, len(raw_hex) // 2 if raw_hex else 0, now),
                 )
+            status = "online" if results else "offline"
+            cursor.execute(
+                "UPDATE snmp_devices SET status=?, last_poll=? WHERE ip=?",
+                (status, now, ip),
+            )
 
         return {
             "success": True,
@@ -182,6 +216,11 @@ class SNMPManager:
                     community=d["community"],
                     snmp_version=d["snmp_version"],
                     description=d.get("description", ""),
+                    snmpv3_username=d.get("snmpv3_username", ""),
+                    snmpv3_auth_protocol=d.get("snmpv3_auth_protocol", "MD5"),
+                    snmpv3_auth_key=d.get("snmpv3_auth_key", ""),
+                    snmpv3_priv_protocol=d.get("snmpv3_priv_protocol", "DES"),
+                    snmpv3_priv_key=d.get("snmpv3_priv_key", ""),
                 )
 
 

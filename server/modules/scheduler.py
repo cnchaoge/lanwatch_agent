@@ -30,14 +30,15 @@ class ProbeScheduler:
     # ------------------------------------------------------------ job control
 
     def add_job(self, job_id: str, agent_id: str, probe_type: str,
-                target: str, interval_seconds: int = 300, enabled: bool = True):
+                target: str, interval_seconds: int = 300, enabled: bool = True,
+                name: str = ""):
         with get_db() as conn:
             conn.execute(
                 "INSERT OR REPLACE INTO scheduler_jobs "
-                "(job_id, agent_id, probe_type, target, interval_seconds, enabled) "
-                "VALUES (?, ?, ?, ?, ?, ?)",
+                "(job_id, agent_id, probe_type, target, interval_seconds, enabled, name) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?)",
                 (job_id, agent_id, probe_type, target, interval_seconds,
-                 1 if enabled else 0),
+                 1 if enabled else 0, name),
             )
         if enabled:
             self.scheduler.add_job(
@@ -146,12 +147,20 @@ class ProbeScheduler:
             result = {"status": "error", "error": str(exc)}
 
         rtt = result.get("avg_rtt") if probe_type == "ping" else None
-        if probe_type == "http":
+        if probe_type == "ping":
+            status = "ok" if result.get("status") == "ok" else "error"
+        elif probe_type == "http":
             status = "ok" if result.get("reachable") else "error"
         elif probe_type == "traceroute":
             status = "ok" if result.get("hop_count", 0) > 0 else "error"
         elif probe_type == "snmp":
             status = "ok" if result.get("success") else "error"
+        elif probe_type == "dns":
+            status = "ok" if result.get("dns_ms") is not None else "error"
+        elif probe_type == "portscan":
+            status = "ok" if result.get("results") else "error"
+        else:
+            status = "ok" if result.get("status") != "error" else "error"
 
         with get_db() as conn:
             conn.execute(

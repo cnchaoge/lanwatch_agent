@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}掉线检测详情 - Lanwatch{% endblock %}
+{% block title %}连通性监控详情 - Lanwatch{% endblock %}
 
 {% block navbar_brand %}
 <a class="navbar-brand" href="/" style="font-size:15px">Lanwatch</a>
@@ -7,13 +7,13 @@
 
 {% block nav_items %}
 <a class="nav-item" href="/">📊 总览</a>
-<a class="nav-item" href="/ping_overview.html">📡 掉线检测</a>
+<a class="nav-item" href="/ping_overview.html">📡 连通性监控</a>
 <a class="nav-item" href="/admin.html">⚙️ 管理后台</a>
 {% endblock %}
 
 {% block mobile_nav_items %}
 <a class="nav-item" href="/">📊 总览</a>
-<a class="nav-item" href="/ping_overview.html">📡 掉线检测</a>
+<a class="nav-item" href="/ping_overview.html">📡 连通性监控</a>
 <a class="nav-item" href="/admin.html">⚙️ 管理后台</a>
 {% endblock %}
 
@@ -34,6 +34,16 @@
 .chart-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 20px; margin-bottom: 20px; }
 .chart-title { font-size: 15px; font-weight: 700; margin-bottom: 14px; }
 .chart-wrap { position: relative; height: 220px; }
+.stats-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: 10px; margin-bottom: 20px; }
+.stat-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 12px 14px; text-align: center; }
+.stat-num { font-size: 18px; font-weight: 800; }
+.stat-num.green { color: var(--green); } .stat-num.red { color: var(--red); } .stat-num.blue { color: var(--primary); }
+.stat-label { font-size: 10px; color: var(--muted); margin-top: 2px; }
+.recent-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.recent-table th { text-align: left; padding: 8px 10px; color: var(--muted); font-size: 11px; border-bottom: 1px solid var(--border); font-weight: 600; }
+.recent-table td { padding: 7px 10px; border-bottom: 1px solid var(--border); }
+.recent-table tr:hover { background: var(--surface-hover); }
+.r-online { color: var(--green); font-weight: 600; } .r-offline { color: var(--red); font-weight: 600; }
 .loading { text-align: center; padding: 40px; color: var(--muted); }
 </style>
 {% endblock %}
@@ -41,7 +51,7 @@
 {% block content %}
 <div class="container" style="max-width:900px">
   <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:24px;">
-    <h1 style="font-size:20px;font-weight:800" id="pageTitle">掉线检测详情</h1>
+    <h1 style="font-size:20px;font-weight:800" id="pageTitle">连通性监控详情</h1>
     <a href="/ping_overview.html" class="btn btn-sm btn-secondary">← 返回列表</a>
   </div>
 
@@ -53,6 +63,8 @@
       <button class="btn btn-sm btn-secondary" onclick="toggleEnabled()">⏸ 启用/禁用</button>
       <button class="btn btn-sm btn-danger" onclick="deleteMonitor()">🗑 删除</button>
     </div>
+    <div id="statsGrid" class="stats-grid"></div>
+
     <div class="chart-card">
       <div class="chart-title">📈 延迟趋势（最近24小时）</div>
       <div class="chart-wrap"><canvas id="rttChart"></canvas></div>
@@ -60,6 +72,16 @@
     <div class="chart-card">
       <div class="chart-title">✅ 可用率（最近7天）</div>
       <div class="chart-wrap"><canvas id="upChart"></canvas></div>
+    </div>
+
+    <div class="chart-card">
+      <div class="chart-title">📋 最近探测记录</div>
+      <div style="overflow-x:auto">
+        <table class="recent-table" id="recentTable">
+          <thead><tr><th>时间</th><th>状态</th><th>延迟</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
     </div>
   </div>
 </div>
@@ -69,7 +91,7 @@
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <script>
 var SERVER = location.origin;
-var monitorId = parseInt(location.pathname.split('/').pop());
+var monitorId = decodeURIComponent(location.pathname.split('/').pop());
 var currentMonitor = null;
 var rttChart = null;
 var upChart = null;
@@ -90,10 +112,11 @@ function load() {
     currentMonitor = m;
     document.getElementById('loading').style.display = 'none';
     document.getElementById('content').style.display = 'block';
-    document.title = (m.name || m.ip) + ' - 掉线检测详情';
+    document.title = (m.name || m.ip) + ' - 连通性监控详情';
     document.getElementById('pageTitle').textContent = m.name || m.ip;
     var isOnline = m.status === 'online';
     document.getElementById('infoGrid').innerHTML =
+      '<div class="info-card"><div class="info-label">名称</div><div class="info-value" style="font-size:14px">' + (m.name || '-') + '</div></div>' +
       '<div class="info-card"><div class="info-label">IP地址</div><div class="info-value" style="font-family:Menlo,monospace">' + m.ip + '</div></div>' +
       '<div class="info-card"><div class="info-label">状态</div><div class="info-value" style="color:var(--' + (isOnline?'green':'red') + ')">' + (isOnline?'● 在线':'● 离线') + '</div></div>' +
       (m.last_seen ? '<div class="info-card"><div class="info-label">最后在线</div><div class="info-value" style="font-size:14px">' + timeAgo(m.last_seen) + '</div></div>' : '') +
@@ -107,7 +130,40 @@ function loadHistory() {
   fetch(SERVER + '/api/admin/ping/' + monitorId + '/history').then(function(r){ return r.json(); }).then(function(data) {
     renderRttChart(data.rtt_history || []);
     renderUpChart(data.up_history || []);
+    renderStats(data.stats || {});
+    renderRecent(data.recent_results || []);
   }).catch(function() {});
+}
+
+function renderStats(stats) {
+  var total = stats.total || 0;
+  var okCount = stats.ok_count || 0;
+  var rate = total > 0 ? (okCount / total * 100).toFixed(1) : 0;
+  var avg = stats.avg_rtt ? Math.round(stats.avg_rtt * 10) / 10 : '-';
+  var min = stats.min_rtt ? Math.round(stats.min_rtt * 10) / 10 : '-';
+  var max = stats.max_rtt ? Math.round(stats.max_rtt * 10) / 10 : '-';
+  document.getElementById('statsGrid').innerHTML =
+    '<div class="stat-card"><div class="stat-num blue">' + total + '</div><div class="stat-label">探测次数</div></div>' +
+    '<div class="stat-card"><div class="stat-num ' + (rate >= 90 ? 'green' : 'red') + '">' + rate + '%</div><div class="stat-label">可用率</div></div>' +
+    '<div class="stat-card"><div class="stat-num blue">' + avg + '</div><div class="stat-label">平均延迟</div></div>' +
+    '<div class="stat-card"><div class="stat-num green">' + min + '</div><div class="stat-label">最低延迟</div></div>' +
+    '<div class="stat-card"><div class="stat-num red">' + max + '</div><div class="stat-label">最高延迟</div></div>';
+}
+
+function renderRecent(results) {
+  var tbody = document.querySelector('#recentTable tbody');
+  if (!results.length) {
+    tbody.innerHTML = '<tr><td colspan="3" style="text-align:center;color:var(--muted);padding:20px;">暂无数据</td></tr>';
+    return;
+  }
+  tbody.innerHTML = results.map(function(r) {
+    var isOk = r.status === 'ok';
+    var timeStr = new Date(r.ts * 1000).toLocaleString('zh-CN', {month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit'});
+    var rttStr = r.rtt_ms !== null ? Math.round(r.rtt_ms * 10) / 10 + ' ms' : '-';
+    return '<tr><td style="color:var(--muted);font-size:12px">' + timeStr + '</td>' +
+      '<td><span class="' + (isOk ? 'r-online' : 'r-offline') + '">' + (isOk ? '● 在线' : '● 离线') + '</span></td>' +
+      '<td style="font-family:monospace">' + rttStr + '</td></tr>';
+  }).join('');
 }
 
 function renderRttChart(rttHistory) {

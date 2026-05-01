@@ -6,7 +6,7 @@ from modules.snmp_manager import snmp_manager
 from core.auth import verify_admin_password
 from core.config import config
 from core.database import get_db
-from datetime import datetime
+from datetime import datetime, timezone
 
 router = APIRouter()
 
@@ -48,6 +48,11 @@ class SNMPDeviceRegister(BaseModel):
     community: Optional[str] = "public"
     snmp_version: Optional[str] = "2c"
     description: Optional[str] = ""
+    snmpv3_username: Optional[str] = ""
+    snmpv3_auth_protocol: Optional[str] = "MD5"
+    snmpv3_auth_key: Optional[str] = ""
+    snmpv3_priv_protocol: Optional[str] = "DES"
+    snmpv3_priv_key: Optional[str] = ""
 
 
 class SNMPDeviceResponse(BaseModel):
@@ -74,6 +79,11 @@ async def register_snmp_device(
         community=payload.community or "public",
         snmp_version=payload.snmp_version or "2c",
         description=payload.description or "",
+        snmpv3_username=payload.snmpv3_username or "",
+        snmpv3_auth_protocol=payload.snmpv3_auth_protocol or "MD5",
+        snmpv3_auth_key=payload.snmpv3_auth_key or "",
+        snmpv3_priv_protocol=payload.snmpv3_priv_protocol or "DES",
+        snmpv3_priv_key=payload.snmpv3_priv_key or "",
     )
     return SNMPDeviceResponse(**result)
 
@@ -123,7 +133,7 @@ async def collect_all_snmp(password: Optional[str] = Query(None)):
 @router.get("/snmp/latest")
 async def get_snmp_devices_latest():
     """返回所有 SNMP 设备及最新指标（监控面板使用）"""
-    from datetime import datetime
+    from datetime import datetime, timezone
     with get_db() as conn:
         cursor = conn.cursor()
         cursor.execute("SELECT * FROM snmp_devices ORDER BY created_at DESC")
@@ -151,9 +161,9 @@ async def get_snmp_devices_latest():
                 ts = rows[0]["timestamp"]
                 if ts:
                     try:
-                        last_dt = datetime.fromisoformat(ts)
+                        last_dt = datetime.fromisoformat(ts + "+00:00")
                         last_poll = last_dt.timestamp()
-                        status = 1 if (datetime.now() - last_dt).total_seconds() < 300 else 0
+                        status = 1 if (datetime.now(timezone.utc) - last_dt).total_seconds() < 300 else 0
                     except Exception:
                         pass
 
