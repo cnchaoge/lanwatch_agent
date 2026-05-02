@@ -35,7 +35,7 @@ def register_web(app: FastAPI):
 
     from fastapi.responses import RedirectResponse
 
-    named_pages = ["admin", "ping_overview", "download", "monitor", "setup", "mobile"]
+    named_pages = ["admin", "agents", "ping_overview", "download", "monitor", "setup", "mobile"]
     for name in named_pages:
 
         def _add_redirect(page=name):
