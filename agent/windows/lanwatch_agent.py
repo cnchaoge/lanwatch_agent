@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 """lanwatch_agent - 企业网络监控客户端 v0.9.0"""
 
-__version__ = "1.0.0"
+__version__ = "1.1.0"
 
 import socket
 from time import sleep
@@ -1375,10 +1375,10 @@ def _show_about(icon=None):
 
         # ── 检查更新按钮 + 结果 ──
         update_btn = Button(win, text="检查更新", font=("微软雅黑", 10),
-                           width=12, bg=C_ACCENT, fg="white", relief="flat", pady=6)
+                           width=10, bg=C_ACCENT, fg="white", relief="flat", pady=6)
         update_btn.place(x=20, y=234)
         result_lbl = Label(win, text="", font=("微软雅黑", 9), bg=bg, fg=C_MUTED)
-        result_lbl.place(x=20, y=268)
+        result_lbl.place(x=130, y=234 + 3)  # 按钮右边显示状态
 
         def do_check_update():
             update_btn.config(state="disabled", text="检查中...")
@@ -1395,11 +1395,11 @@ def _show_about(icon=None):
                     result_lbl.config(text=f"已是最新版本 v{__version__}", fg=C_GREEN)
                     update_btn.config(state="normal", text="检查更新")
                 else:
-                    result_lbl.config(text=f"发现新版本 v{new_ver}（当前 v{__version__}）", fg=C_ORANGE)
+                    result_lbl.config(text=f"发现新版本 v{new_ver}", fg=C_ORANGE)
                     def do_upgrade():
                         update_btn.config(state="disabled", text="升级中...")
                         threading.Thread(target=_do_upgrade, args=(dl_url, new_ver), daemon=True).start()
-                    update_btn.config(state="normal", text="立即更新", bg=C_GREEN, command=do_upgrade)
+                    update_btn.config(state="normal", text="立即更新", bg=C_GREEN, fg="white", command=do_upgrade)
             except Exception as e:
                 result_lbl.config(text="检查更新失败", fg=C_RED)
                 update_btn.config(state="normal", text="检查更新")
@@ -1413,8 +1413,8 @@ def _show_about(icon=None):
             except Exception: pass
             win.destroy()
         Button(win, text="确定", command=close_win,
-               font=("微软雅黑", 10), width=12, bg=C_BTN_SEC, fg=C_MUTED,
-               relief="flat", pady=6).place(x=168, y=234)
+               font=("微软雅黑", 10), width=10, bg=C_BTN_SEC, fg=C_MUTED,
+               relief="flat", pady=6).place(x=280, y=234)
 
         win.protocol("WM_DELETE_WINDOW", close_win)
     except Exception:
