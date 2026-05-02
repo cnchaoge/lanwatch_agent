@@ -233,7 +233,7 @@ function load() {
           '<span><span class="dot ' + alertClass + '"></span>告警 <strong>' + e.alert_24h + '</strong></span>' +
           '<span style="margin-left:auto">' + footerLabel + ': ' + lastUpdate + '</span></div>';
 
-        return '<div class="enterprise-card" onclick="location.href=\'/enterprise/\' + e.agent_id + \'\'">' +
+        return '<div class="enterprise-card" data-agent-id="' + e.agent_id + '">' +
           '<div class="top"><span class="name">' + (e.name || '未命名企业') + '</span><span class="status ' + statusClass + '">' + statusText + '</span></div>' +
           '<div class="methods">' + methodHtml + '</div>' +
           connHtml +
@@ -338,6 +338,14 @@ function loadAlerts() {
       section.innerHTML = '<div class="empty-state" style="padding:24px">加载失败</div>';
     });
 }
+
+// 企业卡片点击跳转（事件委托）
+document.getElementById('enterprise-grid').addEventListener('click', function(ev) {
+  var card = ev.target.closest('.enterprise-card');
+  if (card && card.dataset.agentId) {
+    location.href = '/enterprise/' + card.dataset.agentId;
+  }
+});
 
 load();
 setInterval(load, 30000);
