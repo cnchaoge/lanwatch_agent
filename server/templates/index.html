@@ -46,34 +46,27 @@
   background: var(--bg-tertiary); color: var(--text-muted);
 }
 .enterprise-card .method-tag.active { background: rgba(63,185,80,0.12); color: var(--green); }
-.enterprise-card .stats { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-bottom: 10px; }
-.enterprise-card .stat-item { display: flex; flex-direction: column; }
-.enterprise-card .stat-label { font-size: 11px; color: var(--muted); }
-.enterprise-card .stat-value { font-size: 16px; font-weight: 700; }
-.enterprise-card .stat-value.green { color: var(--green); }
-.enterprise-card .stat-value.red { color: var(--red); }
-.enterprise-card .stat-value.blue { color: var(--blue); }
-.enterprise-card .stat-value.grey { color: var(--muted); }
-.enterprise-card .meta { font-size: 11px; color: var(--muted); border-top: 1px solid var(--border); padding-top: 8px; }
+.enterprise-card .card-footer { display: flex; gap: 16px; font-size: 11px; color: var(--text-muted); border-top: 1px solid var(--border); padding-top: 8px; margin-top: 2px; flex-wrap: wrap; }
+.enterprise-card .card-footer strong { color: var(--text-primary); font-weight: 700; }
+.enterprise-card .card-footer .dot { width: 6px; height: 6px; border-radius: 50%; display: inline-block; margin-right: 3px; }
+.enterprise-card .card-footer .dot.green { background: var(--green); }
+.enterprise-card .card-footer .dot.red { background: var(--red); }
+.enterprise-card .card-footer .dot.blue { background: var(--blue); }
+.enterprise-card .card-footer .dot.grey { background: var(--text-muted); }
+
+.conn-section { margin: 6px 0 8px; border-top: 1px solid var(--border); padding-top: 8px; }
+.conn-section-title { font-size: 11px; font-weight: 600; color: var(--text-muted); margin-bottom: 4px; display: flex; align-items: center; gap: 4px; letter-spacing: 0.3px; }
+.conn-row { display: flex; align-items: center; gap: 6px; font-size: 12px; padding: 3px 4px; border-radius: 4px; }
+.conn-row:hover { background: var(--surface-hover); }
+.conn-icon { width: 18px; text-align: center; flex-shrink: 0; font-size: 11px; }
+.conn-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; color: var(--text-secondary); font-weight: 500; }
+.conn-meta { font-family: monospace; font-size: 11px; color: var(--text-muted); margin-right: 6px; }
+.conn-value { font-weight: 600; white-space: nowrap; font-size: 11px; }
+.conn-online { color: var(--green); } .conn-offline { color: var(--red); }
 .empty-state { text-align: center; padding: 60px; color: var(--muted); }
 .loading { text-align: center; padding: 60px; color: var(--muted); }
 .quick-links { display: flex; gap: 12px; justify-content: center; margin-bottom: 32px; flex-wrap: wrap; }
 .section-title { font-size: 16px; font-weight: 700; margin: 32px 0 12px; display: flex; align-items: center; gap: 8px; }
-.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 14px; }
-.card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 16px 18px; }
-.card-title { font-size: 14px; font-weight: 700; margin-bottom: 4px; display: flex; align-items: center; justify-content: space-between; }
-.card-meta { font-size: 12px; color: var(--muted); margin-bottom: 4px; }
-.metrics-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 10px; margin: 8px 0; }
-.metric-item { display: flex; align-items: center; gap: 5px; font-size: 12px; }
-.metric-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
-.dot-green { background: var(--green); box-shadow: 0 0 4px rgba(63,185,80,0.5); }
-.dot-orange { background: var(--orange); }
-.dot-red { background: var(--red); box-shadow: 0 0 4px rgba(248,81,73,0.5); }
-.dot-grey { background: var(--text-muted); }
-.metric-label { color: var(--muted); min-width: 44px; font-size: 11px; }
-.metric-value { font-weight: 600; font-size: 12px; margin-left: auto; }
-.val-green { color: var(--green); } .val-orange { color: var(--orange); } .val-red { color: var(--red); } .val-grey { color: var(--muted); }
-.online { color: var(--green); } .offline { color: var(--red); }
 .alert-row { background: var(--surface); border: 1px solid var(--border); border-left: 3px solid var(--red); border-radius: 0 var(--radius-lg) var(--radius-lg) 0; padding: 10px 14px; margin-bottom: 6px; font-size: 12px; }
 .alert-row.warning { border-left-color: var(--orange); }
 .alert-time { color: var(--muted); font-size: 11px; }
@@ -97,12 +90,9 @@
     <div class="loading">加载中...</div>
   </div>
 
-  <div class="section-title">📦 SNMP 设备监控 <span id="snmp-summary" style="font-size:12px;font-weight:400;color:var(--muted)"></span></div>
-  <div id="snmp-grid" class="grid">
-    <div class="loading" style="padding:20px">加载中...</div>
-  </div>
+  <div id="snmp-section" class="section-title" style="display:none">🔌 SNMP 设备监控 <span id="snmp-summary" style="font-size:12px;font-weight:400;color:var(--muted)"></span></div>
+  <div id="snmp-grid" class="enterprise-grid" style="margin-bottom:40px"></div>
 
-  <div class="section-title">🔔 最近告警</div>
   <div id="alert-section">
     <div class="loading" style="padding:20px">加载中...</div>
   </div>
@@ -125,14 +115,25 @@ function timeAgo(ts) {
   return Math.floor(s/3600) + '小时前';
 }
 
-function timeAgoTs(ts) {
-  if (!ts || ts === 0) return '从未';
-  var s = Math.floor(Date.now()/1000 - ts);
-  if (s < 60) return s + '秒前';
-  if (s < 3600) return Math.floor(s/60) + '分钟前';
-  if (s < 86400) return Math.floor(s/3600) + '小时前';
-  return Math.floor(s/86400) + '天前';
+function fmtTime(ts) {
+  /* 格式化时间戳为 YYYY-MM-DD HH:mm:ss */
+  if (!ts) return '-';
+  var d = new Date(ts);
+  if (isNaN(d.getTime())) {
+    d = new Date(ts.replace('T', ' ').replace('Z', '').split('.')[0]);
+  }
+  if (isNaN(d.getTime())) return '-';
+  var pad = function(n){return n<10?'0'+n:''+n;};
+  return d.getFullYear() + '-' + pad(d.getMonth()+1) + '-' + pad(d.getDate()) +
+    ' ' + pad(d.getHours()) + ':' + pad(d.getMinutes()) + ':' + pad(d.getSeconds());
 }
+
+function fmtUnixTime(ts) {
+  /* 格式化 Unix 时间戳（秒） */
+  if (!ts || ts <= 0) return '-';
+  return fmtTime(new Date(ts * 1000));
+}
+
 
 function load() {
   var grid = document.getElementById('enterprise-grid');
@@ -144,33 +145,100 @@ function load() {
         return;
       }
       grid.innerHTML = enterprises.map(function(e) {
+        function getLastSeen(e) {
+          if (e.last_seen) return fmtTime(e.last_seen);
+          if (e.ping && e.ping.last_seen) return fmtUnixTime(e.ping.last_seen);
+          return null;
+        }
         var statusClass = e.online ? 'online' : 'offline';
-        var statusText = e.online ? '● 在线' : '○ 离线';
-        var alertClass = e.alert_24h > 0 ? 'red' : 'green';
+        var statusText;
+        statusText = e.online ? '● 在线' : '○ 离线';
         var p = e.ping;
         // 上线方式标签
         var methods = e.methods || [];
         var methodHtml = methods.length ? methods.map(function(m) {
           return '<span class="method-tag active">' + m + '</span>';
         }).join('') : '<span class="method-tag">未配置</span>';
-        // 指标
-        var statHtml = '';
-        statHtml += '<div class="stat-item"><span class="stat-label">设备数</span><span class="stat-value blue">' + e.device_count + '</span></div>';
-        statHtml += '<div class="stat-item"><span class="stat-label">24h 告警</span><span class="stat-value ' + alertClass + '">' + e.alert_24h + '</span></div>';
+
+        // 连通性监控区块（出口 IP + Ping + SNMP 设备）
+        var connHtml = '';
+        // 出口 IP 行
+        if (e.ip_type === 'public') {
+          connHtml += '<div class="conn-row">' +
+            '<span class="conn-icon">🌐</span>' +
+            '<span class="conn-name">出口 IP</span>' +
+            '<span class="conn-meta">' + e.ip + '</span>' +
+            '<span class="conn-value conn-online">● 在线</span></div>';
+        }
+        // Ping 行
         if (p) {
           var pingOnline = p.status === 'online';
-          statHtml += '<div class="stat-item"><span class="stat-label">连通性</span><span class="stat-value ' + (pingOnline ? 'green' : 'red') + '">' + (pingOnline ? '在线' : '离线') + '</span></div>';
+          connHtml += '<div class="conn-row">' +
+            '<span class="conn-icon">📡</span>' +
+            '<span class="conn-name">Ping</span>' +
+            '<span class="conn-meta">' + (e.ip || '-') + '</span>';
           if (p.rtt_ms !== null && p.rtt_ms !== undefined) {
-            statHtml += '<div class="stat-item"><span class="stat-label">延迟</span><span class="stat-value blue">' + Math.round(p.rtt_ms * 10) / 10 + 'ms</span></div>';
+            connHtml += '<span class="conn-value" style="color:var(--blue)">' + Math.round(p.rtt_ms * 10) / 10 + 'ms</span>';
           }
-        } else if (e.ip) {
-          statHtml += '<div class="stat-item"><span class="stat-label">连通性</span><span class="stat-value grey">未监控</span></div>';
+          connHtml += '<span class="conn-value ' + (pingOnline ? 'conn-online' : 'conn-offline') + '">● ' + (pingOnline ? '在线' : '离线') + '</span></div>';
         }
-        return '<div class="enterprise-card" onclick="location.href=\'/enterprise/' + e.agent_id + '\'">' +
+        // SNMP 设备行
+        if (e.snmp_devices && e.snmp_devices.length) {
+          e.snmp_devices.forEach(function(dev) {
+            var cpuDisplay = dev.cpu ? '<span class="conn-value" style="color:var(--accent-yellow);margin:0 4px">CPU ' + dev.cpu + '%</span>' : '';
+            connHtml += '<div class="conn-row">' +
+              '<span class="conn-icon">🔌</span>' +
+              '<span class="conn-name">' + dev.name + '</span>' +
+              '<span class="conn-meta">' + dev.ip + '</span>' +
+              cpuDisplay +
+              '<span class="conn-value ' + (dev.online ? 'conn-online' : 'conn-offline') + '">● ' + (dev.online ? '在线' : '离线') + '</span></div>';
+          });
+        }
+        if (connHtml) {
+          connHtml = '<div class="conn-section"><div class="conn-section-title">📡 连通性监控</div>' + connHtml + '</div>';
+        } else {
+          connHtml = '<div class="conn-section" style="text-align:center;padding:6px 0;font-size:12px;color:var(--muted)">暂无连通性监控数据</div>';
+        }
+
+        // 断线诊断记录
+        var diagHtml = '';
+        if (e.diag_reports && e.diag_reports.length) {
+          var diagRows = e.diag_reports.map(function(d) {
+            var report = d.report || {};
+            var time = report.time || d.created_at || '-';
+            var target = report.target || '-';
+            var hops = report.hops;
+            var error = report.error || '';
+            var hopsHtml = '';
+            if (hops && hops.length) {
+              hopsHtml = hops.slice(0, 5).map(function(h) {
+                var rtt = h.rtt !== null && h.rtt !== undefined ? h.rtt.toFixed(1) + 'ms' : '超时';
+                return '<span style="display:inline-block;margin:2px;padding:1px 5px;background:var(--dark-2);border-radius:3px;font-size:10px">#' + h.hop + ' ' + rtt + '</span>';
+              }).join('');
+            }
+            return '<div style="margin-bottom:6px;padding:4px 0;border-bottom:1px solid var(--border)">' +
+              '<div style="font-size:11px;color:var(--muted)">' + time + ' → ' + target + (error ? ' <span style="color:var(--red)">' + error + '</span>' : '') + '</div>' +
+              (hopsHtml ? '<div style="margin-top:3px">' + hopsHtml + '</div>' : '') +
+              '</div>';
+          }).join('');
+          diagHtml = '<div class="conn-section"><div class="conn-section-title">🔧 断线诊断记录</div>' + diagRows + '</div>';
+        }
+
+        // 底部统计
+        var alertClass = e.alert_24h > 0 ? 'red' : 'green';
+        var lastUpdate = (function(){ var ls = getLastSeen(e); return ls ? ls : '从未上线'; })();
+        var footerLabel = e.online ? '最后更新' : '掉线时间';
+        var footerHtml = '<div class="card-footer">' +
+          '<span>设备 <strong>' + e.device_count + '</strong></span>' +
+          '<span><span class="dot ' + alertClass + '"></span>告警 <strong>' + e.alert_24h + '</strong></span>' +
+          '<span style="margin-left:auto">' + footerLabel + ': ' + lastUpdate + '</span></div>';
+
+        return '<div class="enterprise-card" onclick="location.href='/enterprise/' + e.agent_id + ''">' +
           '<div class="top"><span class="name">' + (e.name || '未命名企业') + '</span><span class="status ' + statusClass + '">' + statusText + '</span></div>' +
           '<div class="methods">' + methodHtml + '</div>' +
-          '<div class="stats">' + statHtml + '</div>' +
-          '<div class="meta">' + (e.ip ? e.ip + ' · ' : '') + '最后上报: ' + timeAgo(e.last_seen) + '</div>' +
+          connHtml +
+          diagHtml +
+          footerHtml +
           '</div>';
       }).join('');
     })
@@ -182,36 +250,69 @@ function load() {
   loadAlerts();
 }
 
+
+function formatUptime(cs) {
+  if (!cs || isNaN(cs)) return '-';
+  var s = Math.floor(parseInt(cs) / 100);
+  if (s < 60) return s + '秒';
+  if (s < 3600) return Math.floor(s/60) + '分';
+  if (s < 86400) return Math.floor(s/3600) + '小时';
+  return Math.floor(s/86400) + '天';
+}
+
 function loadSnmp() {
   var grid = document.getElementById('snmp-grid');
   fetch(SERVER + '/api/snmp/latest')
     .then(function(r){ return r.json(); })
     .then(function(devices) {
       if (!devices || !devices.length) {
-        grid.innerHTML = '<div class="empty-state" style="padding:24px">暂无 SNMP 设备，请到<a href="/admin.html" style="color:var(--accent-blue)">管理后台</a>添加</div>';
+        grid.innerHTML = '';
+        document.getElementById('snmp-section').style.display = 'none';
         return;
       }
-      var online = 0;
-      devices.forEach(function(d) { if (d.status === 1) online++; });
-      document.getElementById('snmp-summary').textContent = online + ' 在线 · ' + (devices.length - online) + ' 离线';
+      var online = 0, offline = 0;
+      devices.forEach(function(d) { if (d.status === 1) online++; else offline++; });
+      var title = document.getElementById('snmp-section');
+      title.style.display = 'flex';
+      document.getElementById('snmp-summary').textContent = online + ' 在线 · ' + offline + ' 离线';
       grid.innerHTML = devices.map(function(dev) {
         var m = dev.metrics || {};
         var isOnline = dev.status === 1;
-        var statusHtml = isOnline ? '<span class="online">● 在线</span>' : '<span class="offline">● 离线</span>';
-        var ago = dev.last_poll ? timeAgoTs(dev.last_poll) : '无数据';
-        var typeIcon = {'router':'📡','switch':'🔌','server':'🖥','ap':'📶','other':'📦'}[dev.type]||'📦';
-        var cpu = m['hrProcessorLoad'] ? m['hrProcessorLoad'] + '%' : '-';
-        var uptime = m['sysUpTime'] ? (function(t){if(!t||isNaN(t))return'-';var s=Math.floor(t/100);if(s<60)return s+'秒';if(s<3600)return Math.floor(s/60)+'分';if(s<86400)return Math.floor(s/3600)+'小时';return Math.floor(s/86400)+'天';})(parseInt(m['sysUpTime'])) : '-';
-        return '<div class="card"><div class="card-title"><span>' + typeIcon + ' ' + (dev.name || dev.ip) + '</span>' + statusHtml + '</div>' +
-          '<div class="card-meta">' + dev.ip + ' · ' + ago + '</div>' +
-          '<div class="metrics-grid">' +
-          '<div class="metric-item"><span class="metric-dot dot-grey"></span><span class="metric-label">CPU</span><span class="metric-value val-grey">' + cpu + '</span></div>' +
-          '<div class="metric-item"><span class="metric-dot dot-grey"></span><span class="metric-label">运行</span><span class="metric-value val-grey">' + uptime + '</span></div>' +
-          '</div></div>';
+        var cpu = dev.cpu || m['hrProcessorLoad'] || m['ciscoCpu'] || '';
+        var cpuDisplay = cpu ? cpu + '%' : '-';
+        var uptime = formatUptime(m['sysUpTime']);
+        var lastPoll = fmtUnixTime(dev.last_poll);
+        var footerLabel = isOnline ? '最后更新' : '最后上线';
+
+        // 设备型号：从 sysDescr 提取
+        var model = dev.sys_descr || '';
+        if (model.length > 50) model = model.substring(0, 50) + '…';
+
+        // 接口统计
+        var ifUp = parseInt(dev.if_up) || 0;
+        var ifDown = parseInt(dev.if_down) || 0;
+        var ifTotal = ifUp + ifDown;
+
+        var connRows = '';
+        connRows += '<div class="conn-row"><span class="conn-icon">⚡</span><span class="conn-name">CPU</span><span class="conn-value" style="color:var(--accent-yellow)">' + cpuDisplay + '</span></div>';
+        connRows += '<div class="conn-row"><span class="conn-icon">⏱</span><span class="conn-name">运行时间</span><span class="conn-value" style="color:var(--text-secondary)">' + uptime + '</span></div>';
+        if (model) {
+          connRows += '<div class="conn-row"><span class="conn-icon">🖥</span><span class="conn-name">型号</span><span class="conn-value" style="color:var(--text-secondary);font-size:11px;max-width:200px;overflow:hidden;text-overflow:ellipsis">' + model + '</span></div>';
+        }
+        if (ifTotal > 0) {
+          connRows += '<div class="conn-row"><span class="conn-icon">🔗</span><span class="conn-name">接口</span><span class="conn-value"><span style="color:var(--accent-green)">' + ifUp + '</span> 在线 / <span style="color:var(--accent-red)">' + ifDown + '</span> 离线</span></div>';
+        }
+
+        return '<div class="enterprise-card" style="cursor:default">' +
+          '<div class="top"><span class="name">🔌 ' + (dev.name || dev.ip) + '</span><span class="status ' + (isOnline ? 'online' : 'offline') + '">● ' + (isOnline ? '在线' : '离线') + '</span></div>' +
+          '<div class="methods"><span class="method-tag active">' + dev.ip + '</span></div>' +
+          '<div class="conn-section" style="border-top:none;padding-top:0">' + connRows + '</div>' +
+          '<div class="card-footer"><span style="margin-left:auto">' + footerLabel + ': ' + lastPoll + '</span></div></div>';
       }).join('');
     })
     .catch(function() {
-      grid.innerHTML = '<div class="empty-state" style="padding:24px">加载失败</div>';
+      grid.innerHTML = '';
+      document.getElementById('snmp-section').style.display = 'none';
     });
 }
 

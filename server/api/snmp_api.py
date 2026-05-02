@@ -145,7 +145,7 @@ async def get_snmp_devices_latest():
             # 取该设备最新的指标
             cursor.execute(
                 "SELECT oid, value, timestamp FROM snmp_metrics WHERE device_ip = ? "
-                "AND timestamp >= datetime('now', '-1 hour') ORDER BY timestamp DESC LIMIT 200",
+                "ORDER BY timestamp DESC LIMIT 200",
                 (ip,)
             )
             rows = cursor.fetchall()
@@ -162,18 +162,36 @@ async def get_snmp_devices_latest():
                 if ts:
                     try:
                         last_dt = datetime.fromisoformat(ts + "+00:00")
+                        now_utc = datetime.now(timezone.utc)
+                        # 安全校验：防止未来时间戳
+                        if last_dt > now_utc:
+                            last_dt = now_utc
                         last_poll = last_dt.timestamp()
-                        status = 1 if (datetime.now(timezone.utc) - last_dt).total_seconds() < 300 else 0
+                        status = 1 if (now_utc - last_dt).total_seconds() < 600 else 0
                     except Exception:
                         pass
 
+            # 提取有用字段
+            sys_descr = metrics.get("sysDescr", "")
+            sys_location = metrics.get("sysLocation", "")
+            if_number = metrics.get("ifNumber", "")
+            if_up = metrics.get("ifUpCount", "")
+            if_down = metrics.get("ifDownCount", "")
+            cpu = metrics.get("hrProcessorLoad") or metrics.get("ciscoCpu") or ""
+
             entry = {
-                "name": dev.get("description") or f"SNMP-{ip}",
+                "name": dev.get("device_name") or dev.get("description") or f"SNMP-{ip}",
                 "ip": ip,
                 "type": dev.get("snmp_version", "v2c"),
                 "status": status,
                 "last_poll": last_poll,
                 "metrics": metrics,
+                "sys_descr": sys_descr,
+                "sys_location": sys_location,
+                "if_number": if_number,
+                "if_up": if_up,
+                "if_down": if_down,
+                "cpu": cpu,
             }
             result.append(entry)
 

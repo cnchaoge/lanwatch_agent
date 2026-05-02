@@ -789,6 +789,22 @@ def get_all_devices_from_arp():
             if ip.endswith('.255') or mac.startswith('FF:FF'):
                 continue
 
+            # 过滤非局域网 IP
+            parts = ip.split('.')
+            first_octet = int(parts[0])
+            # 组播 224.0.0.0/4
+            if 224 <= first_octet <= 239:
+                continue
+            # 链路本地 169.254.0.0/16
+            if first_octet == 169 and int(parts[1]) == 254:
+                continue
+            # 回环 127.0.0.0/8
+            if first_octet == 127:
+                continue
+            # Docker 默认网桥 172.17.0.0/16
+            if first_octet == 172 and int(parts[1]) == 17:
+                continue
+
             # 每个操作单独 try/except，避免一处失败中断整批
             hostname = ""
             try:
@@ -953,7 +969,7 @@ def report_uninstall(agent_id, token="", timeout=10):
 # ═══════════════════════════════════════════════════════════════
 
 TRACERT_TARGETS = ["www.baidu.com", "8.8.8.8"]
-DIAG_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "offline_diag.txt")
+DIAG_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "offline_diag.json")
 
 
 def run_traceroute(target):
@@ -975,7 +991,7 @@ def run_traceroute(target):
 
 
 def run_offline_diag():
-    """执行离线诊断，保存本地文件"""
+    """执行离线诊断，保存本地文件（JSON 格式）"""
     log.warning("[诊断] 网络异常，开始离线断点诊断...")
     diag = {"time": time.strftime("%Y-%m-%d %H:%M:%S"), "target": None, "hops": None, "error": None}
     for target in TRACERT_TARGETS:
@@ -988,20 +1004,26 @@ def run_offline_diag():
         diag["error"] = "所有目标均无法 traceroute"
     try:
         with open(DIAG_FILE, 'w', encoding='utf-8') as f:
-            f.write("=== LanWatch 离线断点诊断 ===\n")
-            f.write(f"时间: {diag['time']}\n")
-            if diag["target"]:
-                f.write(f"目标: {diag['target']}\n")
-                f.write("跳数 | 延迟\n")
-                for h in diag["hops"]:
-                    rtt_str = f"{h['rtt']:.1f} ms" if h['rtt'] else "超时"
-                    f.write(f"  {h['hop']:2d}   {rtt_str}\n")
-            else:
-                f.write(f"错误: {diag['error']}\n")
+            json.dump(diag, f, ensure_ascii=False, indent=2)
         log.info("[诊断] 诊断结果已保存: %s", DIAG_FILE)
     except Exception as e:
         log.error("[诊断] 写入诊断文件失败: %s", e)
     return diag
+
+
+def _upload_cached_diag(agent_id, token=""):
+    """网络恢复时，补传本地缓存的诊断记录"""
+    if not os.path.exists(DIAG_FILE):
+        return
+    try:
+        with open(DIAG_FILE, 'r', encoding='utf-8') as f:
+            diag = json.load(f)
+        ok = report_diag(diag, agent_id, token)
+        if ok:
+            os.remove(DIAG_FILE)
+            log.info("[诊断] 缓存诊断已补传并清除")
+    except Exception as e:
+        log.warning("[诊断] 补传缓存失败: %s", e)
 
 
 def report_diag(diag_data, agent_id, token=""):
@@ -1104,6 +1126,7 @@ def run_probe(subnets=None):
         "target_name": target_name,
         "target_rtt_ms": target_rtt,
         "subnets": ",".join(subnets) if subnets else "",
+        "client_ip": get_local_ip(),
     }
 
 
@@ -2396,13 +2419,21 @@ def _run_monitoring(agent_id, company_name):
                 log.info("[探测] 网关:%sms DNS:%sms",
                     f"{data.get('ping_rtt_ms', 0):.1f}" if data.get('ping_rtt_ms') else "-",
                     f"{data.get('dns_ms', 0):.1f}" if data.get('dns_ms') else "-")
+                # 网络恢复：补传本地缓存的诊断记录
+                _upload_cached_diag(agent_id, agent_token)
             else:
                 consecutive_errors += 1
                 log.warning("[探测] 上报失败 (连续失败 %d 次)", consecutive_errors)
                 if consecutive_errors >= 3:
                     diag = run_offline_diag()
-                    threading.Thread(target=lambda: report_diag(diag, agent_id, agent_token), daemon=True, name="diag").start()
+                    threading.Thread(target=lambda d=diag: report_diag(d, agent_id, agent_token), daemon=True, name="diag").start()
                 update_tray_status(False)
+
+            # 探测到网关不通：立即本地保存诊断（只在还没有缓存时保存，避免覆盖最早的记录）
+            if not data.get("gateway_reachable") and not os.path.exists(DIAG_FILE):
+                run_offline_diag()
+                log.warning("[诊断] 网关不通，已保存诊断记录，网络恢复后将补传")
+
         except KeyboardInterrupt:
             log.info("收到停止信号")
             break

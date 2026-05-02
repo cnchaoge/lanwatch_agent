@@ -1,5 +1,7 @@
 import secrets
 import io
+import json
+from datetime import datetime, timezone
 from fastapi import APIRouter, HTTPException, Header, Query
 from fastapi.responses import Response
 from typing import Optional, List
@@ -95,51 +97,122 @@ async def get_enterprises():
                     except Exception:
                         pass
 
-            # 查询上线方式
+            # 查询关联的 SNMP 设备
+            snmp_devices_list = []
+            dev_rows = cursor.execute(
+                "SELECT ip, port, description, snmp_version, created_at FROM snmp_devices WHERE agent_id=? ORDER BY created_at DESC",
+                (aid,)
+            ).fetchall()
+            if not dev_rows and r["ip"]:
+                dev_rows = cursor.execute(
+                    "SELECT ip, port, description, snmp_version, created_at FROM snmp_devices WHERE agent_id='admin' AND ip=? ORDER BY created_at DESC",
+                    (r["ip"],)
+                ).fetchall()
+            for dev in dev_rows:
+                dd = dict(dev)
+                # 最新指标时间
+                ts_row = cursor.execute(
+                    "SELECT timestamp FROM snmp_metrics WHERE device_ip=? ORDER BY timestamp DESC LIMIT 1",
+                    (dd["ip"],)
+                ).fetchone()
+                online = False
+                if ts_row and ts_row["timestamp"]:
+                    try:
+                        last_dt = datetime.fromisoformat(ts_row["timestamp"])
+                        online = (datetime.now(timezone.utc) - last_dt).total_seconds() < 600
+                    except Exception:
+                        pass
+                # 提取 CPU 和运行时间指标
+                metrics_rows = cursor.execute(
+                    "SELECT oid, value FROM snmp_metrics WHERE device_ip=? ORDER BY timestamp DESC LIMIT 200",
+                    (dd["ip"],)
+                ).fetchall()
+                cpu = None
+                uptime = None
+                seen = set()
+                for m in metrics_rows:
+                    oid = m["oid"]
+                    if oid in seen:
+                        continue
+                    seen.add(oid)
+                    val = m["value"]
+                    if oid.startswith("1.3.6.1.2.1.25.3.3.1.2") or oid == "1.3.6.1.4.1.9.2.1.57.0":
+                        cpu = val
+                    elif oid == "1.3.6.1.2.1.1.3.0":
+                        uptime = val
+                snmp_devices_list.append({
+                    "ip": dd["ip"],
+                    "name": dd.get("description") or f"SNMP-{dd['ip']}",
+                    "online": online,
+                    "cpu": cpu,
+                    "uptime": uptime,
+                    "version": dd.get("snmp_version", "2c"),
+                })
+
+            # 上线方式：仅 Windows 客户端、被动 Ping、Linux 客户端
             methods = []
-            # 1. Agent 客户端
             os_type = (r["os_type"] or "").lower()
-            has_agent = _is_recent(r["last_seen"]) or bool(os_type)
-            if has_agent:
-                label = "Windows 客户端" if os_type == "windows" else "Linux 客户端" if os_type == "linux" else "客户端"
-                methods.append(label)
-            # 2. SNMP 设备
-            snmp_count = cursor.execute(
-                "SELECT COUNT(*) FROM snmp_devices WHERE agent_id=?",
-                (aid,),
-            ).fetchone()[0]
-            has_snmp = snmp_count > 0
-            if has_snmp:
-                methods.append("SNMP 设备")
-            # 3. SNMP 设备通过 IP 匹配（agent_id='admin' 但 IP 匹配）
-            if not has_snmp and r["ip"]:
-                snmp_admin_count = cursor.execute(
-                    "SELECT COUNT(*) FROM snmp_devices WHERE agent_id='admin' AND ip=?",
-                    (r["ip"],),
-                ).fetchone()[0]
-                if snmp_admin_count > 0:
-                    methods.append("SNMP 设备")
-                    has_snmp = True
-            # 4. 被动 Ping
-            has_ping = ping_status is not None
-            if has_ping:
+            if _is_recent(r["last_seen"]) or os_type:
+                if os_type == "windows":
+                    methods.append("Windows 客户端")
+                elif os_type == "linux":
+                    methods.append("Linux 客户端")
+                else:
+                    methods.append("客户端")
+            # 被动 Ping
+            if ping_status is not None:
                 methods.append("被动 Ping")
+
+            # 综合判定在线状态：agent 上报 / Ping 探测
+            is_online = _is_recent(r["last_seen"])
+            if not is_online and ping_status and ping_status.get("status") == "online":
+                is_online = True
+
+            has_agent = bool(methods and "客户端" in methods[0])
+            has_ping = ping_status is not None
+
+            # 查询最近 5 条诊断报告
+            diag_rows = cursor.execute(
+                "SELECT id, report_json, created_at FROM diag_reports WHERE agent_id=? ORDER BY created_at DESC LIMIT 5",
+                (aid,)
+            ).fetchall()
+            diag_reports = [
+                {"id": d["id"], "report": json.loads(d["report_json"]), "created_at": d["created_at"]}
+                for d in diag_rows
+            ]
 
             result.append({
                 "agent_id": aid,
                 "name": r["name"] or "",
                 "ip": r["ip"] or "",
+                "ip_type": _classify_ip(r["ip"]),
                 "last_seen": r["last_seen"],
-                "online": _is_recent(r["last_seen"]),
+                "online": is_online,
                 "device_count": device_count,
                 "alert_24h": alert_count,
                 "ping": ping_status,
+                "snmp_devices": snmp_devices_list,
                 "methods": methods,
                 "has_agent": has_agent,
-                "has_snmp": has_snmp,
                 "has_ping": has_ping,
+                "diag_reports": diag_reports,
             })
         return result
+
+
+@router.post("/{agent_id}/diag")
+async def report_diag(agent_id: str, payload: dict):
+    """存储客户端断线诊断报告"""
+    with get_db() as conn:
+        cursor = conn.cursor()
+        # 验证 agent 存在
+        cursor.execute("SELECT agent_id FROM agents WHERE agent_id = ?", (agent_id,))
+        if not cursor.fetchone():
+            raise HTTPException(status_code=404, detail="设备不存在")
+        cursor.execute(
+            "INSERT INTO diag_reports (agent_id, report_json) VALUES (?, ?)",
+            (agent_id, json.dumps(payload)))
+    return {"success": True}
 
 
 @router.delete("/agents/{agent_id}")
@@ -163,6 +236,29 @@ async def generate_qr(text: str = Query(...)):
     img.save(buf, format="PNG")
     buf.seek(0)
     return Response(content=buf.getvalue(), media_type="image/png")
+
+
+def _classify_ip(ip: str) -> str:
+    """判断 IP 类型：public / private / none"""
+    if not ip:
+        return "none"
+    try:
+        parts = list(map(int, ip.split(".")))
+        if len(parts) != 4:
+            return "none"
+        if parts[0] == 10:
+            return "private"
+        if parts[0] == 172 and 16 <= parts[1] <= 31:
+            return "private"
+        if parts[0] == 192 and parts[1] == 168:
+            return "private"
+        if parts[0] == 127:
+            return "none"
+        if parts[0] == 169 and parts[1] == 254:
+            return "none"
+        return "public"
+    except (ValueError, IndexError):
+        return "none"
 
 
 def _is_recent(last_seen: Optional[str], seconds: int = 120) -> bool:

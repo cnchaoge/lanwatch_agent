@@ -31,6 +31,42 @@ def _write_agent_metrics(cursor, agent_id: str, data: dict):
                 pass
 
 
+def _is_private_ip(ip: str) -> bool:
+    """检查是否为 RFC1918 私有地址"""
+    if not ip:
+        return False
+    try:
+        parts = list(map(int, ip.strip().split(".")))
+        if len(parts) != 4:
+            return False
+        # 10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16
+        if parts[0] == 10:
+            return True
+        if parts[0] == 172 and 16 <= parts[1] <= 31:
+            return True
+        if parts[0] == 192 and parts[1] == 168:
+            return True
+        return False
+    except (ValueError, IndexError):
+        return False
+
+
+def _get_client_ip(request: Request, body_item: Any = None) -> str:
+    """获取客户端 IP：优先从请求体中的 client_ip 字段，其次从请求头"""
+    if body_item and isinstance(body_item, dict):
+        ip = body_item.get("client_ip", "")
+        if ip and ip not in ("127.0.0.1", "::1", "localhost"):
+            return ip
+    if request:
+        forwarded = request.headers.get("x-forwarded-for", "").split(",")[0].strip()
+        if forwarded and _is_private_ip(forwarded):
+            return forwarded
+        direct = (request.client.host if request.client else "")
+        if direct and direct not in ("127.0.0.1", "::1", "localhost") and _is_private_ip(direct):
+            return direct
+    return ""
+
+
 @router.post("/{agent_id}/report")
 async def report(agent_id: str, body: Any = Body(...), authorization: Optional[str] = Header(None), request: Request = None):
     verified_id = verify_agent_token(authorization)
@@ -45,7 +81,9 @@ async def report(agent_id: str, body: Any = Body(...), authorization: Optional[s
         items = [body]
     with get_db() as conn:
         cursor = conn.cursor()
+        last_item = None
         for r in items:
+            last_item = r
             # 兼容 Windows 客户端发送的扁平 metrics dict（不含 probe_type）
             if isinstance(r, dict) and "probe_type" not in r and "target" not in r:
                 cursor.execute("INSERT INTO probe_results (agent_id, probe_type, target, status, rtt_ms, raw_output) VALUES (?, ?, ?, ?, ?, ?)",
@@ -55,10 +93,12 @@ async def report(agent_id: str, body: Any = Body(...), authorization: Optional[s
             else:
                 cursor.execute("INSERT INTO probe_results (agent_id, probe_type, target, status, rtt_ms, raw_output) VALUES (?, ?, ?, ?, ?, ?)",
                     (agent_id, r.get("probe_type"), r.get("target"), r.get("status"), r.get("rtt_ms"), json.dumps(r, ensure_ascii=False) if r else None))
-        client_ip = ""
-        if request:
-            client_ip = (request.headers.get("x-forwarded-for","").split(",")[0].strip() or (request.client.host if request.client else ""))
-        cursor.execute("UPDATE agents SET last_seen = ?, ip = COALESCE(NULLIF(ip,''), ?) WHERE agent_id = ?", (datetime.now().isoformat(), client_ip, agent_id))
+        # 客户端 IP：优先使用客户端上报的 client_ip，其次取私有 IP 头
+        client_ip = _get_client_ip(request, last_item)
+        if client_ip:
+            cursor.execute("UPDATE agents SET last_seen = ?, ip = ? WHERE agent_id = ?", (datetime.now().isoformat(), client_ip, agent_id))
+        else:
+            cursor.execute("UPDATE agents SET last_seen = ? WHERE agent_id = ?", (datetime.now().isoformat(), agent_id))
     return {"success": True, "received": len(items)}
 
 
@@ -96,10 +136,11 @@ async def report_offline(agent_id: str, authorization: Optional[str] = Header(No
         raise HTTPException(status_code=403, detail="token 与 agent_id 不匹配")
     with get_db() as conn:
         cursor = conn.cursor()
-        client_ip = ""
-        if request:
-            client_ip = (request.headers.get("x-forwarded-for","").split(",")[0].strip() or (request.client.host if request.client else ""))
-        cursor.execute("UPDATE agents SET last_seen = ?, ip = COALESCE(NULLIF(ip,''), ?) WHERE agent_id = ?", (datetime.now().isoformat(), client_ip, agent_id))
+        client_ip = _get_client_ip(request)
+        if client_ip:
+            cursor.execute("UPDATE agents SET last_seen = ?, ip = ? WHERE agent_id = ?", (datetime.now().isoformat(), client_ip, agent_id))
+        else:
+            cursor.execute("UPDATE agents SET last_seen = ? WHERE agent_id = ?", (datetime.now().isoformat(), agent_id))
     return {"success": True}
 
 

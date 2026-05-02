@@ -83,7 +83,12 @@ def snmp_bulkwalk(target_ip: str, base_oid: str, community: str = "public",
             if error_indication or error_status:
                 break
             for var_bind in var_binds:
-                oid_str = var_bind[0].prettyPrint()
+                # 优先用 getOid() 获取纯数字 OID，避免 prettyPrint 返回 MIB 名
+                try:
+                    oid_obj = var_bind[0].getOid()
+                    oid_str = oid_obj.prettyPrint()
+                except Exception:
+                    oid_str = var_bind[0].prettyPrint()
                 val_str = var_bind[1].prettyPrint()
                 results.append((oid_str, val_str))
                 if not oid_str.startswith(base_oid):

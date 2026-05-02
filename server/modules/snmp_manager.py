@@ -9,18 +9,21 @@ from modules.scheduler import scheduler
 
 logger = logging.getLogger("snmp_manager")
 
-# 常用 OID 列表
+# 常用 OID 列表（标量，snmp_get）
 COMMON_OIDS: Dict[str, str] = {
     "1.3.6.1.2.1.1.1.0": "sysDescr",
     "1.3.6.1.2.1.1.3.0": "sysUpTime",
     "1.3.6.1.2.1.1.5.0": "sysName",
-    "1.3.6.1.2.1.2.2.1": "ifTable",
+    "1.3.6.1.2.1.1.6.0": "sysLocation",
+    "1.3.6.1.2.1.1.4.0": "sysContact",
+    "1.3.6.1.2.1.2.1.0": "ifNumber",
 }
 
 IF_OPER_STATUS = "1.3.6.1.2.1.2.2.1.8"
 
 CISCO_CPU = "1.3.6.1.4.1.9.2.1.57.0"
 CISCO_MEMORY = "1.3.6.1.4.1.9.2.1.8.0"
+HR_CPU = "1.3.6.1.2.1.25.3.3.1.2"
 
 
 class SNMPManager:
@@ -148,7 +151,7 @@ class SNMPManager:
                                v3_auth_key=dev.get("snmpv3_auth_key", ""),
                                v3_priv_protocol=dev.get("snmpv3_priv_protocol", "DES"),
                                v3_priv_key=dev.get("snmpv3_priv_key", ""))
-            if ok:
+            if ok and not val.startswith("No Such"):
                 results[name] = str(val)
 
         if_rows = snmp_bulkwalk(ip, IF_OPER_STATUS, community, port=port,
@@ -159,12 +162,63 @@ class SNMPManager:
                                 v3_priv_protocol=dev.get("snmpv3_priv_protocol", "DES"),
                                 v3_priv_key=dev.get("snmpv3_priv_key", ""),
                                 max_rows=50)
+        if_up = 0
+        if_down = 0
         for oid_str, val_str in if_rows:
+            # 仅处理 IF_OPER_STATUS 子树内的 OID，跳过后续列
+            if not oid_str.startswith(IF_OPER_STATUS):
+                continue
             try:
                 idx = oid_str.rsplit(".", 1)[-1]
                 results[f"ifStatus_{idx}"] = str(val_str)
+                if val_str == "1":
+                    if_up += 1
+                elif val_str == "2":
+                    if_down += 1
             except Exception:
                 pass
+        results["ifUpCount"] = str(if_up)
+        results["ifDownCount"] = str(if_down)
+
+        # 采集 CPU（hrProcessorLoad 是表，walk 取平均）
+        cpu_rows = snmp_bulkwalk(ip, HR_CPU, community, port=port,
+                                 snmp_version=snmp_version,
+                                 v3_username=dev.get("snmpv3_username", ""),
+                                 v3_auth_protocol=dev.get("snmpv3_auth_protocol", "MD5"),
+                                 v3_auth_key=dev.get("snmpv3_auth_key", ""),
+                                 v3_priv_protocol=dev.get("snmpv3_priv_protocol", "DES"),
+                                 v3_priv_key=dev.get("snmpv3_priv_key", ""),
+                                 max_rows=16)
+        cpu_vals = []
+        for oid_str, val_str in cpu_rows:
+            if not oid_str.startswith(HR_CPU):
+                continue
+            try:
+                cpu_vals.append(int(val_str))
+            except (ValueError, TypeError):
+                pass
+        if cpu_vals:
+            results["hrProcessorLoad"] = str(round(sum(cpu_vals) / len(cpu_vals)))
+        # 尝试 Cisco CPU（单 OID）
+        ok, val = snmp_get(ip, CISCO_CPU, community, port=port,
+                           snmp_version=snmp_version,
+                           v3_username=dev.get("snmpv3_username", ""),
+                           v3_auth_protocol=dev.get("snmpv3_auth_protocol", "MD5"),
+                           v3_auth_key=dev.get("snmpv3_auth_key", ""),
+                           v3_priv_protocol=dev.get("snmpv3_priv_protocol", "DES"),
+                           v3_priv_key=dev.get("snmpv3_priv_key", ""))
+        if ok and not val.startswith("No Such"):
+            results["ciscoCpu"] = str(val)
+        # 尝试 Cisco 内存
+        ok, val = snmp_get(ip, CISCO_MEMORY, community, port=port,
+                           snmp_version=snmp_version,
+                           v3_username=dev.get("snmpv3_username", ""),
+                           v3_auth_protocol=dev.get("snmpv3_auth_protocol", "MD5"),
+                           v3_auth_key=dev.get("snmpv3_auth_key", ""),
+                           v3_priv_protocol=dev.get("snmpv3_priv_protocol", "DES"),
+                           v3_priv_key=dev.get("snmpv3_priv_key", ""))
+        if ok and not val.startswith("No Such"):
+            results["ciscoMemory"] = str(val)
 
         now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
         with get_db() as conn:
