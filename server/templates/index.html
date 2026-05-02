@@ -233,7 +233,7 @@ function load() {
           '<span><span class="dot ' + alertClass + '"></span>告警 <strong>' + e.alert_24h + '</strong></span>' +
           '<span style="margin-left:auto">' + footerLabel + ': ' + lastUpdate + '</span></div>';
 
-        return '<div class="enterprise-card" onclick="location.href='/enterprise/' + e.agent_id + ''">' +
+        return '<div class="enterprise-card" onclick="location.href=\'/enterprise/\' + e.agent_id + \'\'">' +
           '<div class="top"><span class="name">' + (e.name || '未命名企业') + '</span><span class="status ' + statusClass + '">' + statusText + '</span></div>' +
           '<div class="methods">' + methodHtml + '</div>' +
           connHtml +
