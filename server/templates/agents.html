@@ -17,16 +17,7 @@
 
 {% block head_extra %}
 <style>
-:root {
-  --surface: var(--bg-card);
-  --muted: var(--text-secondary);
-  --primary: var(--accent-blue);
-  --green: var(--accent-green);
-  --red: var(--accent-red);
-  --orange: var(--accent-yellow);
-  --purple: var(--accent-purple);
-  --surface-hover: rgba(255,255,255,0.04);
-}
+/* 页面专用样式，不覆盖主题变量 */
 .page-header { padding: 0 0 20px 0; }
 .page-header h1 { font-size: 20px; font-weight: 800; }
 .section-title { font-size: 15px; font-weight: 700; margin: 28px 0 14px; display: flex; align-items: center; gap: 8px; border-bottom: 1px solid var(--border); padding-bottom: 8px; }
@@ -35,43 +26,44 @@
 /* 统计行 */
 .stats-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 8px; }
 .stat-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-md); padding: 16px; text-align: center; }
+.stat-card:hover { border-color: var(--border-light); transform: translateY(-2px); box-shadow: var(--shadow); }
 .stat-card .num { font-size: 28px; font-weight: 800; }
 .stat-card .label { font-size: 11px; color: var(--muted); margin-top: 3px; }
 .stat-card.online-card { border-color: rgba(63,185,80,0.3); }
-.stat-card.online-card .num { color: var(--green); }
+.stat-card.online-card .num { color: var(--accent-green); }
 .stat-card.offline-card { border-color: rgba(248,81,73,0.3); }
-.stat-card.offline-card .num { color: var(--red); }
+.stat-card.offline-card .num { color: var(--accent-red); }
 
 /* 设备行 */
 .dev-list { display: flex; flex-direction: column; gap: 8px; }
 .dev-row { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-md); padding: 14px 18px; display: flex; align-items: center; gap: 16px; }
-.dev-row:hover { background: var(--surface-hover); }
+.dev-row:hover { background: var(--surface-hover); border-color: var(--border-light); }
 
 /* 状态灯 */
 .status-dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
-.s-green { background: var(--green); box-shadow: 0 0 6px rgba(63,185,80,0.5); }
-.s-red { background: var(--red); box-shadow: 0 0 6px rgba(248,81,73,0.5); }
+.s-green { background: var(--accent-green); box-shadow: 0 0 6px rgba(63,185,80,0.5); }
+.s-red { background: var(--accent-red); box-shadow: 0 0 6px rgba(248,81,73,0.5); }
 .s-grey { background: var(--muted); }
 
 /* 设备信息 */
-.dev-name { font-size: 14px; font-weight: 700; color: var(--text-primary); display: flex; align-items: center; gap: 6px; }
+.dev-name { font-size: 14px; font-weight: 700; display: flex; align-items: center; gap: 6px; }
 .dev-meta { font-size: 11px; color: var(--muted); margin-top: 3px; display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
 
-/* 标签 */
+/* 类型标签 */
 .type-tag { font-size: 10px; padding: 2px 7px; border-radius: 4px; background: var(--bg-tertiary); color: var(--muted); border: 1px solid var(--border); }
-.type-win { background: rgba(88,166,255,0.1); color: var(--accent-blue); border-color: rgba(88,166,255,0.3); }
-.type-linux { background: rgba(63,185,80,0.1); color: var(--accent-green); border-color: rgba(63,185,80,0.3); }
-.type-mac { background: rgba(163,113,247,0.1); color: var(--accent-purple); border-color: rgba(163,113,247,0.3); }
-.type-probe { background: rgba(210,153,34,0.1); color: var(--accent-yellow); border-color: rgba(210,153,34,0.3); }
-.type-snmp { background: rgba(210,153,34,0.1); color: var(--accent-yellow); border-color: rgba(210,153,34,0.3); }
+.type-win { background: rgba(88,166,255,0.15); color: var(--accent-blue); border-color: rgba(88,166,255,0.3); }
+.type-linux { background: rgba(63,185,80,0.15); color: var(--accent-green); border-color: rgba(63,185,80,0.3); }
+.type-mac { background: rgba(163,113,247,0.15); color: var(--accent-purple); border-color: rgba(163,113,247,0.3); }
+.type-probe { background: rgba(210,153,34,0.15); color: var(--accent-yellow); border-color: rgba(210,153,34,0.3); }
+.type-snmp { background: rgba(210,153,34,0.15); color: var(--accent-yellow); border-color: rgba(210,153,34,0.3); }
 
 /* 指标 */
 .dev-metrics { display: flex; gap: 20px; flex-wrap: wrap; margin-left: auto; }
 .dev-metrics .metric { display: flex; flex-direction: column; align-items: center; gap: 2px; }
 .dev-metrics .metric-val { font-size: 14px; font-weight: 700; }
 .dev-metrics .metric-label { font-size: 10px; color: var(--muted); }
-.val-green { color: var(--green); }
-.val-red { color: var(--red); }
+.val-green { color: var(--accent-green); }
+.val-red { color: var(--accent-red); }
 .val-grey { color: var(--muted); }
 
 /* IP */
@@ -92,6 +84,7 @@
 <div class="container" style="padding-top:20px;">
   <div class="page-header">
     <h1>📊 设备总览</h1>
+    <button class="btn btn-sm btn-secondary" id="themeToggle" title="切换主题" onclick="var t=document.documentElement.getAttribute('data-theme')==='dark'?'light':'dark';document.documentElement.setAttribute('data-theme',t);this.textContent=t==='dark'?'☀️':'🌙'">🌙</button>
     <button class="btn btn-sm btn-secondary" onclick="loadAll()">🔄 刷新</button>
   </div>
 
