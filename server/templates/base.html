@@ -5,7 +5,26 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>{% block title %}Lanwatch - 企业网络监控平台{% endblock %}</title>
 <style>
-:root {
+/* 基础变量：对应 theme.css 的 [data-theme="light"] 默认值，供尚未加载 theme.css 的元素使用 */
+:root, [data-theme="light"] {
+  --bg-primary: #f4f6fb;
+  --bg-secondary: #eaecf4;
+  --bg-tertiary: #e2e5ef;
+  --bg-card: #ffffff;
+  --border: rgba(0,0,0,0.09);
+  --border-light: rgba(0,0,0,0.14);
+  --text-primary: #111827;
+  --text-secondary: #6b7280;
+  --text-muted: #9ca3af;
+  --accent-blue: #2563eb;
+  --accent-green: #22c55e;
+  --accent-yellow: #f59e0b;
+  --accent-red: #ef4444;
+  --accent-purple: #7c3aed;
+  --accent-orange: #f97316;
+}
+
+[data-theme="dark"] {
   --bg-primary: #0d1117;
   --bg-secondary: #161b22;
   --bg-tertiary: #21262d;
@@ -21,11 +40,6 @@
   --accent-red: #f85149;
   --accent-purple: #a371f7;
   --accent-orange: #db6d28;
-  --radius-sm: 6px;
-  --radius-md: 10px;
-  --radius-lg: 16px;
-  --shadow: 0 4px 24px rgba(0,0,0,0.4);
-  --shadow-sm: 0 1px 8px rgba(0,0,0,0.3);
 }
 
 * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -271,6 +285,7 @@ tbody tr:hover { background: rgba(255,255,255,0.03); }
 }
 @media (max-width: 480px) { .stats-grid { grid-template-columns: 1fr; } }
 </style>
+<link rel="stylesheet" href="/static/theme.css">
 {% block head_extra %}{% endblock %}
 </head>
 <body>
@@ -340,6 +355,12 @@ function formatTime(ts) {
   if (diff < 86400000) return Math.floor(diff/3600000) + ' 小时前';
   return d.toLocaleDateString();
 }
+
+// Theme init
+(function(){
+  var stored = localStorage.getItem('lw-theme') || 'light';
+  document.documentElement.setAttribute('data-theme', stored);
+})();
 </script>
 {% block scripts %}{% endblock %}
 </body>

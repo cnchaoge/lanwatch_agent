@@ -6,6 +6,7 @@
 <a class="nav-item" href="/monitor.html">📊 监控面板</a>
 <a class="nav-item" href="/ping_overview.html">📡 连通性监控</a>
 <a class="nav-item" href="/admin.html">⚙️ 管理后台</a>
+<button class="nav-item theme-toggle" id="themeToggle" style="border:none;background:none;cursor:pointer;padding:8px 14px;font-size:14px;font-weight:500;color:var(--text-secondary)">🌙</button>
 {% endblock %}
 
 {% block mobile_nav_items %}
@@ -84,8 +85,7 @@
 <div class="container" style="padding-top:20px;">
   <div class="page-header">
     <h1>📊 设备总览</h1>
-    <button class="btn btn-sm btn-secondary" id="themeToggle" title="切换主题" onclick="var t=document.documentElement.getAttribute('data-theme')==='dark'?'light':'dark';document.documentElement.setAttribute('data-theme',t);this.textContent=t==='dark'?'☀️':'🌙'">🌙</button>
-    <button class="btn btn-sm btn-secondary" onclick="loadAll()">🔄 刷新</button>
+      <button class="btn btn-sm btn-secondary" onclick="loadAll()">🔄 刷新</button>
   </div>
 
   <div class="stats-row">
@@ -284,5 +284,18 @@ function loadAll() {
 
 loadAll();
 setInterval(loadAll, 30000);
+
+// Theme toggle
+var toggle = document.getElementById('themeToggle');
+var stored = localStorage.getItem('lw-theme') || 'light';
+function applyTheme(t) {
+  document.documentElement.setAttribute('data-theme', t);
+  if (toggle) toggle.textContent = t === 'dark' ? '☀️' : '🌙';
+  localStorage.setItem('lw-theme', t);
+}
+applyTheme(stored);
+if (toggle) toggle.addEventListener('click', function() {
+  applyTheme(document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark');
+});
 </script>
 {% endblock %}
