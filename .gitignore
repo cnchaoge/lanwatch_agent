@@ -72,3 +72,5 @@ agent/router/config.sh
 
 # IDE 补充
 .vs/
+mac/
+agent/mac/
