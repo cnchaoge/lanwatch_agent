@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 """lanwatch_agent - 企业网络监控客户端 v0.9.0"""
 
-__version__ = "1.1.0"
+__version__ = "1.2.0"
 
 import socket
 from time import sleep
@@ -2400,11 +2400,13 @@ def main():
 
 def _run_monitoring(agent_id, company_name):
     """监控主循环"""
-    global consecutive_errors
+    global consecutive_errors, _network_monitor
     log.info("开始监控探测...")
     consecutive_errors = 0
     topo_next_in = TOPOLOGY_INTERVAL
     upgrade_next_in = UPDATE_CHECK_INTERVAL  # 首次启动先等一会儿再检查
+    # v1.2.0: 跟踪离线状态变化，避免重复上报
+    _prev_offline = _network_monitor.is_offline if _network_monitor else False
     while True:
         try:
             cfg = load_config()
@@ -2442,6 +2444,30 @@ def _run_monitoring(agent_id, company_name):
             consecutive_errors += 1
             update_tray_status(False)
 
+        # v1.2.0: 检测离线状态变化，立即通知服务端
+        if _network_monitor and _network_monitor.is_offline and not _prev_offline:
+            log.warning("[离线] 网络中断，通知服务端")
+            try:
+                payload = json.dumps({
+                    "reason": "network_down",
+                    "gateway": _network_monitor._last_gateway or "",
+                    "error": _network_monitor._last_error or "",
+                    "offline_since": _network_monitor._last_offline_start or "",
+                }).encode("utf-8")
+                req = urllib.request.Request(
+                    SERVER_URL + "/api/" + agent_id + "/offline",
+                    data=payload,
+                    headers={"Content-Type": "application/json"},
+                    method="POST"
+                )
+                with urllib.request.urlopen(req, timeout=5):
+                    pass
+                log.info("[离线] 已通知服务端")
+            except Exception:
+                pass  # 网络可能已断，失败不报错
+        if _network_monitor:
+            _prev_offline = _network_monitor.is_offline
+
         topo_next_in -= REPORT_INTERVAL
         upgrade_next_in -= REPORT_INTERVAL
         if topo_next_in <= 0:
@@ -2455,7 +2481,7 @@ def _run_monitoring(agent_id, company_name):
         sleep(REPORT_INTERVAL)
 
     report_offline(agent_id)
-    global _tray_icon_ref, _network_monitor
+    global _tray_icon_ref
     if _network_monitor:
         _network_monitor.stop()
     if _tray_icon_ref:

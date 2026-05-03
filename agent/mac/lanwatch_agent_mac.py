@@ -1,16 +1,16 @@
 #!/usr/bin/env python3
 """
-lanwatch_agent - 企业网络监控客户端（Linux / Ubuntu 专用版）v0.5
-支持 Ubuntu / Debian 系统
+lanwatch_agent - 企业网络监控客户端（macOS 版）v1.2.0
+支持 macOS 12+
 
 依赖安装：
-  pip install pystray pillow pyyaml
+  pip install pystray pillow
 
 运行方式：
-  python3 lanwatch_agent_linux.py
+  python3 lanwatch_agent_mac.py
 
-Linux 打包：
-  pyinstaller --onefile --name lanwatch_agent lanwatch_agent_linux.py
+macOS 打包：
+  pyinstaller --onefile --name lanwatch_agent lanwatch_agent_mac.py
 """
 __version__ = "1.2.0"
 
@@ -37,13 +37,11 @@ SERVER_URL = "http://82.156.229.67:8000"
 REPORT_INTERVAL = 60
 TOPOLOGY_INTERVAL = 300       # 5 分钟扫一次拓扑
 
-# Linux 路径规范（XDG）
+# macOS 路径规范
 HOME = os.path.expanduser("~")
 CONFIG_DIR = os.path.join(HOME, ".config", "lanwatch")
-AUTOSTART_DIR = os.path.join(HOME, ".config", "autostart")
 LOG_FILE = os.path.join(CONFIG_DIR, "agent.log")
 CONFIG_FILE = os.path.join(CONFIG_DIR, "agent.json")
-DESKTOP_FILE = os.path.join(AUTOSTART_DIR, "lanwatch-agent.desktop")
 
 # ═══════════════════════════════════════════════════════════════
 # 日志
@@ -89,21 +87,20 @@ def get_subnet_prefix():
     return parts[0] + "." + parts[1] if len(parts) == 2 else "192.168.1"
 
 def get_gateway():
-    """读取 /proc/net/route 获取网关 IP"""
+    """用 route -n get default 获取 macOS 默认网关"""
     try:
-        with open("/proc/net/route") as f:
-            for line in f:
-                parts = line.strip().split()
-                if len(parts) >= 3 and parts[1] == "00000000":
-                    gw_hex = parts[2]
-                    if len(gw_hex) == 8:
-                        ip = ".".join([
-                            str(int(gw_hex[6:8], 16)),
-                            str(int(gw_hex[4:6], 16)),
-                            str(int(gw_hex[2:4], 16)),
-                            str(int(gw_hex[0:2], 16)),
-                        ])
-                        return ip
+        out = subprocess.check_output(
+            ["route", "-n", "get", "default"],
+            stderr=subprocess.DEVNULL, text=True
+        )
+        for line in out.splitlines():
+            line = line.strip()
+            if line.startswith("gateway:") or line.startswith("Default gateway:"):
+                parts = line.split(":", 1)
+                if len(parts) == 2:
+                    gw = parts[1].strip()
+                    if gw:
+                        return gw
     except Exception:
         pass
     # fallback
@@ -166,34 +163,38 @@ def measure_dns(host="www.baidu.com"):
     return rtt
 
 def get_mac_for_ip(ip):
-    """通过 ARP 表查 IP 对应的 MAC"""
+    """通过 ARP 表查 IP 对应的 MAC（macOS 用 arp -a）"""
     try:
         subprocess.run(["ping", "-c", "1", "-W", "1", ip],
                        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         time.sleep(0.5)
-        with open("/proc/net/arp") as f:
-            for line in f:
-                parts = line.split()
-                if len(parts) >= 4 and parts[0] == ip and parts[3] != "00:00:00:00:00:00":
-                    return parts[3].upper()
+        out = subprocess.check_output(["arp", "-a"], text=True, stderr=subprocess.DEVNULL)
+        for line in out.splitlines():
+            # 格式: hostname (192.168.1.1) at aa:bb:cc:dd:ee:ff [ether] on en0
+            m = re.search(r"\(([\d.]+)\)\s+at\s+([0-9a-f:]+)", line)
+            if m and m.group(1) == ip:
+                return m.group(2).upper()
     except Exception:
         pass
     return None
 
 def get_local_mac():
-    """获取本机 MAC（默认网卡）"""
-    for iface in ["eth0", "ens0", "en0", "wl0"]:
-        path = f"/sys/class/net/{iface}/address"
-        if os.path.exists(path):
-            try:
-                with open(path) as f:
-                    return f.read().strip().upper()
-            except Exception:
-                pass
+    """获取本机 MAC（macOS 用 networksetup 或 ifconfig）"""
+    for iface in ["en0", "en1"]:  # macOS 主要网卡
+        try:
+            out = subprocess.check_output(
+                ["networksetup", "-getmacaddress", iface],
+                text=True, stderr=subprocess.DEVNULL
+            )
+            m = re.search(r"([0-9a-f:]{17})", out)
+            if m:
+                return m.group(1).upper()
+        except Exception:
+            pass
+    # fallback: ifconfig
     try:
-        out = subprocess.check_output(["ip", "link", "show"],
-                                       stderr=subprocess.DEVNULL, text=True)
-        m = re.search(r"link/ether ([0-9a-f:]+)", out, re.I)
+        out = subprocess.check_output(["ifconfig"], text=True, stderr=subprocess.DEVNULL)
+        m = re.search(r"\beer ([0-9a-f:]+)", out, re.I)
         if m:
             return m.group(1).upper()
     except Exception:
@@ -738,42 +739,72 @@ def _exit_app(icon=None):
     os._exit(0)
 
 # ═══════════════════════════════════════════════════════════════
-# Linux 开机自启（XDG autostart .desktop 文件）
+# macOS 开机自启（launchd plist）
 # ═══════════════════════════════════════════════════════════════
 
+LAUNCHD_DIR = os.path.join(HOME, "Library", "LaunchAgents")
+LAUNCHD_PLIST = os.path.join(LAUNCHD_DIR, "ai.lanwatch.agent.plist")
+
+def _get_launchd_plist_content(exe_path, script_path):
+    """生成 launchd plist 内容"""
+    return """\
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>ai.lanwatch.agent</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>{exe}</string>
+        <string>{script}</string>
+    </array>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>KeepAlive</key>
+    <false/>
+    <key>StandardOutPath</key>
+    <string>{log}</string>
+    <key>StandardErrorPath</key>
+    <string>{log}</string>
+</dict>
+</plist>
+""".format(
+        exe=exe_path,
+        script=script_path,
+        log=LOG_FILE
+    )
+
+
 def set_autostart(enable=True):
-    """写入/删除 ~/.config/autostart/lanwatch-agent.desktop，实现开机自启"""
+    """写入/删除 ~/Library/LaunchAgents/ai.lanwatch.agent.plist，实现 macOS 开机自启"""
     try:
-        os.makedirs(AUTOSTART_DIR, exist_ok=True)
+        os.makedirs(LAUNCHD_DIR, exist_ok=True)
         if enable:
             exe_path = sys.executable
             script_path = os.path.abspath(__file__)
-            cmd = f'"{exe_path}" "{script_path}"'
-            desktop_content = (
-                "[Desktop Entry]\n"
-                "Type=Application\n"
-                "Name=lanwatch-agent\n"
-                "Comment=企业网络监控客户端\n"
-                f"Exec={cmd}\n"
-                "Hidden=false\n"
-                "NoDisplay=true\n"
-                "X-GNOME-Autostart-enabled=true\n"
-            )
-            with open(DESKTOP_FILE, "w", encoding="utf-8") as f:
-                f.write(desktop_content)
-            log.info("[自启] 已开启开机自启（%s）", DESKTOP_FILE)
+            plist_content = _get_launchd_plist_content(exe_path, script_path)
+            with open(LAUNCHD_PLIST, "w", encoding="utf-8") as f:
+                f.write(plist_content)
+            # 加载 launchd agent
+            subprocess.run(["launchctl", "load", LAUNCHD_PLIST],
+                           stderr=subprocess.DEVNULL)
+            log.info("[自启] 已开启 macOS 开机自启")
         else:
-            if os.path.exists(DESKTOP_FILE):
-                os.remove(DESKTOP_FILE)
-                log.info("[自启] 已关闭开机自启")
+            if os.path.exists(LAUNCHD_PLIST):
+                subprocess.run(["launchctl", "unload", LAUNCHD_PLIST],
+                               stderr=subprocess.DEVNULL)
+                os.remove(LAUNCHD_PLIST)
+                log.info("[自启] 已关闭 macOS 开机自启")
         return True
     except Exception as e:
         log.warning("[自启] 设置失败: %s", e)
         return False
 
+
 def is_autostart_enabled():
-    """检查 .desktop 文件是否存在"""
-    return os.path.exists(DESKTOP_FILE)
+    """检查 launchd plist 是否存在并已加载"""
+    return os.path.exists(LAUNCHD_PLIST)
 
 # ═══════════════════════════════════════════════════════════════
 # 首次运行设置向导

@@ -2,7 +2,7 @@
 
 
 a = Analysis(
-    ['lanwatch_agent.py'],
+    ['lanwatch_agent_mac.py'],
     pathex=[],
     binaries=[],
     datas=[],
@@ -22,7 +22,7 @@ exe = EXE(
     a.binaries,
     a.datas,
     [],
-    name='lanwatch_agent',
+    name='lanwatch_agent_mac',
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
