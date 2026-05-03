@@ -1,344 +1,466 @@
-{% extends "base.html" %}
-{% block title %}Lanwatch - 企业网络监控平台{% endblock %}
-
-{% block nav_items %}
-<a class="nav-item" href="/monitor.html">📊 监控面板</a>
-<a class="nav-item" href="/ping_overview.html">📡 连通性监控</a>
-<a class="nav-item" href="/admin.html">⚙️ 管理后台</a>
-{% endblock %}
-
-{% block mobile_nav_items %}
-<a class="nav-item" href="/admin.html">📊 总览</a>
-<a class="nav-item" href="/monitor.html">📊 监控面板</a>
-<a class="nav-item" href="/ping_overview.html">📡 连通性监控</a>
-<a class="nav-item" href="/admin.html">⚙️ 管理后台</a>
-{% endblock %}
-
-{% block head_extra %}
+<!DOCTYPE html>
+<html lang="zh" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LANWatch - 企业网络监控平台</title>
+<meta name="description" content="没有网管照样管好网络。断网了？LANWatch 告诉你断在哪一跳，小微企业也能用上专业级诊断能力。">
+<link rel="stylesheet" href="/static/theme.css">
 <style>
-.page-header { padding: 40px 0 24px; text-align: center; }
-.page-header h1 { font-size: 26px; font-weight: 800; margin: 0; }
-.page-header p { font-size: 14px; color: var(--muted); margin-top: 6px; }
-.enterprise-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 16px; margin-bottom: 40px; }
-.enterprise-card {
-  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 20px;
-  cursor: pointer; transition: all 0.25s; position: relative; overflow: hidden;
+body {
+  background:
+    radial-gradient(circle at top left, rgba(37,99,235,0.08) 0%, transparent 45%),
+    radial-gradient(circle at bottom right, rgba(99,102,241,0.05) 0%, transparent 45%),
+    var(--bg);
+  color: var(--text);
+  font-family: 'Manrope', -apple-system, BlinkMacSystemFont, sans-serif;
+  min-height: 100vh;
 }
-.enterprise-card:hover { border-color: var(--blue); transform: translateY(-2px); box-shadow: 0 8px 24px rgba(0,0,0,0.3); }
-.enterprise-card .top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
-.enterprise-card .name { font-size: 16px; font-weight: 700; }
-.enterprise-card .status { font-size: 12px; font-weight: 600; }
-.enterprise-card .status.online { color: var(--green); }
-.enterprise-card .status.offline { color: var(--red); }
-.enterprise-card .methods { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 12px; }
-.enterprise-card .method-tag {
-  display: inline-flex; align-items: center; gap: 4px;
-  padding: 3px 8px; border-radius: 4px; font-size: 11px; font-weight: 600;
-  background: var(--bg-tertiary); color: var(--text-muted);
-}
-.enterprise-card .method-tag.active { background: rgba(63,185,80,0.12); color: var(--green); }
-.enterprise-card .card-footer { display: flex; gap: 16px; font-size: 11px; color: var(--text-muted); border-top: 1px solid var(--border); padding-top: 8px; margin-top: 2px; flex-wrap: wrap; }
-.enterprise-card .card-footer strong { color: var(--text-primary); font-weight: 700; }
-.enterprise-card .card-footer .dot { width: 6px; height: 6px; border-radius: 50%; display: inline-block; margin-right: 3px; }
-.enterprise-card .card-footer .dot.green { background: var(--green); }
-.enterprise-card .card-footer .dot.red { background: var(--red); }
-.enterprise-card .card-footer .dot.blue { background: var(--blue); }
-.enterprise-card .card-footer .dot.grey { background: var(--text-muted); }
 
-.conn-section { margin: 6px 0 8px; border-top: 1px solid var(--border); padding-top: 8px; }
-.conn-section-title { font-size: 11px; font-weight: 600; color: var(--text-muted); margin-bottom: 4px; display: flex; align-items: center; gap: 4px; letter-spacing: 0.3px; }
-.conn-row { display: flex; align-items: center; gap: 6px; font-size: 12px; padding: 3px 4px; border-radius: 4px; }
-.conn-row:hover { background: var(--surface-hover); }
-.conn-icon { width: 18px; text-align: center; flex-shrink: 0; font-size: 11px; }
-.conn-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; color: var(--text-secondary); font-weight: 500; }
-.conn-meta { font-family: monospace; font-size: 11px; color: var(--text-muted); margin-right: 6px; }
-.conn-value { font-weight: 600; white-space: nowrap; font-size: 11px; }
-.conn-online { color: var(--green); } .conn-offline { color: var(--red); }
-.empty-state { text-align: center; padding: 60px; color: var(--muted); }
-.loading { text-align: center; padding: 60px; color: var(--muted); }
-.quick-links { display: flex; gap: 12px; justify-content: center; margin-bottom: 32px; flex-wrap: wrap; }
-.section-title { font-size: 16px; font-weight: 700; margin: 32px 0 12px; display: flex; align-items: center; gap: 8px; }
-.alert-row { background: var(--surface); border: 1px solid var(--border); border-left: 3px solid var(--red); border-radius: 0 var(--radius-lg) var(--radius-lg) 0; padding: 10px 14px; margin-bottom: 6px; font-size: 12px; }
-.alert-row.warning { border-left-color: var(--orange); }
-.alert-time { color: var(--muted); font-size: 11px; }
+/* ─── Hero ─── */
+.hero {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+  padding: 80px 24px 60px;
+}
+.hero-eyebrow {
+  display: inline-flex; align-items: center; gap: 8px;
+  background: var(--primary-dim); border: 1px solid rgba(79,142,247,0.2);
+  border-radius: 100px; padding: 6px 16px;
+  font-size: 13px; color: var(--primary); font-weight: 600;
+  margin-bottom: 28px;
+}
+.hero-eyebrow .badge-new { background: var(--green); color: #fff; border-radius: 100px; padding: 2px 8px; font-size: 11px; }
+.hero h1 {
+  font-size: clamp(36px, 7vw, 72px);
+  font-weight: 800;
+  letter-spacing: -0.04em;
+  line-height: 1.05;
+  margin-bottom: 20px;
+  color: var(--text);
+}
+.hero h1 .accent { color: var(--primary); }
+.hero-sub {
+  font-size: clamp(16px, 2.5vw, 20px);
+  color: var(--muted);
+  max-width: 560px;
+  line-height: 1.6;
+  margin-bottom: 40px;
+}
+.hero-actions {
+  display: flex; gap: 12px; flex-wrap: wrap; justify-content: center;
+  margin-bottom: 56px;
+}
+.hero-stats {
+  display: flex; gap: 48px; flex-wrap: wrap; justify-content: center;
+}
+.hero-stat { text-align: center; }
+.hero-stat-num { font-size: 28px; font-weight: 800; color: var(--text); }
+.hero-stat-label { font-size: 13px; color: var(--muted); margin-top: 2px; }
+
+/* ─── Nav ─── */
+.nav { position: fixed; top: 0; left: 0; right: 0; z-index: 100; background: rgba(var(--bg-rgb, 255,255,255), 0.85); backdrop-filter: blur(12px); border-bottom: 1px solid var(--border); }
+.nav-inner { max-width: 1100px; margin: 0 auto; padding: 0 24px; height: 60px; display: flex; align-items: center; gap: 24px; }
+.nav-brand { display: flex; align-items: center; gap: 8px; font-weight: 800; font-size: 17px; text-decoration: none; color: var(--text); flex-shrink: 0; }
+.nav-icon { width: 30px; height: 30px; background: var(--primary); color: #fff; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 900; }
+.nav-links { display: flex; gap: 4px; margin-left: 8px; }
+.nav-links a { padding: 6px 12px; border-radius: 8px; font-size: 14px; color: var(--muted); text-decoration: none; transition: background 0.15s, color 0.15s; }
+.nav-links a:hover { background: var(--surface-hover); color: var(--text); }
+.nav-right { margin-left: auto; display: flex; align-items: center; gap: 8px; }
+
+/* ─── Buttons ─── */
+.btn { display: inline-flex; align-items: center; gap: 6px; padding: 10px 20px; border-radius: 10px; font-size: 14px; font-weight: 600; text-decoration: none; border: none; cursor: pointer; transition: all 0.15s; }
+.btn-primary { background: var(--primary); color: #fff; }
+.btn-primary:hover { background: var(--primary-hover, #1d4ed8); transform: translateY(-1px); }
+.btn-secondary { background: var(--surface); color: var(--text); border: 1px solid var(--border); }
+.btn-secondary:hover { background: var(--surface-hover); }
+.btn-ghost { background: transparent; color: var(--text); padding: 10px 16px; }
+.btn-ghost:hover { background: var(--surface-hover); }
+.btn-lg { padding: 13px 28px; font-size: 15px; border-radius: 12px; }
+
+/* ─── Sections ─── */
+.section { padding: 80px 24px; max-width: 1100px; margin: 0 auto; }
+.section-eyebrow { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; color: var(--primary); margin-bottom: 12px; }
+.section-title { font-size: clamp(24px, 4vw, 36px); font-weight: 800; letter-spacing: -0.03em; margin-bottom: 16px; }
+.section-desc { font-size: 16px; color: var(--muted); line-height: 1.7; max-width: 520px; margin-bottom: 48px; }
+.section-title.center, .section-desc.center { text-align: center; margin-left: auto; margin-right: auto; }
+
+/* ─── Feature grid ─── */
+.feature-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; }
+.feature-card {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 16px; padding: 24px;
+  transition: border-color 0.2s, transform 0.2s;
+}
+.feature-card:hover { border-color: rgba(37,99,235,0.3); transform: translateY(-2px); }
+.feature-icon { font-size: 28px; margin-bottom: 14px; }
+.feature-name { font-size: 16px; font-weight: 700; margin-bottom: 8px; }
+.feature-desc { font-size: 13px; color: var(--muted); line-height: 1.65; }
+
+/* ─── Architecture ─── */
+.arch-diagram {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 20px; padding: 40px; overflow-x: auto;
+}
+.arch-row { display: flex; align-items: center; justify-content: center; gap: 16px; flex-wrap: wrap; margin-bottom: 16px; }
+.arch-row:last-child { margin-bottom: 0; }
+.arch-box {
+  background: var(--bg-2); border: 1px solid var(--border);
+  border-radius: 12px; padding: 16px 24px; text-align: center; min-width: 140px;
+}
+.arch-box-title { font-size: 13px; font-weight: 700; margin-bottom: 4px; }
+.arch-box-sub { font-size: 11px; color: var(--muted); }
+.arch-arrow { font-size: 20px; color: var(--muted); }
+.arch-label { font-size: 11px; color: var(--muted); text-align: center; }
+
+/* ─── Client cards ─── */
+.client-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 16px; }
+.client-card {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 16px; padding: 24px; text-align: center;
+  transition: border-color 0.2s, transform 0.2s;
+}
+.client-card:hover { border-color: rgba(37,99,235,0.3); transform: translateY(-2px); }
+.client-icon { font-size: 36px; margin-bottom: 12px; }
+.client-name { font-size: 15px; font-weight: 700; margin-bottom: 6px; }
+.client-desc { font-size: 12px; color: var(--muted); line-height: 1.6; margin-bottom: 12px; }
+.client-ver { font-size: 11px; color: var(--green); font-weight: 600; }
+.client-status { font-size: 11px; color: var(--muted); margin-top: 4px; }
+
+/* ─── CTA ─── */
+.cta-section {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 24px; padding: 64px 40px; text-align: center;
+  margin: 0 24px 80px; max-width: 1100px; margin-left: auto; margin-right: auto;
+}
+.cta-title { font-size: clamp(22px, 4vw, 32px); font-weight: 800; margin-bottom: 12px; }
+.cta-desc { font-size: 15px; color: var(--muted); margin-bottom: 32px; }
+
+/* ─── Footer ─── */
+.footer { border-top: 1px solid var(--border); padding: 32px 24px; text-align: center; font-size: 13px; color: var(--muted); }
+.footer a { color: var(--muted); text-decoration: none; }
+.footer a:hover { color: var(--text); }
+
+/* ─── Info note ─── */
+.info-note {
+  background: var(--primary-dim); border: 1px solid rgba(79,142,247,0.18);
+  border-radius: 12px; padding: 14px 18px;
+  font-size: 13px; color: var(--primary); line-height: 1.7;
+}
+
+/* ─── Divider ─── */
+
+/* ─── FAQ ─── */
+.faq-item {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 12px; padding: 18px 22px; margin-bottom: 12px;
+  transition: border-color 0.2s;
+}
+.faq-item:hover { border-color: rgba(37,99,235,0.3); }
+.faq-q { font-size: 14px; font-weight: 700; margin-bottom: 8px; }
+.faq-a { font-size: 13px; color: var(--muted); line-height: 1.7; }
+.divider { height: 1px; background: var(--border); margin: 0; }
+
+/* ─── Responsive ─── */
+@media (max-width: 640px) {
+  .hero { padding: 100px 20px 48px; }
+  .hero-stats { gap: 28px; }
+  .nav-links { display: none; }
+  .section { padding: 56px 20px; }
+  .cta-section { padding: 40px 24px; margin: 0 0 48px; }
+}
 </style>
-{% endblock %}
+</head>
+<body>
 
-{% block content %}
-<div class="container" style="max-width:1100px">
-  <div class="page-header">
-    <h1>🌐 Lanwatch</h1>
-    <p>企业网络监控平台</p>
+<!-- Nav -->
+<nav class="nav">
+  <div class="nav-inner">
+    <a href="/" class="nav-brand">
+      <span class="nav-icon">L</span>
+      <span>LANWatch</span>
+    </a>
+    <div class="nav-links">
+      <a href="/#features">功能</a>
+      <a href="/#deploy">部署</a>
+      <a href="/#faq">FAQ</a>
+      <a href="/#contact">联系</a>
+    </div>
+    <div class="nav-right">
+      <button class="btn btn-ghost btn-sm" id="themeToggle">🌙</button>
+      <a class="btn btn-primary btn-sm" href="/download">免费下载</a>
+    </div>
   </div>
+</nav>
 
-  <div class="quick-links">
-    <a class="btn btn-sm btn-secondary" href="/monitor.html">📊 监控面板</a>
-    <a class="btn btn-sm btn-secondary" href="/admin.html">⚙️ 管理后台</a>
-    <a class="btn btn-sm btn-secondary" href="/download.html">📥 下载客户端</a>
+<!-- Hero -->
+<section class="hero">
+  <div class="hero-eyebrow">
+    <span>小微企业网络监控</span>
+    <span class="badge-new dyn-ver">v0.9.8</span>
   </div>
-
-  <div id="enterprise-grid" class="enterprise-grid">
-    <div class="loading">加载中...</div>
+  <h1><span class="accent">没有网管</span><br>照样能管好网络</h1>
+  <p class="hero-sub">网络断了？LANWatch 不只告诉你断了，还告诉你断在哪一跳。小微企业也能用上专业级网络监控。</p>
+  <div class="hero-actions">
+    <a class="btn btn-primary btn-lg" href="/download">🖥️ 免费下载 Windows 客户端</a>
+    <a class="btn btn-secondary btn-lg" href="/admin">📊 查看管理后台</a>
   </div>
-
-  <div id="snmp-section" class="section-title" style="display:none">🔌 SNMP 设备监控 <span id="snmp-summary" style="font-size:12px;font-weight:400;color:var(--muted)"></span></div>
-  <div id="snmp-grid" class="enterprise-grid" style="margin-bottom:40px"></div>
-
-  <div id="alert-section">
-    <div class="loading" style="padding:20px">加载中...</div>
+  <div class="hero-stats">
+    <div class="hero-stat">
+      <div class="hero-stat-num">30s</div>
+      <div class="hero-stat-label">完成部署</div>
+    </div>
+    <div class="hero-stat">
+      <div class="hero-stat-num">60s</div>
+      <div class="hero-stat-label">探测间隔</div>
+    </div>
+    <div class="hero-stat">
+      <div class="hero-stat-num">43</div>
+      <div class="hero-stat-label">端口扫描覆盖</div>
+    </div>
+    <div class="hero-stat">
+      <div class="hero-stat-num">微信</div>
+      <div class="hero-stat-label">即时报警</div>
+    </div>
   </div>
+</section>
+
+<div class="divider"></div>
+
+<!-- Features -->
+<section class="section" id="features">
+  <div class="section-eyebrow">核心能力</div>
+  <h2 class="section-title">不只是知道断了，更知道断在哪</h2>
+  <p class="section-desc">断点诊断 · 静默拓扑 · 多维度探测 · 微信报警。LANWatch 让没有专职网管的小微企业，也能做到专业级的网络运维。</p>
+
+  <div class="feature-grid">
+    <div class="feature-card">
+      <div class="feature-icon">🔍</div>
+      <div class="feature-name">断点诊断</div>
+      <div class="feature-desc">离线后自动 traceroute，定位断在第几跳。客户打电话来说断网，你打开后台直接看到"断在 ISP 出口第 3 跳"。节省 80% 排查时间。</div>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon">🗺️</div>
+      <div class="feature-name">静默拓扑发现</div>
+      <div class="feature-desc">直接读本机 ARP 缓存表，3 秒内拿到局域网所有设备。不 ping 不发包，零噪音，不触发防火墙。</div>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon">📡</div>
+      <div class="feature-name">多维度探测</div>
+      <div class="feature-desc">同时探测网关 + 百度/阿里/腾讯/网易四路 DNS 延迟。真实反映网络质量，不只是"通"或"不通"。</div>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon">🔔</div>
+      <div class="feature-name">微信即时报警</div>
+      <div class="feature-desc">离线超过 3 分钟自动推送 Server酱 微信通知。防轰炸机制：同一故障 5 分钟内不重复提醒。</div>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon">🔌</div>
+      <div class="feature-name">端口扫描与服务识别</div>
+      <div class="feature-desc">扫描 43 个常见端口，自动识别 HTTP/SSH/SMB/DNS 等服务。30 线程并发，3-5 秒完成，每 5 分钟上报一次。</div>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon">📱</div>
+      <div class="feature-name">手机端查看</div>
+      <div class="feature-desc">微信扫码直接看，无需安装 App。每个设备独立二维码，管理员和企业主都能随时查看网络状态。</div>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon">🔄</div>
+      <div class="feature-name">自动升级</div>
+      <div class="feature-desc">后台静默检测 GitHub releases，有新版本弹窗询问是否升级。升级过程自动重启，零手动干预。</div>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon">🌐</div>
+      <div class="feature-name">SNMP 监控</div>
+      <div class="feature-desc">企业级路由器/交换机支持 SNMP V2c 协议接入，无需安装客户端，协议直连，后台统一管理。</div>
+    </div>
+  </div>
+</section>
+
+<!-- Deploy Steps -->
+<section class="section" id="deploy">
+  <div class="section-eyebrow">30 秒部署</div>
+  <h2 class="section-title">三步完成，无需配置</h2>
+  <p class="section-desc">传统网络监控需要专业网管、配置网关、安装 agent。LANWatch 下载运行即可，零配置，零专业知识。</p>
+
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:20px;margin-top:8px;">
+    <div style="text-align:center;">
+      <div style="font-size:48px;margin-bottom:16px;">📥</div>
+      <div style="font-size:13px;font-weight:700;color:var(--primary);margin-bottom:8px;">第一步</div>
+      <div style="font-size:15px;font-weight:700;margin-bottom:8px;">下载客户端</div>
+      <div style="font-size:13px;color:var(--muted);line-height:1.6;">访问下载中心<br>获取 Windows 安装包</div>
+      <a class="btn btn-secondary btn-sm" href="/download" style="margin-top:14px;">去下载</a>
+    </div>
+    <div style="text-align:center;">
+      <div style="font-size:48px;margin-bottom:16px;">🖥️</div>
+      <div style="font-size:13px;font-weight:700;color:var(--primary);margin-bottom:8px;">第二步</div>
+      <div style="font-size:15px;font-weight:700;margin-bottom:8px;">双击运行</div>
+      <div style="font-size:13px;color:var(--muted);line-height:1.6;">输入企业名称<br>点击注册完成</div>
+      <div style="margin-top:14px;font-size:12px;color:var(--muted);">约 10 秒</div>
+    </div>
+    <div style="text-align:center;">
+      <div style="font-size:48px;margin-bottom:16px;">📊</div>
+      <div style="font-size:13px;font-weight:700;color:var(--primary);margin-bottom:8px;">第三步</div>
+      <div style="font-size:15px;font-weight:700;margin-bottom:8px;">打开后台</div>
+      <div style="font-size:13px;color:var(--muted);line-height:1.6;">访问管理后台<br>实时查看网络状态</div>
+      <a class="btn btn-secondary btn-sm" href="/admin" style="margin-top:14px;">打开后台</a>
+    </div>
+  </div>
+</section>
+
+<div class="divider"></div>
+
+<!-- Architecture -->
+<section class="section" id="architecture">
+  <div class="section-eyebrow">技术架构</div>
+  <h2 class="section-title">零配置，30秒完成部署</h2>
+  <p class="section-desc">下载 exe，双击运行，输入企业名称，完成。无需配置，无需专业知识，一个人就能管好全公司的网络。</p>
+
+  <div class="arch-diagram">
+    <div class="arch-row">
+      <div class="arch-box" style="background: rgba(37,99,235,0.08); border-color: rgba(37,99,235,0.3);">
+        <div class="arch-box-title">企业内网</div>
+        <div class="arch-box-sub">Windows / Linux / OpenWRT</div>
+      </div>
+      <span class="arch-arrow">→</span>
+      <div class="arch-box">
+        <div class="arch-box-title">TCP/HTTP 上报</div>
+        <div class="arch-box-sub">每 60s 探测 · 每 5min 拓扑</div>
+      </div>
+      <span class="arch-arrow">→</span>
+      <div class="arch-box" style="background: rgba(16,185,129,0.08); border-color: rgba(16,185,129,0.3);">
+        <div class="arch-box-title">LANWatch 云端</div>
+        <div class="arch-box-sub">FastAPI · SQLite · SSE</div>
+      </div>
+    </div>
+    <p class="arch-label">探测数据 → 微信报警 / Web 后台 / 手机端</p>
+  </div>
+</section>
+
+<div class="divider"></div>
+
+<!-- Clients -->
+<section class="section" id="clients">
+  <div class="section-eyebrow">客户端下载</div>
+  <h2 class="section-title">多平台覆盖，按需部署</h2>
+  <p class="section-desc">一个客户端 exe，下载即用，零配置接入。30 秒完成部署。</p>
+
+  <div class="client-grid">
+    <div class="client-card">
+      <div class="client-icon">🪟</div>
+      <div class="client-name">Windows 客户端</div>
+      <div class="client-desc">适用于 Windows 10/11<br>桌面后台运行，开机自启</div>
+      <div class="client-ver"><span class="dyn-ver">v0.9.8</span> · 2026-04-27</div>
+      <div class="client-status" style="color: var(--green);">✓ 正式版</div>
+      <a class="btn btn-primary" href="/download" style="margin-top:12px;width:100%;justify-content:center;">立即下载</a>
+    </div>
+    <div class="client-card">
+      <div class="client-icon">🐧</div>
+      <div class="client-name">Linux 客户端</div>
+      <div class="client-desc">适用于 Ubuntu/Debian/CentOS<br>命令行守护进程运行</div>
+      <div class="client-ver">v0.7.0 · 2026-04-26</div>
+      <div class="client-status" style="color: var(--green);">✓ 正式版</div>
+      <a class="btn btn-secondary" href="/download" style="margin-top:12px;width:100%;justify-content:center;">下载</a>
+    </div>
+    <div class="client-card">
+      <div class="client-icon">📡</div>
+      <div class="client-name">OpenWRT 客户端</div>
+      <div class="client-desc">适用于软路由<br>小米/红米 AX 系列测试通过</div>
+      <div class="client-ver">v0.6.4 · 2026-04-24</div>
+      <div class="client-status" style="color: var(--green);">✓ 正式版</div>
+      <a class="btn btn-secondary" href="/download" style="margin-top:12px;width:100%;justify-content:center;">下载</a>
+    </div>
+    <div class="client-card">
+      <div class="client-icon">📊</div>
+      <div class="client-name">SNMP 设备</div>
+      <div class="client-desc">企业级路由器/交换机<br>协议直连，无需安装客户端</div>
+      <div class="client-ver">- · -</div>
+      <div class="client-status" style="color: var(--green);">✓ 支持</div>
+      <a class="btn btn-secondary" href="/admin" style="margin-top:12px;width:100%;justify-content:center;">管理后台</a>
+    </div>
+  </div>
+</section>
+
+<!-- FAQ -->
+<section class="section" id="faq">
+  <div class="section-eyebrow">常见问题</div>
+  <h2 class="section-title">疑问解答</h2>
+
+  <div style="max-width:680px;margin:0 auto;">
+    <div class="faq-item">
+      <div class="faq-q">需要专业网管才能用吗？</div>
+      <div class="faq-a">不需要。企业只需要一台能上网的 Windows 电脑，下载运行，5 分钟完成部署。后续操作在 Web 后台完成，有手就会。</div>
+    </div>
+    <div class="faq-item">
+      <div class="faq-q">监控数据存在哪？</div>
+      <div class="faq-a">云端服务器（82.156.229.67），企业间数据完全隔离，每个 Token 只看自己企业的数据。</div>
+    </div>
+    <div class="faq-item">
+      <div class="faq-q">网络断了怎么通知？</div>
+      <div class="faq-a">微信推送（Server酱）。离线超过 3 分钟自动推送给管理员和客户，同一故障 5 分钟内不重复提醒，防轰炸。</div>
+    </div>
+    <div class="faq-item">
+      <div class="faq-q">支持多少设备？</div>
+      <div class="faq-a">不限。服务端横向扩展，每个企业独立数据库，互不干扰。</div>
+    </div>
+    <div class="faq-item">
+      <div class="faq-q">收费吗？</div>
+      <div class="faq-a">现阶段免费试用。项目正在 MVP 验证阶段，欢迎小微企业联系试用。</div>
+    </div>
+    <div class="faq-item">
+      <div class="faq-q">Mac 能用吗？</div>
+      <div class="faq-a">Mac 客户端正在开发中。目前支持 Windows、Linux、OpenWRT 软路由。</div>
+    </div>
+  </div>
+</section>
+
+<!-- Contact -->
+<section class="section" id="contact">
+  <div class="section-eyebrow" style="color:var(--green);">联系我们</div>
+  <h2 class="section-title">想先了解一下？</h2>
+  <p class="section-desc" style="margin-bottom:32px;">项目正在 MVP 验证阶段，欢迎小微企业联系试用。也可以直接电话咨询。</p>
+
+  <div style="display:flex;flex-direction:column;align-items:center;gap:16px;">
+    <div style="font-size:48px;font-weight:800;letter-spacing:-0.02em;" onclick="window.location.href='tel:18531729777'">📞 185-3172-9777</div>
+    <div style="font-size:14px;color:var(--muted);">电话 / 微信同号（早 9:00 - 晚 6:00）</div>
+    <a class="btn btn-primary btn-lg" href="tel:18531729777">📱 立即拨打</a>
+  </div>
+</section>
+
+<!-- CTA -->
+<div class="cta-section">
+  <h2 class="cta-title">30 秒完成部署，开始监控</h2>
+  <p class="cta-desc">下载客户端 → 双击运行 → 输入企业名称 → 完成。无需配置，无需专业知识。</p>
+  <a class="btn btn-primary btn-lg" href="/download">🖥️ 免费下载 Windows 客户端</a>
 </div>
 
-<div style="text-align:center;font-size:11px;color:var(--text-muted);padding:24px 0;border-top:1px solid var(--border);">
-  Lanwatch · 企业网络监控
+<!-- Footer -->
+<div class="footer">
+  <a href="/">官网首页</a> ·
+  <a href="/agents">企业总览</a> · <a href="/ping_overview">断点检测</a> ·
+  <a href="/download">下载中心</a> ·
+  <a href="/admin">管理后台</a>
+  <br><br>
+  LANWatch · © 2026
 </div>
-{% endblock %}
 
-{% block scripts %}
 <script>
-var SERVER = location.origin;
-
-function timeAgo(ts) {
-  if (!ts) return '从未上线';
-  var s = Math.floor(Date.now()/1000 - new Date(ts).getTime()/1000);
-  if (s < 60) return '刚刚';
-  if (s < 3600) return Math.floor(s/60) + '分钟前';
-  return Math.floor(s/3600) + '小时前';
+var toggle = document.getElementById('themeToggle');
+var stored = localStorage.getItem('lw-theme') || 'light';
+function applyTheme(t) {
+  document.documentElement.setAttribute('data-theme', t);
+  toggle.textContent = t === 'dark' ? '☀️' : '🌙';
+  localStorage.setItem('lw-theme', t);
 }
-
-function fmtTime(ts) {
-  /* 格式化时间戳为 YYYY-MM-DD HH:mm:ss */
-  if (!ts) return '-';
-  var d = new Date(ts);
-  if (isNaN(d.getTime())) {
-    d = new Date(ts.replace('T', ' ').replace('Z', '').split('.')[0]);
-  }
-  if (isNaN(d.getTime())) return '-';
-  var pad = function(n){return n<10?'0'+n:''+n;};
-  return d.getFullYear() + '-' + pad(d.getMonth()+1) + '-' + pad(d.getDate()) +
-    ' ' + pad(d.getHours()) + ':' + pad(d.getMinutes()) + ':' + pad(d.getSeconds());
-}
-
-function fmtUnixTime(ts) {
-  /* 格式化 Unix 时间戳（秒） */
-  if (!ts || ts <= 0) return '-';
-  return fmtTime(new Date(ts * 1000));
-}
-
-
-function load() {
-  var grid = document.getElementById('enterprise-grid');
-  fetch(SERVER + '/api/enterprises')
-    .then(function(r){return r.json()})
-    .then(function(enterprises) {
-      if (!enterprises || !enterprises.length) {
-        grid.innerHTML = '<div class="empty-state">暂无注册企业，请先在客户端注册</div>';
-        return;
-      }
-      grid.innerHTML = enterprises.map(function(e) {
-        function getLastSeen(e) {
-          if (e.last_seen) return fmtTime(e.last_seen);
-          if (e.ping && e.ping.last_seen) return fmtUnixTime(e.ping.last_seen);
-          return null;
-        }
-        var statusClass = e.online ? 'online' : 'offline';
-        var statusText;
-        statusText = e.online ? '● 在线' : '○ 离线';
-        var p = e.ping;
-        // 上线方式标签
-        var methods = e.methods || [];
-        var methodHtml = methods.length ? methods.map(function(m) {
-          return '<span class="method-tag active">' + m + '</span>';
-        }).join('') : '<span class="method-tag">未配置</span>';
-
-        // 连通性监控区块（出口 IP + Ping + SNMP 设备）
-        var connHtml = '';
-        // 出口 IP 行
-        if (e.ip_type === 'public') {
-          connHtml += '<div class="conn-row">' +
-            '<span class="conn-icon">🌐</span>' +
-            '<span class="conn-name">出口 IP</span>' +
-            '<span class="conn-meta">' + e.ip + '</span>' +
-            '<span class="conn-value conn-online">● 在线</span></div>';
-        }
-        // Ping 行
-        if (p) {
-          var pingOnline = p.status === 'online';
-          connHtml += '<div class="conn-row">' +
-            '<span class="conn-icon">📡</span>' +
-            '<span class="conn-name">Ping</span>' +
-            '<span class="conn-meta">' + (e.ip || '-') + '</span>';
-          if (p.rtt_ms !== null && p.rtt_ms !== undefined) {
-            connHtml += '<span class="conn-value" style="color:var(--blue)">' + Math.round(p.rtt_ms * 10) / 10 + 'ms</span>';
-          }
-          connHtml += '<span class="conn-value ' + (pingOnline ? 'conn-online' : 'conn-offline') + '">● ' + (pingOnline ? '在线' : '离线') + '</span></div>';
-        }
-        // SNMP 设备行
-        if (e.snmp_devices && e.snmp_devices.length) {
-          e.snmp_devices.forEach(function(dev) {
-            var cpuDisplay = dev.cpu ? '<span class="conn-value" style="color:var(--accent-yellow);margin:0 4px">CPU ' + dev.cpu + '%</span>' : '';
-            connHtml += '<div class="conn-row">' +
-              '<span class="conn-icon">🔌</span>' +
-              '<span class="conn-name">' + dev.name + '</span>' +
-              '<span class="conn-meta">' + dev.ip + '</span>' +
-              cpuDisplay +
-              '<span class="conn-value ' + (dev.online ? 'conn-online' : 'conn-offline') + '">● ' + (dev.online ? '在线' : '离线') + '</span></div>';
-          });
-        }
-        if (connHtml) {
-          connHtml = '<div class="conn-section"><div class="conn-section-title">📡 连通性监控</div>' + connHtml + '</div>';
-        } else {
-          connHtml = '<div class="conn-section" style="text-align:center;padding:6px 0;font-size:12px;color:var(--muted)">暂无连通性监控数据</div>';
-        }
-
-        // 断线诊断记录
-        var diagHtml = '';
-        if (e.diag_reports && e.diag_reports.length) {
-          var diagRows = e.diag_reports.map(function(d) {
-            var report = d.report || {};
-            var time = report.time || d.created_at || '-';
-            var target = report.target || '-';
-            var hops = report.hops;
-            var error = report.error || '';
-            var hopsHtml = '';
-            if (hops && hops.length) {
-              hopsHtml = hops.slice(0, 5).map(function(h) {
-                var rtt = h.rtt !== null && h.rtt !== undefined ? h.rtt.toFixed(1) + 'ms' : '超时';
-                return '<span style="display:inline-block;margin:2px;padding:1px 5px;background:var(--dark-2);border-radius:3px;font-size:10px">#' + h.hop + ' ' + rtt + '</span>';
-              }).join('');
-            }
-            return '<div style="margin-bottom:6px;padding:4px 0;border-bottom:1px solid var(--border)">' +
-              '<div style="font-size:11px;color:var(--muted)">' + time + ' → ' + target + (error ? ' <span style="color:var(--red)">' + error + '</span>' : '') + '</div>' +
-              (hopsHtml ? '<div style="margin-top:3px">' + hopsHtml + '</div>' : '') +
-              '</div>';
-          }).join('');
-          diagHtml = '<div class="conn-section"><div class="conn-section-title">🔧 断线诊断记录</div>' + diagRows + '</div>';
-        }
-
-        // 底部统计
-        var alertClass = e.alert_24h > 0 ? 'red' : 'green';
-        var lastUpdate = (function(){ var ls = getLastSeen(e); return ls ? ls : '从未上线'; })();
-        var footerLabel = e.online ? '最后更新' : '掉线时间';
-        var footerHtml = '<div class="card-footer">' +
-          '<span>设备 <strong>' + e.device_count + '</strong></span>' +
-          '<span><span class="dot ' + alertClass + '"></span>告警 <strong>' + e.alert_24h + '</strong></span>' +
-          '<span style="margin-left:auto">' + footerLabel + ': ' + lastUpdate + '</span></div>';
-
-        return '<div class="enterprise-card" data-agent-id="' + e.agent_id + '">' +
-          '<div class="top"><span class="name">' + (e.name || '未命名企业') + '</span><span class="status ' + statusClass + '">' + statusText + '</span></div>' +
-          '<div class="methods">' + methodHtml + '</div>' +
-          connHtml +
-          diagHtml +
-          footerHtml +
-          '</div>';
-      }).join('');
-    })
-    .catch(function() {
-      grid.innerHTML = '<div class="empty-state">加载失败，请检查服务端连接</div>';
-    });
-
-  loadSnmp();
-  loadAlerts();
-}
-
-
-function formatUptime(cs) {
-  if (!cs || isNaN(cs)) return '-';
-  var s = Math.floor(parseInt(cs) / 100);
-  if (s < 60) return s + '秒';
-  if (s < 3600) return Math.floor(s/60) + '分';
-  if (s < 86400) return Math.floor(s/3600) + '小时';
-  return Math.floor(s/86400) + '天';
-}
-
-function loadSnmp() {
-  var grid = document.getElementById('snmp-grid');
-  fetch(SERVER + '/api/snmp/latest')
-    .then(function(r){ return r.json(); })
-    .then(function(devices) {
-      if (!devices || !devices.length) {
-        grid.innerHTML = '';
-        document.getElementById('snmp-section').style.display = 'none';
-        return;
-      }
-      var online = 0, offline = 0;
-      devices.forEach(function(d) { if (d.status === 1) online++; else offline++; });
-      var title = document.getElementById('snmp-section');
-      title.style.display = 'flex';
-      document.getElementById('snmp-summary').textContent = online + ' 在线 · ' + offline + ' 离线';
-      grid.innerHTML = devices.map(function(dev) {
-        var m = dev.metrics || {};
-        var isOnline = dev.status === 1;
-        var cpu = dev.cpu || m['hrProcessorLoad'] || m['ciscoCpu'] || '';
-        var cpuDisplay = cpu ? cpu + '%' : '-';
-        var uptime = formatUptime(m['sysUpTime']);
-        var lastPoll = fmtUnixTime(dev.last_poll);
-        var footerLabel = isOnline ? '最后更新' : '最后上线';
-
-        // 设备型号：从 sysDescr 提取
-        var model = dev.sys_descr || '';
-        if (model.length > 50) model = model.substring(0, 50) + '…';
-
-        // 接口统计
-        var ifUp = parseInt(dev.if_up) || 0;
-        var ifDown = parseInt(dev.if_down) || 0;
-        var ifTotal = ifUp + ifDown;
-
-        var connRows = '';
-        connRows += '<div class="conn-row"><span class="conn-icon">⚡</span><span class="conn-name">CPU</span><span class="conn-value" style="color:var(--accent-yellow)">' + cpuDisplay + '</span></div>';
-        connRows += '<div class="conn-row"><span class="conn-icon">⏱</span><span class="conn-name">运行时间</span><span class="conn-value" style="color:var(--text-secondary)">' + uptime + '</span></div>';
-        if (model) {
-          connRows += '<div class="conn-row"><span class="conn-icon">🖥</span><span class="conn-name">型号</span><span class="conn-value" style="color:var(--text-secondary);font-size:11px;max-width:200px;overflow:hidden;text-overflow:ellipsis">' + model + '</span></div>';
-        }
-        if (ifTotal > 0) {
-          connRows += '<div class="conn-row"><span class="conn-icon">🔗</span><span class="conn-name">接口</span><span class="conn-value"><span style="color:var(--accent-green)">' + ifUp + '</span> 在线 / <span style="color:var(--accent-red)">' + ifDown + '</span> 离线</span></div>';
-        }
-
-        return '<div class="enterprise-card" style="cursor:default">' +
-          '<div class="top"><span class="name">🔌 ' + (dev.name || dev.ip) + '</span><span class="status ' + (isOnline ? 'online' : 'offline') + '">● ' + (isOnline ? '在线' : '离线') + '</span></div>' +
-          '<div class="methods"><span class="method-tag active">' + dev.ip + '</span></div>' +
-          '<div class="conn-section" style="border-top:none;padding-top:0">' + connRows + '</div>' +
-          '<div class="card-footer"><span style="margin-left:auto">' + footerLabel + ': ' + lastPoll + '</span></div></div>';
-      }).join('');
-    })
-    .catch(function() {
-      grid.innerHTML = '';
-      document.getElementById('snmp-section').style.display = 'none';
-    });
-}
-
-function loadAlerts() {
-  var section = document.getElementById('alert-section');
-  fetch(SERVER + '/api/alerts?hours=24&limit=10')
-    .then(function(r){ return r.json(); })
-    .then(function(data) {
-      var alerts = data.alerts || [];
-      if (!alerts.length) {
-        section.innerHTML = '<div class="empty-state" style="padding:24px">最近 24 小时无告警 ✅</div>';
-        return;
-      }
-      section.innerHTML = alerts.map(function(a) {
-        var levelClass = a.level === 'error' ? '' : ' warning';
-        var icon = a.level === 'error' ? '🔴' : '🟡';
-        return '<div class="alert-row' + levelClass + '">' +
-          icon + ' <strong>' + (a.alert_type || '未知') + '</strong>：' + (a.message || '') +
-          ' <span class="alert-time">' + timeAgo(a.created_at) + '</span></div>';
-      }).join('');
-    })
-    .catch(function() {
-      section.innerHTML = '<div class="empty-state" style="padding:24px">加载失败</div>';
-    });
-}
-
-// 企业卡片点击跳转（事件委托）
-document.getElementById('enterprise-grid').addEventListener('click', function(ev) {
-  var card = ev.target.closest('.enterprise-card');
-  if (card && card.dataset.agentId) {
-    location.href = '/enterprise/' + card.dataset.agentId;
-  }
+applyTheme(stored);
+toggle.addEventListener('click', function() {
+  applyTheme(document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark');
 });
-
-load();
-setInterval(load, 30000);
 </script>
-{% endblock %}
+
+</body>
+</html>
