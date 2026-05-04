@@ -45,6 +45,11 @@ def register_web(app: FastAPI):
 
         _add_redirect()
 
+    @app.get("/api/{path:path}")
+    async def api_404(path: str):
+        from fastapi.responses import JSONResponse
+        return JSONResponse(status_code=404, content={"success": False, "error": "API 路由不存在"})
+
     @app.get("/{page_name}.html", response_class=HTMLResponse)
     async def serve_page(page_name: str, request: Request):
         tmpl = f"{page_name}.html"
