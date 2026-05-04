@@ -1,3 +1,5 @@
 pystray
 pillow
 pyinstaller
+httpx
+pywin32

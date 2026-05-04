@@ -1,29 +1,34 @@
 @echo off
-:: lanwatch_agent v0.6.3 打包脚本
 chcp 65001 >nul
-echo 开始打包 lanwatch_agent v0.6.3...
+echo ========================================
+echo   Lanwatch Agent v1.3.0 构建脚本
+echo ========================================
+echo.
 
-cd /d %~dp0
+cd /d "%~dp0\.."
 
-:: 安装依赖
-echo 安装依赖...
-pip install -r requirements.txt -q
+echo [1/4] 检查 Python...
+python --version 2>nul || (echo ERROR: Python not found & pause & exit /b 1)
 
-:: 清理旧构建
-if exist build rmdir /s /q build
-if exist dist rmdir /s /q dist
-
-:: PyInstaller 打包
-echo 正在打包...
-python -m PyInstaller lanwatch_agent.spec --clean
-
-if exist dist\lanwatch_agent.exe (
-    echo.
-    echo ========================================
-    echo  打包成功！输出: dist\lanwatch_agent.exe
-    echo ========================================
-) else (
-    echo 打包失败，请检查错误信息
+echo [2/4] 创建虚拟环境（如果不存在）...
+if not exist "venv\Scripts\python.exe" (
+    python -m venv venv
+    echo 虚拟环境创建完成
 )
 
+echo [3/4] 安装依赖...
+call venv\Scripts\activate.bat
+pip install --upgrade pip -q
+pip install pystray pillow pyinstaller httpx pysnmp -q
+pip install -r requirements.txt -q
+echo 依赖安装完成
+
+echo [4/4] 执行 PyInstaller...
+pyinstaller setup/build_spec.py --noconfirm --clean
+
+echo.
+echo ========================================
+echo   构建完成！
+echo   输出目录: dist\LanwatchAgent.exe
+echo ========================================
 pause
