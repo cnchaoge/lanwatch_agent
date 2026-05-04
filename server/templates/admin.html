@@ -140,6 +140,15 @@
       </div>
       <div id="snmp-list"></div>
     </div>
+
+    <div class="panel" style="margin-top:18px;">
+      <div class="panel-head">
+        🎯 监控目标
+        <span class="sub" id="target-count"></span>
+        <button class="btn btn-sm" style="margin-left:8px;background:var(--accent-green);color:#fff;" onclick="showAddTarget()">+ 添加目标</button>
+      </div>
+      <div id="target-list"></div>
+    </div>
   </div>
 
   <div class="admin-footer container">
@@ -284,6 +293,60 @@
   </div>
 </div>
 
+<!-- 监控目标添加/编辑弹窗 -->
+<div class="modal-overlay" id="modal-target">
+  <div class="modal" style="min-width:480px">
+    <div class="modal-header">
+      <div class="modal-title" id="modal-target-title" style="font-size:16px;font-weight:700">添加监控目标</div>
+      <button class="modal-close" onclick="closeModal('modal-target')">×</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="f-target-id">
+      <div class="form-row">
+        <label class="form-label">所属企业（Agent） *</label>
+        <select class="search-input" id="f-target-agent" style="width:100%">
+          <option value="">-- 选择企业 --</option>
+        </select>
+      </div>
+      <div class="form-row">
+        <label class="form-label">目标名称</label>
+        <input class="search-input" id="f-target-name" placeholder="例如：网关、百度官网" style="width:100%">
+      </div>
+      <div class="form-row">
+        <label class="form-label">监控目标 *（IP 或域名）</label>
+        <input class="search-input" id="f-target-addr" placeholder="例如：192.168.1.1 或 www.baidu.com" style="width:100%">
+      </div>
+      <div class="form-row" style="display:flex;gap:10px">
+        <div style="flex:1">
+          <label class="form-label">探测类型 *</label>
+          <select class="search-input" id="f-target-probe" style="width:100%" onchange="toggleTargetPort()">
+            <option value="ping">ping（ICMP）</option>
+            <option value="http">HTTP</option>
+            <option value="port">TCP 端口</option>
+            <option value="dns">DNS 解析</option>
+          </select>
+        </div>
+        <div style="flex:1" id="target-port-field">
+          <label class="form-label">端口</label>
+          <input class="search-input" id="f-target-port" value="80" placeholder="80" style="width:100%">
+        </div>
+        <div style="flex:1">
+          <label class="form-label">探测间隔（秒）</label>
+          <input class="search-input" id="f-target-interval" value="60" placeholder="60" style="width:100%">
+        </div>
+      </div>
+      <div class="form-row">
+        <label class="form-label">超时（秒）</label>
+        <input class="search-input" id="f-target-timeout" value="5" placeholder="5" style="width:100%">
+      </div>
+      <div class="modal-btns">
+        <button class="btn btn-sm btn-secondary" onclick="closeModal('modal-target')">取消</button>
+        <button class="btn btn-sm btn-primary" onclick="submitTarget()">保存</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 {% endblock %}
 
 {% block scripts %}
@@ -338,6 +401,7 @@ function doLogin() {
   }).then(function(r) {
     if (r.ok) {
       localStorage.setItem('admin_session', Date.now());
+      localStorage.setItem('admin_pw', pw);
       showAdminPage();
     } else {
       document.getElementById('login-error').style.display = 'block';
@@ -685,6 +749,164 @@ function loadData() {
     render(users);
   });
   loadSnmp();
+  loadTargets();
+}
+
+/* 监控目标 */
+var allTargets = [];
+
+function loadTargets() {
+  fetch(SERVER + '/api/admin/targets?password=' + encodeURIComponent(getAdminPassword())).then(function(r){ return r.json(); }).then(function(data) {
+    if (Array.isArray(data)) {
+      allTargets = data;
+      renderTargets(data);
+    }
+  });
+}
+
+function getAdminPassword() {
+  return localStorage.getItem('admin_pw') || '';
+}
+
+function renderTargets(targets) {
+  document.getElementById('target-count').textContent = targets.length + ' 个目标';
+  if (!targets.length) {
+    document.getElementById('target-list').innerHTML = '<div class="empty">暂无监控目标，点击右上角「添加目标」创建</div>';
+    return;
+  }
+  var probeLabels = {ping: '🏓 ping', http: '🌐 http', port: '🔌 port', dns: '📡 dns', snmp: '📊 snmp'};
+  var html = '<table style="width:100%"><thead><tr>' +
+    '<th>目标</th><th>所属企业</th><th>类型</th><th>端口</th><th>间隔</th><th>创建时间</th><th style="text-align:right">操作</th>' +
+    '</tr></thead><tbody>';
+  targets.forEach(function(t) {
+    var probeLabel = probeLabels[t.probe_type] || t.probe_type;
+    var probeColor = t.probe_type === 'ping' ? 'var(--accent-blue)' :
+                     t.probe_type === 'http' ? 'var(--accent-green)' :
+                     t.probe_type === 'port' ? 'var(--accent-yellow)' : 'var(--muted)';
+    html += '<tr style="border-bottom:1px solid var(--border)">';
+    html += '<td style="padding:10px 12px">';
+    html += '<div style="font-weight:600;font-size:13px">' + (t.name || '-') + '</div>';
+    html += '<div style="font-size:12px;color:var(--muted);font-family:monospace">' + t.target + '</div>';
+    html += '</td>';
+    html += '<td style="padding:10px 12px;font-size:12px;color:var(--text-secondary)">' + (t.agent_name || t.agent_id) + '</td>';
+    html += '<td style="padding:10px 12px"><span style="font-size:12px;color:' + probeColor + '">' + probeLabel + '</span></td>';
+    html += '<td style="padding:10px 12px;font-size:12px;font-family:monospace">' + (t.port || '-') + '</td>';
+    html += '<td style="padding:10px 12px;font-size:12px;color:var(--muted)">' + t.interval + 's</td>';
+    html += '<td style="padding:10px 12px;font-size:11px;color:var(--muted)">' + timeAgo(t.created_at) + '</td>';
+    html += '<td style="padding:10px 12px;text-align:right">';
+    html += '<button class="btn btn-xs btn-secondary" onclick="editTarget(' + t.id + ')">编辑</button>';
+    html += '<button class="btn btn-xs btn-danger" onclick="deleteTarget(' + t.id + ')">删除</button>';
+    html += '</td></tr>';
+  });
+  html += '</tbody></table>';
+  document.getElementById('target-list').innerHTML = html;
+}
+
+function toggleTargetPort() {
+  var probe = document.getElementById('f-target-probe').value;
+  var portField = document.getElementById('target-port-field');
+  if (probe === 'ping' || probe === 'dns') {
+    portField.style.visibility = 'hidden';
+  } else {
+    portField.style.visibility = 'visible';
+    if (probe === 'http' && document.getElementById('f-target-port').value === '80') {
+      document.getElementById('f-target-port').value = '443';
+    }
+  }
+}
+
+function showAddTarget() {
+  document.getElementById('f-target-id').value = '';
+  document.getElementById('f-target-name').value = '';
+  document.getElementById('f-target-addr').value = '';
+  document.getElementById('f-target-probe').value = 'ping';
+  document.getElementById('f-target-port').value = '80';
+  document.getElementById('f-target-interval').value = '60';
+  document.getElementById('f-target-timeout').value = '5';
+  document.getElementById('target-port-field').style.visibility = 'hidden';
+  // 填充企业下拉框
+  var sel = document.getElementById('f-target-agent');
+  sel.innerHTML = '<option value="">-- 选择企业 --</option>';
+  allUsers.forEach(function(u) {
+    (u.agents||[]).forEach(function(a) {
+      var label = u.name + (a.name ? ' / ' + a.name : '');
+      sel.innerHTML += '<option value="' + a.id + '">' + label + '</option>';
+    });
+  });
+  document.getElementById('modal-target-title').textContent = '添加监控目标';
+  document.getElementById('modal-target').style.display = 'flex';
+}
+
+function editTarget(id) {
+  var t = allTargets.find(function(x){ return x.id === id; });
+  if (!t) return;
+  document.getElementById('f-target-id').value = id;
+  document.getElementById('f-target-name').value = t.name || '';
+  document.getElementById('f-target-addr').value = t.target;
+  document.getElementById('f-target-probe').value = t.probe_type || 'ping';
+  document.getElementById('f-target-port').value = t.port || 80;
+  document.getElementById('f-target-interval').value = t.interval || 60;
+  document.getElementById('f-target-timeout').value = t.timeout || 5;
+  toggleTargetPort();
+  // 填充企业下拉框并选中
+  var sel = document.getElementById('f-target-agent');
+  sel.innerHTML = '<option value="">-- 选择企业 --</option>';
+  allUsers.forEach(function(u) {
+    (u.agents||[]).forEach(function(a) {
+      var selected = a.id === t.agent_id ? ' selected' : '';
+      var label = u.name + (a.name ? ' / ' + a.name : '');
+      sel.innerHTML += '<option value="' + a.id + '"' + selected + '>' + label + '</option>';
+    });
+  });
+  document.getElementById('modal-target-title').textContent = '编辑监控目标';
+  document.getElementById('modal-target').style.display = 'flex';
+}
+
+function submitTarget() {
+  var id = document.getElementById('f-target-id').value;
+  var agentId = document.getElementById('f-target-agent').value;
+  var target = document.getElementById('f-target-addr').value.trim();
+  var probeType = document.getElementById('f-target-probe').value;
+  if (!agentId) { alert('请选择所属企业'); return; }
+  if (!target) { alert('请填写监控目标'); return; }
+  var data = {
+    agent_id: agentId,
+    name: document.getElementById('f-target-name').value.trim(),
+    target: target,
+    probe_type: probeType,
+    port: parseInt(document.getElementById('f-target-port').value) || 80,
+    interval: parseInt(document.getElementById('f-target-interval').value) || 60,
+    timeout: parseInt(document.getElementById('f-target-timeout').value) || 5,
+  };
+  var pw = getAdminPassword();
+  var method = id ? 'PUT' : 'POST';
+  var url = SERVER + '/api/admin/targets' + (id ? '/' + id : '') + '?password=' + encodeURIComponent(pw);
+  fetch(url, {
+    method: method,
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify(data)
+  }).then(function(r){ return r.json(); }).then(function(d) {
+    if (d.success !== false) {
+      closeModal('modal-target');
+      loadTargets();
+    } else {
+      alert('保存失败：' + (d.detail || d.error));
+    }
+  }).catch(function(e) {
+    alert('保存失败：' + e);
+  });
+}
+
+function deleteTarget(id) {
+  if (!confirm('确定删除该监控目标吗？')) return;
+  var pw = getAdminPassword();
+  fetch(SERVER + '/api/admin/targets/' + id + '?password=' + encodeURIComponent(pw), {method:'DELETE'}).then(function(r){ return r.json(); }).then(function(d) {
+    if (d.success !== false) {
+      loadTargets();
+    } else {
+      alert('删除失败：' + (d.detail || d.error));
+    }
+  });
 }
 
 document.querySelectorAll('.modal-overlay').forEach(function(el) {

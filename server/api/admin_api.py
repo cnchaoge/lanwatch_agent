@@ -536,3 +536,106 @@ async def admin_ping_history(job_id: str, hours: int = Query(default=24, ge=1, l
             "recent_results": recent_results,
             "stats": stats,
         }
+
+
+# ── 监控目标管理（v1.3.0）──────────────────────────────────────────
+
+@router.get("/admin/targets")
+async def admin_list_targets(password: str = Query(...)):
+    """列出所有监控目标（含所属企业名称）"""
+    _verify_admin(password=password)
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT t.id, t.agent_id, t.name, t.target, t.probe_type,
+                   t.port, t.timeout, t.interval, t.enabled, t.created_at,
+                   a.name as agent_name
+            FROM targets t
+            LEFT JOIN agents a ON t.agent_id = a.agent_id
+            ORDER BY t.id DESC
+        """)
+        rows = cursor.fetchall()
+        return [
+            {
+                "id": r["id"],
+                "agent_id": r["agent_id"],
+                "agent_name": r["agent_name"] or r["agent_id"],
+                "name": r["name"] or "",
+                "target": r["target"],
+                "probe_type": r["probe_type"],
+                "port": r["port"],
+                "timeout": r["timeout"],
+                "interval": r["interval"],
+                "enabled": bool(r["enabled"]),
+                "created_at": r["created_at"],
+            }
+            for r in rows
+        ]
+
+
+@router.post("/admin/targets")
+async def admin_create_target(payload: dict, password: str = Query(...)):
+    """新建监控目标"""
+    _verify_admin(password=password)
+    required = ["agent_id", "target", "probe_type"]
+    for f in required:
+        if not payload.get(f):
+            raise HTTPException(status_code=400, detail=f"缺少必填字段: {f}")
+    with get_db() as conn:
+        cursor = conn.cursor()
+        try:
+            cursor.execute(
+                "INSERT INTO targets (agent_id, name, target, probe_type, port, timeout, interval, enabled) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                (
+                    payload["agent_id"],
+                    payload.get("name", ""),
+                    payload["target"],
+                    payload["probe_type"],
+                    payload.get("port", 80),
+                    payload.get("timeout", 5),
+                    payload.get("interval", 60),
+                    1 if payload.get("enabled", True) else 0,
+                ),
+            )
+            return {"success": True, "id": cursor.lastrowid}
+        except Exception as e:
+            if "UNIQUE constraint" in str(e):
+                raise HTTPException(status_code=409, detail="该目标已存在")
+            raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.put("/admin/targets/{target_id}")
+async def admin_update_target(target_id: int, payload: dict, password: str = Query(...)):
+    """更新监控目标"""
+    _verify_admin(password=password)
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT id FROM targets WHERE id = ?", (target_id,))
+        if not cursor.fetchone():
+            raise HTTPException(status_code=404, detail="目标不存在")
+        fields, values = [], []
+        for col in ["name", "target", "probe_type", "port", "timeout", "interval"]:
+            if col in payload:
+                fields.append(f"{col} = ?")
+                values.append(payload[col])
+        if "enabled" in payload:
+            fields.append("enabled = ?")
+            values.append(1 if payload["enabled"] else 0)
+        if not fields:
+            raise HTTPException(status_code=400, detail="没有要更新的字段")
+        values.append(target_id)
+        cursor.execute(f"UPDATE targets SET {', '.join(fields)} WHERE id = ?", values)
+        return {"success": True}
+
+
+@router.delete("/admin/targets/{target_id}")
+async def admin_delete_target(target_id: int, password: str = Query(...)):
+    """删除监控目标"""
+    _verify_admin(password=password)
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM targets WHERE id = ?", (target_id,))
+        if cursor.rowcount == 0:
+            raise HTTPException(status_code=404, detail="目标不存在")
+        return {"success": True}
