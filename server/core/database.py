@@ -63,6 +63,30 @@ def init_db():
         sched_cols = [row[1] for row in cursor.fetchall()]
         if "name" not in sched_cols:
             cursor.execute("ALTER TABLE scheduler_jobs ADD COLUMN name TEXT DEFAULT ''")
+        # 检查并添加 targets 表（v1.3.0 新增）
+        cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='targets'")
+        if not cursor.fetchone():
+            cursor.execute("""
+                CREATE TABLE targets (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    agent_id TEXT NOT NULL,
+                    name TEXT DEFAULT '',
+                    target TEXT NOT NULL,
+                    probe_type TEXT NOT NULL,
+                    port INTEGER DEFAULT 80,
+                    timeout INTEGER DEFAULT 5,
+                    interval INTEGER DEFAULT 60,
+                    enabled INTEGER DEFAULT 1,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    UNIQUE(agent_id, target, probe_type)
+                )
+            """)
+            conn.commit()
+        # 检查并添加 agents user_id 列（迁移兼容，预留多用户）
+        cursor.execute("PRAGMA table_info(agents)")
+        agent_cols = [row[1] for row in cursor.fetchall()]
+        if "user_id" not in agent_cols:
+            cursor.execute("ALTER TABLE agents ADD COLUMN user_id TEXT DEFAULT ''")
         conn.commit()
     finally:
         conn.close()

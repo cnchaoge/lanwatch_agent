@@ -75,5 +75,19 @@ class Transport:
             logger.error(f"诊断上报异常: {e}")
         return False
 
+    def fetch_targets(self) -> Optional[List[Dict]]:
+        """从服务端拉取监控目标配置"""
+        url = f"{self.server_url}/api/targets"
+        try:
+            r = self.client.get(url, params={"agent_id": self.agent_id, "token": self.token})
+            if r.status_code == 200:
+                data = r.json()
+                if data.get("success"):
+                    return data.get("data", [])
+            logger.warning(f"拉取目标配置失败: {r.status_code} {r.text}")
+        except Exception as e:
+            logger.error(f"拉取目标配置异常: {e}")
+        return None
+
     def close(self):
         self.client.close()

@@ -20,6 +20,7 @@ from api.topology_api import router as topology_router
 from api.wizard_api import router as wizard_router
 from api.propagation_api import router as propagation_router
 from api.admin_api import router as admin_router
+from api.targets import router as targets_router
 from web import register_web
 from modules.scheduler import scheduler
 from modules.snmp_manager import snmp_manager
@@ -106,6 +107,7 @@ app.include_router(diagnosis_router, prefix="/api")
 app.include_router(wizard_router, prefix="/api")
 app.include_router(propagation_router, prefix="/api")
 app.include_router(admin_router, prefix="/api")
+app.include_router(targets_router, prefix="/api")
 
 register_web(app)
 
