@@ -69,14 +69,14 @@ class LanwatchService:
 
     def main_loop(self):
         """
-        主循环：
+        主循环 v1.3.0：
         1. 加载配置
-        2. 注册/连接服务器
+        2. 通过 TargetRunner 拉取服务端监控目标
         3. 执行探测 → 上报 → 等待 → 循环
         4. 进程守护（异常自动重启）
         """
+        from ..probes.target_runner import TargetRunner
         from .config import load_config
-        from .transport import Transport
 
         cfg = load_config()
         max_retries = 5
@@ -84,73 +84,51 @@ class LanwatchService:
 
         while not self.stop_event.is_set():
             try:
-                # 确保 agent_id 有效
                 if not cfg.agent_id:
-                    logging.info("agent_id 为空，尝试注册...")
-                    transport = Transport(cfg.server_url, "pending", cfg.agent_token)
-                    payload = {
-                        "agent_id": _get_fallback_agent_id(),
-                        "name": _get_hostname(),
-                        "ip": _get_local_ip(),
-                        "os_type": "windows",
-                        "interval": cfg.probe_interval
-                    }
-                    result = transport.register(payload)
-                    if result and result.get("agent_token"):
-                        cfg.set("agent_token", result["agent_token"])
-                        cfg.set("agent_id", result.get("agent_id", payload["agent_id"]))
-                        cfg.save()
-                        logging.info(f"注册成功，agent_id={cfg.agent_id}")
-                    else:
-                        logging.warning("注册失败，使用临时 ID")
-                        cfg.set("agent_id", _get_fallback_agent_id())
-                        cfg.save()
-                    transport.close()
-                    retry_count = 0
+                    logging.info("agent_id 为空，等待配置...")
+                    self.stop_event.wait(30)
+                    cfg.reload()
+                    continue
 
-                # 创建 transport
-                transport = Transport(cfg.server_url, cfg.agent_id, cfg.agent_token)
+                runner = TargetRunner(
+                    server_url=cfg.server_url,
+                    agent_id=cfg.agent_id,
+                    agent_token=cfg.agent_token,
+                    refresh_interval=300,
+                )
 
-                # 主探测循环
+                targets = runner.fetch_targets(use_cache=True)
+                if not targets:
+                    logging.warning("未拉取到监控目标，30秒后重试...")
+                    runner.close()
+                    self.stop_event.wait(30)
+                    cfg.reload()
+                    continue
+
                 while not self.stop_event.is_set():
-                    loop_start = time.time()
-                    reports = []
-
-                    # 执行探测
-                    if "ping" in cfg.enabled_probes:
-                        from ..probes.ping import ping_results
-                        reports.extend(ping_results())
-
-                    if "snmp" in cfg.enabled_probes:
-                        from ..probes.snmp import snmp_results
-                        reports.extend(snmp_results(cfg))
-
-                    # 上报
-                    if reports:
-                        ok = transport.report(reports)
-                        if ok:
-                            logging.debug(f"上报成功，共 {len(reports)} 条")
-                        else:
-                            logging.warning(f"上报失败")
-
-                    # 计算睡眠时间
-                    elapsed = time.time() - loop_start
-                    sleep_time = max(1, cfg.probe_interval - elapsed)
-                    if self.stop_event.wait(sleep_time):
+                    results = runner.run_once()
+                    if results:
+                        ok = runner.report_results(results)
+                        logging.info("探测 %d 个目标，上报 %d 条结果: %s",
+                                     len(targets), len(results), "成功" if ok else "失败")
+                    runner.close()
+                    if self.stop_event.wait(cfg.probe_interval):
                         break
+                    cfg.reload()  # 重新加载配置（可能 token 已更新）
 
-                transport.close()
                 retry_count = 0
 
             except Exception as e:
-                logging.error(f"主循环异常: {e}", exc_info=True)
+                logging.error("主循环异常: %s", e, exc_info=True)
                 retry_count += 1
                 if retry_count >= max_retries:
-                    logging.error(f"连续失败 {max_retries} 次，停止服务")
+                    logging.error("连续失败 %d 次，停止服务", max_retries)
                     break
-                wait_time = min(60, 2 ** retry_count)  # 指数退避，最多60秒
-                logging.info(f"{wait_time} 秒后重试...")
+                wait_time = min(60, 2 ** retry_count)
+                logging.info("%d 秒后重试...", wait_time)
                 self.stop_event.wait(wait_time)
+
+        logging.info("服务已停止")
 
 
 def _get_hostname() -> str:
@@ -193,14 +171,13 @@ def handle_service_command():
 
 
 def interactive_main_loop():
-    """交互式运行主循环（调试用）"""
+    """交互式运行主循环 v1.3.0（调试用）— 使用 TargetRunner"""
     from .config import load_config
-    from .transport import Transport
-    from ..probes.ping import ping_results
+    from ..probes.target_runner import TargetRunner
     import time
 
     setup_logging()
-    logging.info("Lanwatch Agent 交互模式启动")
+    logging.info("Lanwatch Agent 交互模式启动 [TargetRunner]")
     cfg = load_config()
 
     while True:
@@ -211,18 +188,32 @@ def interactive_main_loop():
                 cfg.reload()
                 continue
 
-            transport = Transport(cfg.server_url, cfg.agent_id, cfg.agent_token)
-            reports = ping_results()
-            if reports:
-                ok = transport.report(reports)
-                logging.info(f"上报 {len(reports)} 条，结果: {'成功' if ok else '失败'}")
-            transport.close()
+            runner = TargetRunner(
+                server_url=cfg.server_url,
+                agent_id=cfg.agent_id,
+                agent_token=cfg.agent_token,
+                refresh_interval=300,
+            )
+            targets = runner.fetch_targets(use_cache=True)
+            if not targets:
+                logging.warning("未拉取到监控目标，30秒后重试...")
+                runner.close()
+                time.sleep(30)
+                cfg.reload()
+                continue
+
+            results = runner.run_once()
+            if results:
+                ok = runner.report_results(results)
+                logging.info("探测 %d 个目标，上报 %d 条结果: %s",
+                             len(targets), len(results), "成功" if ok else "失败")
+            runner.close()
             time.sleep(cfg.probe_interval)
         except KeyboardInterrupt:
             logging.info("收到停止信号，退出")
             break
         except Exception as e:
-            logging.error(f"主循环异常: {e}", exc_info=True)
+            logging.error("主循环异常: %s", e, exc_info=True)
             time.sleep(30)
 
 
