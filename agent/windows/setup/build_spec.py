@@ -23,7 +23,6 @@ a = Analysis(
         "win32api", "win32con", "win32process", "win32gui",
         "win32timezone", "pythoncom", "pywintypes",
     ],
-    win_private_assemblies=True,
     cipher=block_cipher
 )
 
