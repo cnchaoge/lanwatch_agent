@@ -1,18 +1,22 @@
 """
 PyInstaller 打包配置（v1.3.0 — GUI 托盘模式，单文件 exe）
+运行：pyinstaller build_spec.py --noconfirm --clean
 """
-import os, sys
+import os
 from PyInstaller.building.build_main import Analysis, PYZ
-from PyInstaller.building.datastruct import Tree
 from PyInstaller.building.make_main import EXE
 
 block_cipher = None
 
 a = Analysis(
-    ["../lanwatch_agent.py"],
-    pathex=["..", os.path.abspath("..")],
+    ["lanwatch_agent.py"],
+    pathex=[os.path.abspath(".")],
     binaries=[],
-    datas=[],
+    datas=[
+        ("network_monitor.py", "."),
+        ("core", "core"),
+        ("probes", "probes"),
+    ],
     hiddenimports=[
         "pystray", "pillow", "PIL", "PIL.Image", "PIL.ImageDraw",
         "httpx", "httpx._client", "httpx._models",
