@@ -3,8 +3,7 @@ PyInstaller 打包配置（v1.3.0 — GUI 托盘模式，单文件 exe）
 运行：pyinstaller build_spec.py --noconfirm --clean
 """
 import os
-from PyInstaller.building.build_main import Analysis, PYZ
-from PyInstaller.building.make_main import EXE
+from PyInstaller.building.build_main import Analysis, PYZ, EXE
 
 block_cipher = None
 
