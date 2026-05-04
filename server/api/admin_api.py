@@ -541,19 +541,24 @@ async def admin_ping_history(job_id: str, hours: int = Query(default=24, ge=1, l
 # ── 监控目标管理（v1.3.0）──────────────────────────────────────────
 
 @router.get("/admin/targets")
-async def admin_list_targets(password: str = Query(...)):
-    """列出所有监控目标（含所属企业名称）"""
+async def admin_list_targets(password: str = Query(...), agent_id: Optional[str] = None):
+    """列出所有监控目标（含所属企业名称），可选按 agent_id 过滤"""
     _verify_admin(password=password)
     with get_db() as conn:
         cursor = conn.cursor()
-        cursor.execute("""
+        sql = """
             SELECT t.id, t.agent_id, t.name, t.target, t.probe_type,
                    t.port, t.timeout, t.interval, t.enabled, t.created_at,
                    a.name as agent_name
             FROM targets t
             LEFT JOIN agents a ON t.agent_id = a.agent_id
-            ORDER BY t.id DESC
-        """)
+        """
+        params = []
+        if agent_id:
+            sql += " WHERE t.agent_id = ?"
+            params.append(agent_id)
+        sql += " ORDER BY t.id DESC"
+        cursor.execute(sql, params)
         rows = cursor.fetchall()
         return [
             {

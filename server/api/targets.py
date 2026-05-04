@@ -1,16 +1,17 @@
 """
 Targets API - 监控目标管理
-GET  /api/targets          - Agent 拉取自己的监控目标
-POST /api/targets          - 新增目标
-GET  /api/targets/{id}     - 获取单个目标
-PUT  /api/targets/{id}     - 更新目标
-DELETE /api/targets/{id}   - 删除目标
+GET  /api/targets              - Agent 拉取自己的监控目标
+POST /api/targets              - 新增目标
+GET  /api/targets/{id}         - 获取单个目标
+PUT  /api/targets/{id}         - 更新目标
+DELETE /api/targets/{id}       - 删除目标
+GET  /api/{agent_id}/targets   - 查看指定 Agent 的所有目标（admin用）
 """
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
 from typing import Optional, List
 from core.database import get_db
-from core.auth import verify_admin_password
+from core.config import config
 
 router = APIRouter()
 
@@ -38,16 +39,36 @@ class TargetUpdate(BaseModel):
     enabled: Optional[bool] = None
 
 
-class TargetItem(BaseModel):
-    id: int
-    agent_id: str
-    name: str
-    target: str
-    probe_type: str
-    port: int
-    timeout: int
-    interval: int
-    enabled: bool
+# ── Admin 查看指定 Agent 的目标（需 admin 密码）────────────────────
+
+@router.get("/{agent_id}/targets")
+async def get_agent_targets(agent_id: str, password: str = Query(...)):
+    """查看指定 Agent 的所有监控目标（管理后台用）"""
+    if password != config.ADMIN_PASSWORD:
+        raise HTTPException(status_code=401, detail="密码错误")
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT id, agent_id, name, target, probe_type, port, timeout, interval, enabled, created_at "
+            "FROM targets WHERE agent_id = ? ORDER BY id DESC",
+            (agent_id,)
+        )
+        rows = cursor.fetchall()
+        return [
+            {
+                "id": r["id"],
+                "agent_id": r["agent_id"],
+                "name": r["name"] or "",
+                "target": r["target"],
+                "probe_type": r["probe_type"],
+                "port": r["port"],
+                "timeout": r["timeout"],
+                "interval": r["interval"],
+                "enabled": bool(r["enabled"]),
+                "created_at": r["created_at"],
+            }
+            for r in rows
+        ]
 
 
 # ── Agent 拉取配置（无认证简化版，用于 Agent 启动时拉取）────────────
@@ -63,7 +84,6 @@ async def get_targets(
     """
     with get_db() as conn:
         cursor = conn.cursor()
-        # 验证 token
         cursor.execute("SELECT token FROM agents WHERE agent_id = ?", (agent_id,))
         row = cursor.fetchone()
         if not row or row["token"] != token:
@@ -96,7 +116,8 @@ async def get_targets(
 @router.post("/targets")
 async def create_target(payload: TargetCreate, password: str = Query(...)):
     """新增监控目标（需 admin 密码）"""
-    verify_admin_password(password)
+    if password != config.ADMIN_PASSWORD:
+        raise HTTPException(status_code=401, detail="密码错误")
     with get_db() as conn:
         cursor = conn.cursor()
         try:
@@ -125,7 +146,8 @@ async def create_target(payload: TargetCreate, password: str = Query(...)):
 @router.get("/targets/{target_id}")
 async def get_target(target_id: int, password: str = Query(...)):
     """获取单个目标详情"""
-    verify_admin_password(password)
+    if password != config.ADMIN_PASSWORD:
+        raise HTTPException(status_code=401, detail="密码错误")
     with get_db() as conn:
         cursor = conn.cursor()
         cursor.execute(
@@ -155,38 +177,30 @@ async def get_target(target_id: int, password: str = Query(...)):
 @router.put("/targets/{target_id}")
 async def update_target(target_id: int, payload: TargetUpdate, password: str = Query(...)):
     """更新监控目标"""
-    verify_admin_password(password)
+    if password != config.ADMIN_PASSWORD:
+        raise HTTPException(status_code=401, detail="密码错误")
     with get_db() as conn:
         cursor = conn.cursor()
-        # 检查是否存在
         cursor.execute("SELECT id FROM targets WHERE id = ?", (target_id,))
         if not cursor.fetchone():
             raise HTTPException(status_code=404, detail="目标不存在")
 
-        # 构建更新语句
         updates = []
         values = []
         if payload.name is not None:
-            updates.append("name = ?")
-            values.append(payload.name)
+            updates.append("name = ?"); values.append(payload.name)
         if payload.target is not None:
-            updates.append("target = ?")
-            values.append(payload.target)
+            updates.append("target = ?"); values.append(payload.target)
         if payload.probe_type is not None:
-            updates.append("probe_type = ?")
-            values.append(payload.probe_type)
+            updates.append("probe_type = ?"); values.append(payload.probe_type)
         if payload.port is not None:
-            updates.append("port = ?")
-            values.append(payload.port)
+            updates.append("port = ?"); values.append(payload.port)
         if payload.timeout is not None:
-            updates.append("timeout = ?")
-            values.append(payload.timeout)
+            updates.append("timeout = ?"); values.append(payload.timeout)
         if payload.interval is not None:
-            updates.append("interval = ?")
-            values.append(payload.interval)
+            updates.append("interval = ?"); values.append(payload.interval)
         if payload.enabled is not None:
-            updates.append("enabled = ?")
-            values.append(1 if payload.enabled else 0)
+            updates.append("enabled = ?"); values.append(1 if payload.enabled else 0)
 
         if not updates:
             raise HTTPException(status_code=400, detail="没有要更新的字段")
@@ -199,7 +213,8 @@ async def update_target(target_id: int, payload: TargetUpdate, password: str = Q
 @router.delete("/targets/{target_id}")
 async def delete_target(target_id: int, password: str = Query(...)):
     """删除监控目标"""
-    verify_admin_password(password)
+    if password != config.ADMIN_PASSWORD:
+        raise HTTPException(status_code=401, detail="密码错误")
     with get_db() as conn:
         cursor = conn.cursor()
         cursor.execute("DELETE FROM targets WHERE id = ?", (target_id,))

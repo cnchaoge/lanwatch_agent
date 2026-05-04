@@ -1,75 +1,109 @@
-{% extends "base.html" %}
-{% block title %}设备详情 - Lanwatch{% endblock %}
-
-{% block navbar_brand %}
-<a class="navbar-brand" href="/" style="font-size:15px">Lanwatch</a>
-{% endblock %}
-
-{% block nav_items %}
-<a class="nav-item" href="/agents.html">📊 总览</a>
-<a class="nav-item" href="/admin.html">⚙️ 管理后台</a>
-{% endblock %}
-
-{% block mobile_nav_items %}
-<a class="nav-item" href="/agents.html">📊 总览</a>
-<a class="nav-item" href="/admin.html">⚙️ 管理后台</a>
-{% endblock %}
-
-{% block head_extra %}
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>设备详情 - Lanwatch</title>
 <style>
-.card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 20px; margin-bottom: 16px; }
+:root {
+  --bg: #0d1117; --surface: #161b22; --bg-tertiary: #21262d;
+  --border: #30363d; --text: #c9d1d9; --muted: #8b949e;
+  --green: #3fb950; --red: #f85149; --accent-blue: #58a6ff;
+  --accent-yellow: #d29922; --radius: 8px;
+}
+body { background: var(--bg); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; margin: 0; padding: 20px; font-size: 14px; }
+.container { max-width: 900px; margin: 0 auto; }
+a { color: var(--accent-blue); text-decoration: none; }
+a:hover { text-decoration: underline; }
+.back { display: inline-block; margin-bottom: 16px; font-size: 13px; color: var(--accent-blue); }
+
+/* Tabs */
+.tabs { display: flex; gap: 4px; margin-bottom: 16px; border-bottom: 1px solid var(--border); }
+.tab { padding: 8px 16px; cursor: pointer; color: var(--muted); font-size: 13px; border-bottom: 2px solid transparent; margin-bottom: -1px; transition: all 0.15s; }
+.tab:hover { color: var(--text); }
+.tab.active { color: var(--accent-blue); border-bottom-color: var(--accent-blue); font-weight: 500; }
+
+/* Cards */
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; margin-bottom: 16px; }
 .card-title { font-size: 15px; font-weight: 600; margin-bottom: 12px; }
 .info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 .info-item { display: flex; flex-direction: column; gap: 2px; }
 .info-label { font-size: 11px; color: var(--muted); }
 .info-value { font-size: 13px; font-weight: 500; }
-.status-online { color: var(--green); } .status-offline { color: var(--red); }
+.status-online { color: var(--green); }
+.status-offline { color: var(--red); }
+
+/* Metrics */
 .metrics-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 16px; }
 .metric-item { display: flex; align-items: center; gap: 8px; font-size: 13px; }
 .metric-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
 .dot-green { background: var(--green); box-shadow: 0 0 5px rgba(63,185,80,0.5); }
 .dot-orange { background: var(--accent-yellow); box-shadow: 0 0 5px rgba(210,153,34,0.5); }
 .dot-red { background: var(--red); box-shadow: 0 0 5px rgba(248,81,73,0.5); }
-.dot-grey { background: var(--text-muted); }
+.dot-grey { background: var(--muted); }
 .metric-label { color: var(--muted); }
 .metric-val { font-weight: 600; margin-left: auto; }
-.val-green { color: var(--green); } .val-orange { color: var(--accent-yellow); } .val-red { color: var(--red); } .val-grey { color: var(--text-muted); }
+.val-green { color: var(--green); }
+.val-orange { color: var(--accent-yellow); }
+.val-red { color: var(--red); }
+.val-grey { color: var(--muted); }
+
+/* Table */
 table { width: 100%; border-collapse: collapse; font-size: 13px; }
 th { text-align: left; padding: 8px 12px; background: var(--bg-tertiary); color: var(--muted); font-weight: 500; border-bottom: 1px solid var(--border); }
 td { padding: 10px 12px; border-bottom: 1px solid var(--border); }
 tr:last-child td { border-bottom: none; }
-.type-badge { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 500; background: var(--bg-tertiary); color: var(--text-secondary); }
+.type-badge { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 11px; background: var(--bg-tertiary); color: var(--text); }
 .online-dot { width: 6px; height: 6px; border-radius: 50%; display: inline-block; margin-right: 4px; }
-.online-dot.on { background: var(--green); } .online-dot.off { background: var(--red); }
+.online-dot.on { background: var(--green); }
+.online-dot.off { background: var(--red); }
 .empty { text-align: center; padding: 32px; color: var(--muted); font-size: 13px; }
-.tip { font-size: 11px; color: var(--muted); margin-top: 6px; }
 canvas { max-height: 180px; }
+
+/* Targets tab */
+.probe-badge { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 500; }
+.probe-ping { background: rgba(88,166,255,0.15); color: var(--accent-blue); }
+.probe-http { background: rgba(63,185,80,0.15); color: var(--green); }
+.probe-port { background: rgba(210,153,34,0.15); color: var(--accent-yellow); }
+.probe-dns { background: rgba(163,113,247,0.15); color: #a371f7; }
+.tag { display: inline-block; padding: 1px 6px; border-radius: 6px; font-size: 11px; background: var(--bg-tertiary); color: var(--muted); }
+.tag-on { background: rgba(63,185,80,0.15); color: var(--green); }
+.tag-off { background: rgba(248,81,73,0.15); color: var(--red); }
+
+/* Footer */
+.footer { text-align: center; font-size: 11px; color: var(--muted); padding: 16px 0; border-top: 1px solid var(--border); margin-top: 24px; }
 </style>
-{% endblock %}
+</head>
+<body>
+<div class="container">
+  <p class="back">← <a href="javascript:history.back()">返回列表</a></p>
 
-{% block content %}
-<div class="container" style="max-width:900px">
-  <p style="margin-bottom:16px"><a href="javascript:history.back()" style="color:var(--accent-blue);font-size:13px;">← 返回列表</a></p>
-  <div id="content"><div class="empty">加载中...</div></div>
+  <!-- Tab Navigation -->
+  <div class="tabs">
+    <div class="tab active" id="tab-info" onclick="switchTab('info')">设备信息</div>
+    <div class="tab" id="tab-targets" onclick="switchTab('targets')">监控目标</div>
+    <div class="tab" id="tab-trend" onclick="switchTab('trend')">历史趋势</div>
+  </div>
+
+  <div id="content-info" class="tab-content"></div>
+  <div id="content-targets" class="tab-content" style="display:none"></div>
+  <div id="content-trend" class="tab-content" style="display:none"></div>
+
+  <div class="footer">
+    Lanwatch · 企业网络监控 · © 2026
+  </div>
 </div>
 
-<div style="text-align:center;font-size:11px;color:var(--text-muted);padding:16px 0;border-top:1px solid var(--border);margin-top:24px;">
-  Lanwatch · 企业网络监控<br>
-  © 2026
-</div>
-{% endblock %}
-
-{% block scripts %}
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <script>
 var SERVER = location.origin;
 var agentId = location.pathname.split('/agent/')[1];
 
 var THRESHOLDS = {
-  ping_rtt_ms:   { warn: 80,  crit: 150 },
-  ping_loss_pct: { warn: 5,   crit: 20  },
-  dns_ms:        { warn: 100, crit: 300 },
-  target_rtt_ms: { warn: 100, crit: 300 },
+  ping_rtt_ms:    { warn: 80,  crit: 150 },
+  ping_loss_pct:  { warn: 5,   crit: 20  },
+  dns_ms:         { warn: 100, crit: 300 },
+  target_rtt_ms:  { warn: 100, crit: 300 },
 };
 
 function dotClass(v, t) {
@@ -92,8 +126,33 @@ function timeAgo(ts) {
   if (s < 3600) return Math.floor(s/60) + '分钟前';
   return Math.floor(s/3600) + '小时前';
 }
+function probeLabel(t) {
+  return {ping:'🏓 ping', http:'🌐 http', port:'🔌 port', dns:'📡 dns', snmp:'📊 snmp'}[t] || t;
+}
+function probeClass(t) {
+  return {ping:'probe-ping', http:'probe-http', port:'probe-port', dns:'probe-dns', snmp:'probe-dns'}[t] || 'probe-ping';
+}
 
-function load() {
+var chartInstance = null;
+
+function switchTab(name) {
+  document.querySelectorAll('.tab').forEach(function(t){ t.classList.remove('active'); });
+  document.querySelectorAll('.tab-content').forEach(function(c){ c.style.display = 'none'; });
+  document.getElementById('tab-' + name).classList.add('active');
+  var el = document.getElementById('content-' + name);
+  el.style.display = 'block';
+  if (name === 'targets' && !el.dataset.loaded) {
+    loadTargetsTab();
+    el.dataset.loaded = '1';
+  }
+  if (name === 'trend' && !el.dataset.loaded) {
+    loadTrendTab();
+    el.dataset.loaded = '1';
+  }
+}
+
+// ── Tab 1: 设备信息 ────────────────────────────────────────────────
+function loadInfoTab() {
   var xhr = new XMLHttpRequest();
   xhr.open('GET', SERVER + '/api/' + agentId, false);
   xhr.send(null);
@@ -107,18 +166,12 @@ function load() {
   var xhr3 = new XMLHttpRequest();
   xhr3.open('GET', SERVER + '/api/topology/nodes?agent_id=' + agentId, false);
   xhr3.send(null);
-  var topology = [];
-  if (xhr3.status === 200) { var td = JSON.parse(xhr3.responseText); topology = td.nodes || []; }
-
-  var xhr4 = new XMLHttpRequest();
-  xhr4.open('GET', SERVER + '/api/' + agentId + '/history?limit=60', false);
-  xhr4.send(null);
-  var history = xhr4.status === 200 ? JSON.parse(xhr4.responseText) : [];
+  var topo = [];
+  if (xhr3.status === 200) { var td = JSON.parse(xhr3.responseText); topo = td.nodes || []; }
 
   var isOnline = latest && (Date.now()/1000 - latest.timestamp) < 300;
   var statusClass = isOnline ? 'status-online' : 'status-offline';
   var statusText = isOnline ? '● 在线' : '● 离线';
-  var ago = latest ? timeAgo(latest.timestamp) : '无数据';
 
   var metrics = [
     { key: 'ping_rtt_ms',    label: '网关延迟',  unit: 'ms', t: THRESHOLDS.ping_rtt_ms },
@@ -134,44 +187,112 @@ function load() {
   });
   metricsHtml += '</div>';
 
-  var topoHtml = topology.length === 0
+  var topoHtml = topo.length === 0
     ? '<div class="empty">暂无拓扑数据</div>'
     : '<table><thead><tr><th>IP</th><th>MAC</th><th>主机名</th><th>厂商</th><th>类型</th><th>端口</th><th>状态</th></tr></thead><tbody>' +
-      topology.map(function(dev) {
+      topo.map(function(dev) {
         var isRecent = (Date.now()/1000 - dev.last_seen) < 3600;
         return '<tr><td style="font-weight:600;">' + dev.ip + '</td><td style="font-size:12px;color:var(--muted);font-family:monospace;">' + (dev.mac||'-') + '</td><td>' + (dev.hostname||'-') + '</td><td style="font-size:12px;">' + (dev.vendor||'-') + '</td><td><span class="type-badge">' + (dev.device_type||'unknown') + '</span></td><td>' + (dev.open_ports ? dev.open_ports.slice(0,5).join(', ') : '-') + '</td><td><span class="online-dot ' + (isRecent?'on':'off') + '"></span>' + (isRecent?'在线':'离线') + '</td></tr>';
       }).join('') + '</tbody></table>';
 
-  var html = '<div class="card"><div class="card-title">' + (agent.name || '未知设备') + ' <span class="' + statusClass + '">' + statusText + '</span></div>' +
+  var html = '';
+  html += '<div class="card"><div class="card-title">' + (agent.name || '未知设备') + ' <span class="' + statusClass + '">' + statusText + '</span></div>' +
     '<div class="info-grid">' +
     '<div class="info-item"><span class="info-label">IP地址</span><span class="info-value">' + (agent.ip || '-') + '</span></div>' +
-    '<div class="info-item"><span class="info-label">最后活跃</span><span class="info-value">' + ago + '</span></div>' +
+    '<div class="info-item"><span class="info-label">最后活跃</span><span class="info-value">' + (latest ? timeAgo(latest.timestamp) : '无数据') + '</span></div>' +
     '<div class="info-item"><span class="info-label">Agent ID</span><span class="info-value" style="font-size:11px;font-family:monospace;">' + (agent.agent_id || agent.id || agentId) + '</span></div>' +
     '<div class="info-item"><span class="info-label">系统</span><span class="info-value">' + (agent.os_type || '-') + '</span></div>' +
-    '<div class="info-item"><span class="info-label">采集间隔</span><span class="info-value">' + (agent.interval || 60) + 's</span></div></div></div>' +
-    '<div class="card"><div class="card-title">当前状态</div>' + metricsHtml + '</div>' +
-    '<div class="card"><div class="card-title">局域网拓扑 (' + topology.length + ' 台设备)</div>' + topoHtml + '</div>' +
-    '<div class="card"><div class="card-title">延迟趋势 (最近 ' + history.length + ' 条)</div><div style="margin-top:12px;"><canvas id="trendChart"></canvas></div></div>';
+    '<div class="info-item"><span class="info-label">采集间隔</span><span class="info-value">' + (agent.interval || 60) + 's</span></div></div></div>';
 
-  document.getElementById('content').innerHTML = html;
+  html += '<div class="card"><div class="card-title">当前状态</div>' + metricsHtml + '</div>';
+  html += '<div class="card"><div class="card-title">局域网拓扑 (' + topo.length + ' 台设备)</div>' + topoHtml + '</div>';
 
-  if (history.length > 0 && window.chartRendered === undefined) {
-    window.chartRendered = true;
-    var labels = history.slice().reverse().map(function(h) { return new Date(h.timestamp * 1000).toLocaleTimeString('zh-CN', {hour:'2-digit',minute:'2-digit'}); });
+  document.getElementById('content-info').innerHTML = html;
+}
+
+// ── Tab 2: 监控目标 ────────────────────────────────────────────────
+function loadTargetsTab() {
+  var xhr = new XMLHttpRequest();
+  xhr.open('GET', SERVER + '/api/' + agentId + '/targets', false);
+  xhr.send(null);
+  var targets = [];
+  if (xhr.status === 200) {
+    try { targets = JSON.parse(xhr.responseText); } catch(e) {}
+  }
+
+  var probeLabels = {ping:'🏓 ping', http:'🌐 http', port:'🔌 port', dns:'📡 dns'};
+  var html = '<div class="card"><div class="card-title">监控目标 (' + targets.length + ' 个)</div>';
+
+  if (!targets.length) {
+    html += '<div class="empty">该设备暂无监控目标，请到管理后台添加</div>';
+  } else {
+    html += '<table><thead><tr><th>名称</th><th>目标地址</th><th>类型</th><th>端口</th><th>间隔</th><th>状态</th></tr></thead><tbody>';
+    targets.forEach(function(t) {
+      var lbl = probeLabels[t.probe_type] || t.probe_type;
+      var cls = probeClass(t.probe_type);
+      html += '<tr>';
+      html += '<td style="font-weight:600;">' + (t.name||'-') + '</td>';
+      html += '<td style="font-family:monospace;font-size:12px;">' + t.target + '</td>';
+      html += '<td><span class="probe-badge ' + cls + '">' + lbl + '</span></td>';
+      html += '<td style="font-size:12px;">' + (t.port||'-') + '</td>';
+      html += '<td style="font-size:12px;color:var(--muted);">' + (t.interval||60) + 's</td>';
+      html += '<td><span class="tag ' + (t.enabled?'tag-on':'tag-off') + '">' + (t.enabled?'启用':'禁用') + '</span></td>';
+      html += '</tr>';
+    });
+    html += '</tbody></table>';
+  }
+  html += '</div>';
+  document.getElementById('content-targets').innerHTML = html;
+}
+
+// ── Tab 3: 历史趋势 ───────────────────────────────────────────────
+function loadTrendTab() {
+  var xhr = new XMLHttpRequest();
+  xhr.open('GET', SERVER + '/api/' + agentId + '/history?limit=60', false);
+  xhr.send(null);
+  var history = xhr.status === 200 ? JSON.parse(xhr.responseText) : [];
+
+  var html = '<div class="card"><div class="card-title">延迟趋势 (最近 ' + history.length + ' 条)</div>';
+  if (!history.length) {
+    html += '<div class="empty">暂无历史数据</div>';
+  } else {
+    html += '<div style="margin-top:12px;"><canvas id="trendChart"></canvas></div>';
+  }
+  html += '</div>';
+  document.getElementById('content-trend').innerHTML = html;
+
+  if (history.length > 0) {
+    var labels = history.slice().reverse().map(function(h) {
+      return new Date(h.timestamp * 1000).toLocaleTimeString('zh-CN', {hour:'2-digit',minute:'2-digit'});
+    });
     var pingData = history.slice().reverse().map(function(h) { return h.ping_rtt_ms; });
-    var dnsData = history.slice().reverse().map(function(h) { return h.dns_ms; });
-    var tgtData = history.slice().reverse().map(function(h) { return h.target_rtt_ms; });
-    new Chart(document.getElementById('trendChart').getContext('2d'), {
+    var dnsData  = history.slice().reverse().map(function(h) { return h.dns_ms; });
+    var tgtData  = history.slice().reverse().map(function(h) { return h.target_rtt_ms; });
+    if (chartInstance) { chartInstance.destroy(); chartInstance = null; }
+    chartInstance = new Chart(document.getElementById('trendChart').getContext('2d'), {
       type: 'line',
-      data: { labels: labels, datasets: [
-        { label: '网关延迟', data: pingData, borderColor: '#3fb950', backgroundColor: 'rgba(63,185,80,0.1)', tension: 0.3, fill: true },
-        { label: 'DNS延迟', data: dnsData, borderColor: '#58a6ff', backgroundColor: 'rgba(88,166,255,0.05)', tension: 0.3, fill: false },
-        { label: '目标延迟', data: tgtData, borderColor: '#d29922', backgroundColor: 'rgba(210,153,34,0.05)', tension: 0.3, fill: false },
-      ]},
-      options: { responsive: true, maintainAspectRatio: true, plugins: { legend: { position: 'top', labels: { font: { size: 11 } } } }, scales: { x: { ticks: { maxTicksLimit: 8, font: { size: 10 } } }, y: { beginAtZero: true, ticks: { font: { size: 10 } } } } }
+      data: {
+        labels: labels,
+        datasets: [
+          { label: '网关延迟', data: pingData, borderColor: '#3fb950', backgroundColor: 'rgba(63,185,80,0.1)', tension: 0.3, fill: true },
+          { label: 'DNS延迟',  data: dnsData,  borderColor: '#58a6ff', backgroundColor: 'rgba(88,166,255,0.05)', tension: 0.3, fill: false },
+          { label: '目标延迟', data: tgtData,  borderColor: '#d29922', backgroundColor: 'rgba(210,153,34,0.05)', tension: 0.3, fill: false },
+        ]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: true,
+        plugins: { legend: { position: 'top', labels: { font: { size: 11 } } } },
+        scales: {
+          x: { ticks: { maxTicksLimit: 8, font: { size: 10 } } },
+          y: { beginAtZero: true, ticks: { font: { size: 10 } } }
+        }
+      }
     });
   }
 }
-load();
+
+// ── 启动 ──────────────────────────────────────────────────────────
+loadInfoTab();
 </script>
-{% endblock %}
+</body>
+</html>
