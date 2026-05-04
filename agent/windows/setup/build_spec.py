@@ -1,7 +1,5 @@
 """
-PyInstaller 打包配置（v1.3.0 — GUI 托盘模式）
-运行：pip install pyinstaller && python build_spec.py
-生成单一可执行文件 LanwatchAgent.exe
+PyInstaller 打包配置（v1.3.0 — GUI 托盘模式，单文件 exe）
 """
 import os, sys
 from PyInstaller.building.build_main import Analysis, PYZ
@@ -39,5 +37,6 @@ exe = EXE(
     strip=False,
     upx=True,
     console=False,
+    onefile=True,
     version="version_info.txt"
 )
