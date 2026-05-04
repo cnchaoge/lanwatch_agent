@@ -10,7 +10,7 @@ block_cipher = None
 
 a = Analysis(
     ["../lanwatch_agent.py"],
-    pathex=[".."],
+    pathex=["..", os.path.abspath("..")],
     binaries=[],
     datas=[],
     hiddenimports=[
@@ -36,7 +36,7 @@ exe = EXE(
     debug=False,
     strip=False,
     upx=True,
-    console=False,
+    console=True,
     onefile=True,
     version="version_info.txt"
 )
