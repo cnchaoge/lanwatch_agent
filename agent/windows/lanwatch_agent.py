@@ -366,48 +366,6 @@ def ping_once(host, timeout=3):
     except Exception:
         return None
 
-
-def ping_multi(host, count=3, timeout=2):
-    """
-    多次 Ping，计算丢包率和平均延迟
-    优先用 ICMP，真正可用的探测方式
-    """
-    rtts = []
-    for _ in range(count):
-        rtt = ping_once(host, timeout=timeout)
-        if rtt is not None:
-            rtts.append(rtt)
-        sleep(0.3)
-    loss = (count - len(rtts)) / count * 100
-    avg_rtt = sum(rtts) / len(rtts) if rtts else None
-    return bool(rtts), avg_rtt, loss
-
-
-def measure_dns_single(host):
-    """测单个域名 DNS 解析延迟"""
-    try:
-        start = time.time()
-        socket.gethostbyname(host)
-        return (time.time() - start) * 1000
-    except Exception:
-        return None
-
-
-def measure_dns_multi():
-    """测多个 DNS 服务器质量（百度/阿里/腾讯/网易）"""
-    hosts = {
-        "dns_baidu": "www.baidu.com",
-        "dns_ali": "www.aliyun.com",
-        "dns_tencent": "www.qq.com",
-        "dns_163": "www.163.com",
-    }
-    return {k: measure_dns_single(h) for k, h in hosts.items()}
-
-
-# ═══════════════════════════════════════════════════════════════
-# MAC 地址获取（正确实现）
-# ═══════════════════════════════════════════════════════════════
-
 def get_mac_for_ip(ip):
     """
     向目标 IP 发送 ARP 请求（Windows: arp -a 之前先用 ping 触发 ARP 缓存）
@@ -609,17 +567,6 @@ def infer_device_type(ip="", vendor="", hostname=""):
 # ═══════════════════════════════════════════════════════════════
 # 拓扑扫描（多线程并发）
 # ═══════════════════════════════════════════════════════════════
-
-def _probe_host(ip):
-    """探测单个 IP 是否存活（ICMP ping），返回 (ip, mac, hostname) 或 None"""
-    rtt = ping_once(ip, timeout=1)
-    if rtt is not None:
-        mac = get_mac_for_ip(ip)
-        hostname = _resolve_hostname(ip)
-        return (ip, mac, hostname)
-    return None
-
-
 def _resolve_hostname(ip):
     """尝试反解主机名"""
     try:
@@ -971,46 +918,6 @@ def report_uninstall(agent_id, token="", timeout=10):
 TRACERT_TARGETS = ["www.baidu.com", "8.8.8.8"]
 DIAG_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "offline_diag.json")
 
-
-def run_traceroute(target):
-    """执行 traceroute，返回跳列表或 None"""
-    cmd = 'tracert -h 15 ' + target if sys.platform == "win32" else 'traceroute -m 15 ' + target
-    try:
-        out, _ = _run_hidden(cmd, timeout=30)
-        hops = []
-        for line in out.splitlines():
-            m = re.search(r'^\s*(\d+)\s+.*?\s+([\d.]+)\s*ms', line)
-            if m:
-                hops.append({"hop": int(m.group(1)), "rtt": float(m.group(2))})
-            elif '*' in line:
-                hops.append({"hop": len(hops) + 1, "rtt": None})
-        return hops if hops else None
-    except Exception as e:
-        log.warning("[诊断] traceroute 失败: %s", e)
-        return None
-
-
-def run_offline_diag():
-    """执行离线诊断，保存本地文件（JSON 格式）"""
-    log.warning("[诊断] 网络异常，开始离线断点诊断...")
-    diag = {"time": time.strftime("%Y-%m-%d %H:%M:%S"), "target": None, "hops": None, "error": None}
-    for target in TRACERT_TARGETS:
-        hops = run_traceroute(target)
-        if hops:
-            diag["target"] = target
-            diag["hops"] = hops
-            break
-    if not diag["target"]:
-        diag["error"] = "所有目标均无法 traceroute"
-    try:
-        with open(DIAG_FILE, 'w', encoding='utf-8') as f:
-            json.dump(diag, f, ensure_ascii=False, indent=2)
-        log.info("[诊断] 诊断结果已保存: %s", DIAG_FILE)
-    except Exception as e:
-        log.error("[诊断] 写入诊断文件失败: %s", e)
-    return diag
-
-
 def _upload_cached_diag(agent_id, token=""):
     """网络恢复时，补传本地缓存的诊断记录"""
     if not os.path.exists(DIAG_FILE):
@@ -1069,66 +976,6 @@ def report_topology(devices, agent_id, token=""):
 # ═══════════════════════════════════════════════════════════════
 
 DEFAULT_TARGETS = None  # lazy init
-
-
-def get_targets():
-    global DEFAULT_TARGETS
-    cfg = load_config()
-    if cfg and cfg.get("targets"):
-        return cfg["targets"]
-    if DEFAULT_TARGETS is None:
-        DEFAULT_TARGETS = [
-            {"name": "网关", "host": get_gateway()},
-            {"name": "DNS", "host": "8.8.8.8"},
-        ]
-    return DEFAULT_TARGETS
-
-
-def run_probe(subnets=None):
-    targets = get_targets()
-    gateway = get_gateway()
-
-    # 探测网关（3次 ICMP ping）
-    gw_ok, gw_rtt, gw_loss = ping_multi(gateway, count=3, timeout=2)
-
-    # DNS 延迟
-    dns_ms = measure_dns_single("www.baidu.com")
-    extra_dns = measure_dns_multi()
-
-    # 探测目标列表（第一个可达的算目标）
-    target_ok = False
-    target_rtt = None
-    target_name = ""
-    for t in targets:
-        rtt = ping_once(t["host"], timeout=3)
-        if rtt is not None:
-            target_ok = True
-            target_rtt = rtt
-            target_name = t["name"]
-            break
-
-    # 如果没配目标，默认把网关当目标
-    if not target_name:
-        target_ok = gw_ok
-        target_rtt = gw_rtt
-        target_name = "网关"
-
-    return {
-        "ping_ok": gw_ok,
-        "ping_rtt_ms": gw_rtt,
-        "ping_loss_pct": gw_loss,
-        "dns_ms": dns_ms,
-        "dns_ms_ali": extra_dns["dns_ali"],
-        "dns_ms_tencent": extra_dns["dns_tencent"],
-        "dns_ms_163": extra_dns["dns_163"],
-        "gateway_reachable": gw_ok,
-        "target_reachable": target_ok,
-        "target_name": target_name,
-        "target_rtt_ms": target_rtt,
-        "subnets": ",".join(subnets) if subnets else "",
-        "client_ip": get_local_ip(),
-    }
-
 
 # ═══════════════════════════════════════════════════════════════
 # 托盘图标
