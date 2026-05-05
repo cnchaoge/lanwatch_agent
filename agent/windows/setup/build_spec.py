@@ -5,16 +5,20 @@ PyInstaller 打包配置（v1.3.0 — GUI 托盘模式，单文件 exe）
 import os
 from PyInstaller.building.build_main import Analysis, PYZ, EXE
 
+WORK_DIR = os.path.dirname(os.path.abspath(__file__))  # setup/
+PARENT_DIR = os.path.dirname(WORK_DIR)                 # windows/
+
 block_cipher = None
 
 a = Analysis(
-    ["lanwatch_agent.py"],
-    pathex=[os.path.abspath(".")],
+    [os.path.join(PARENT_DIR, "lanwatch_agent.py")],
+    pathex=[PARENT_DIR],
     binaries=[],
     datas=[
-        ("network_monitor.py", "."),
-        ("core", "core"),
-        ("probes", "probes"),
+        (os.path.join(PARENT_DIR, "network_monitor.py"), "."),
+        (os.path.join(PARENT_DIR, "core"), "core"),
+        (os.path.join(PARENT_DIR, "probes"), "probes"),
+        (os.path.join(PARENT_DIR, "version_info.txt"), "."),
     ],
     hiddenimports=[
         "pystray", "pillow", "PIL", "PIL.Image", "PIL.ImageDraw",
