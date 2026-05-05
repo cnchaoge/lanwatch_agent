@@ -42,9 +42,7 @@ async def register_agent(payload: dict):
 
 
 @router.get("/agents")
-async def get_agents(password: str = Query(None)):
-    if config.ADMIN_PASSWORD and config.ADMIN_PASSWORD != "admin":
-        verify_admin_password(password)
+async def get_agents():
     with get_db() as conn:
         cursor = conn.cursor()
         cursor.execute("SELECT agent_id, name, ip, os_type, interval, last_seen FROM agents ORDER BY created_at DESC")
