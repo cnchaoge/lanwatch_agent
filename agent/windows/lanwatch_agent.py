@@ -2384,7 +2384,10 @@ def main():
 
     # 监控主循环放在独立线程，避免阻塞 Tk mainloop
     def run_monitor():
-        _run_monitoring(agent_id, company_name)
+        try:
+            _run_monitoring(agent_id, company_name)
+        except Exception as e:
+            log.error("[监控线程] 崩溃: %s", e, exc_info=True)
     threading.Thread(target=run_monitor, daemon=True, name="monitor").start()
 
     # 启动时立即触发一次拓扑扫描（后台线程，不阻塞主程序）
@@ -2398,7 +2401,9 @@ def main():
     threading.Thread(target=do_initial_topology, daemon=True, name="topology-init").start()
 
     # 运行 Tk 主循环，处理 after() 回调和 action 队列
+    log.info("[主循环] 进入 Tk mainloop...")
     _tk_root.mainloop()
+    log.info("[主循环] Tk mainloop 退出")
     log.info("Agent 已停止")
 
 def _run_monitoring(agent_id, company_name):
@@ -2479,4 +2484,10 @@ def _do_topology_scan(subnets, agent_id, agent_token):
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except Exception as e:
+        import traceback
+        with open(LOG_FILE, "a", encoding="utf-8") as f:
+            f.write(f"\n[FATAL] main() crashed: {e}\n{traceback.format_exc()}\n")
+        raise
