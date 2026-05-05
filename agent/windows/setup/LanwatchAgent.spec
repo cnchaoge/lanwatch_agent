@@ -5,8 +5,8 @@ PyInstaller 打包配置 v1.3.0 — 单文件 exe，GUI 托盘模式
 """
 import os
 
-_here = os.path.dirname(os.path.abspath(__file__))   # setup/
-_src = os.path.dirname(_here)                         # windows/
+_here = os.path.dirname(os.path.abspath(SPEC))    # setup/
+_src = os.path.dirname(_here)                      # windows/
 
 block_cipher = None
 
