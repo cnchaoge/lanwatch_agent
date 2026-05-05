@@ -10,31 +10,30 @@ echo ========================================
 echo [WORKDIR] %cd%
 echo.
 
-echo [1/4] Checking Python...
-python --version 2>nul
+echo [1/4] Checking Python 3.12...
+py -3.12 --version 2>nul
 if errorlevel 1 (
-    echo ERROR: Python not found
+    echo ERROR: Python 3.12 not found
     pause
     exit /b 1
 )
 
 echo [2/4] Creating virtual environment...
-if not exist "%WORK_DIR%\venv\Scripts\python.exe" (
-    python -m venv "%WORK_DIR%\venv"
+if not exist "%WORK_DIR%\venv312\Scripts\python.exe" (
+    py -3.12 -m venv "%WORK_DIR%\venv312"
 )
 
 echo [3/4] Installing dependencies...
-call "%WORK_DIR%\venv\Scripts\activate.bat"
+call "%WORK_DIR%\venv312\Scripts\activate.bat"
 pip install --upgrade pip -q
 pip install pystray pillow pyinstaller httpx pywin32 -q
 pip install -r "%WORK_DIR%\requirements.txt" -q
 
 echo [4/4] Running PyInstaller...
-pyinstaller "%WORK_DIR%\setup\build_spec.py" --noconfirm --clean
+py -3.12 -m PyInstaller "%WORK_DIR%\setup\build_spec.py" --noconfirm --clean
 
 echo.
 echo ========================================
 echo    Build complete!
-echo    Output: %WORK_DIR%\dist\LanwatchAgent.exe
 echo ========================================
 pause
