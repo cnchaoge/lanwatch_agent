@@ -1178,7 +1178,10 @@ def setup_tray(agent_id, company_name):
             _status_thread_started = True
 
         def run_tray():
-            icon.run()   # blocks until icon.stop() is called
+            try:
+                icon.run()   # blocks until icon.stop() is called
+            except Exception as e:
+                log.error("[托盘] 运行异常: %s", e, exc_info=True)
 
         t = threading.Thread(target=run_tray, daemon=True, name="tray")
         t.start()

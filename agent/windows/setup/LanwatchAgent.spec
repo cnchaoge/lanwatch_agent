@@ -21,7 +21,8 @@ a = Analysis(
         (os.path.join(_src, "version_info.txt"), "."),
     ],
     hiddenimports=[
-        "pystray", "pillow", "PIL", "PIL.Image", "PIL.ImageDraw",
+        "pystray", "pystray._win32",
+        "pillow", "PIL", "PIL.Image", "PIL.ImageDraw",
         "httpx", "httpx._client", "httpx._models",
         "win32serviceutil", "win32service", "win32event",
         "win32api", "win32con", "win32process", "win32gui",
