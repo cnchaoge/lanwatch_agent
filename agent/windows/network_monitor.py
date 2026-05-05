@@ -24,3 +24,20 @@ def count_events():
 def get_db():
     """保留入口，调用者应改用服务端 API"""
     return None
+
+
+class NetworkMonitor:
+    """
+    网络故障检测器 stub — v1.3.0
+    旧版本地 SQLite 事件记录功能已废弃。
+    保留兼容接口：start() / stop()，不做实际工作。
+    """
+
+    def __init__(self):
+        self._running = False
+
+    def start(self):
+        self._running = True
+
+    def stop(self):
+        self._running = False

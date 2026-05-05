@@ -44,7 +44,7 @@ if not os.path.exists(_init_path):
         _f.write("")
     print(">>> 已自动创建 __init__.py")
 
-from network_monitor import query_events, count_events, EVENTS_DB  # noqa: F401
+from network_monitor import query_events, count_events, EVENTS_DB, NetworkMonitor  # noqa: F401
 
 # ═══════════════════════════════════════════════════════════════
 # 配置
