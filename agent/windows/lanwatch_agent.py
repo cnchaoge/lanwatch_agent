@@ -2097,10 +2097,7 @@ def _show_setup_window(root):
     label_row(form, "企业名称 *")
     name_entry = entry(form); name_entry.pack(fill="x")
 
-    label_row(form, "安装地址")
-    addr_entry = entry(form); addr_entry.pack(fill="x")
-
-    label_row(form, "网关电话（选填）")
+    label_row(form, "网管电话（选填）")
     phone_entry = entry(form); phone_entry.pack(fill="x")
 
     status_lbl = tk.Label(form, text="", font=("微软雅黑", 9), bg=C_BG, fg=C_MUTED, anchor="w")
@@ -2123,7 +2120,6 @@ def _show_setup_window(root):
             messagebox.showwarning("提示","请填写企业名称", parent=win); return
         company_name = name
         phone        = phone_entry.get().strip()
-        location     = addr_entry.get().strip()
         subnet       = get_subnet_prefix() or ""
 
         # 显示进度状态
@@ -2147,7 +2143,7 @@ def _show_setup_window(root):
                 log.info("注册成功，Agent ID: %s", agent_id)
                 cfg = {
                     "agent_id": agent_id, "company_name": company_name,
-                    "phone": phone, "location": location,
+                    "phone": phone,
                     "subnets": [subnet] if subnet and subnet != "无法检测" else [],
                     "targets": [{"name": "网关", "host": get_gateway()}],
                     "agent_token": agent_token,
@@ -2159,7 +2155,7 @@ def _show_setup_window(root):
                 register_done = threading.Event()
                 def _show_success_on_main():
                     win.destroy()
-                    _show_success_window(root, company_name, agent_id, token)
+                    root.quit()  # 退出 setup mainloop，进入 main() 后半段
                     register_done.set()
                 root.after(0, _show_success_on_main)
                 register_done.wait()
@@ -2205,120 +2201,6 @@ def _show_setup_window(root):
         result.get("cancelled",True),
     )
 
-
-
-def _show_success_window(root, company_name, agent_id, token):
-    """注册成功窗口"""
-    import tkinter as tk
-    from PIL import Image, ImageTk
-    import io as _io
-
-    win = tk.Toplevel(root)
-    win.title("注册成功 - lanwatch")
-    W, H = 400, 520
-    win.geometry(f"{W}x{H}")
-    win.resizable(False, False)
-    win.attributes("-topmost", True)
-    win.update_idletasks()
-    sw = root.winfo_screenwidth(); sh = root.winfo_screenheight()
-    win.geometry(f"+{(sw-W)//2}+{(sh-H)//2}")
-
-    BG="#FFFFFF"; ACCENT="#2563EB"; TEXT="#111827"; TEXT2="#6B7280"
-    GREEN="#10B981"; INPUT_BG="#F9FAFB"
-    win.configure(bg=C_BG)
-
-    header = tk.Frame(win, bg=C_BORDER)
-    header.pack(fill="x")
-    tk.Label(header, text="✓  注册成功", font=("微软雅黑",15,"bold"),
-             bg=C_BORDER, fg=C_GREEN).pack(pady=(14,2))
-    tk.Label(header, text=company_name, font=("微软雅黑",10),
-             bg=C_BORDER, fg=C_MUTED).pack(pady=(0,12))
-
-    main = tk.Frame(win, bg=C_BG)
-    main.pack(fill="both", expand=True, padx=32, pady=(12,0))
-
-    qr_label = tk.Label(main, bg=C_BG, text=" ", width=20, height=12)
-    qr_label.pack()
-    loading_lbl = tk.Label(main, text="正在加载二维码...", font=("微软雅黑",9),
-                           bg=C_BG, fg=C_MUTED)
-    loading_lbl.pack(pady=(4,0))
-    qr_label._ref = qr_label
-    loading_lbl._ref = loading_lbl
-
-    def load_qr():
-        try:
-            import urllib.request
-            req = urllib.request.Request(
-                SERVER_URL + f"/api/agents/{agent_id}/qr",
-                headers={"User-Agent": "lanwatch_agent"}
-            )
-            with urllib.request.urlopen(req, timeout=10) as resp:
-                img_bytes = resp.read()
-            buf = _io.BytesIO(img_bytes)
-            img = Image.open(buf)
-            img = img.resize((180, 180))
-            photo = ImageTk.PhotoImage(img)
-            qr_label.config(image=photo, text="")
-            qr_label.image = photo
-            loading_lbl.config(text="手机扫码查看监控 · " + agent_id)
-        except Exception as e:
-            try:
-                loading_lbl.config(text="二维码加载失败", fg="#EF4444")
-            except Exception:
-                pass
-
-    threading.Thread(target=load_qr, daemon=True).start()
-
-    tk.Label(main, text="Agent ID: " + agent_id, font=("微软雅黑",9),
-             bg=C_BG, fg=C_MUTED).pack(pady=(8,0))
-
-    token_frame = tk.Frame(main, bg=C_INPUT_BG, relief="solid", bd=1,
-                           highlightbackground="#D1D5DB")
-    token_frame.pack(fill="x", pady=(10,0))
-    tk.Label(token_frame, text="Token（请妥善保存，遗失无法找回）",
-             font=("微软雅黑",8), bg=C_INPUT_BG, fg=C_MUTED).pack(
-                 anchor="w", padx=10, pady=(6,0))
-    tk.Label(token_frame, text=token, font=("Consolas",9),
-             bg=C_INPUT_BG, fg=C_ACCENT).pack(anchor="w", padx=10, pady=(0,8))
-
-    btn_frame = tk.Frame(win, bg=C_BG)
-    btn_frame.pack(side="bottom", fill="x", padx=32, pady=14)
-
-    tk.Button(btn_frame, text="打开监控页面",
-             command=lambda: _open_mobile(agent_id),
-             font=("微软雅黑",9), bg=C_ACCENT, fg="white",
-             relief="flat", pady=7).pack(side="left", fill="x", expand=True, padx=(0,4))
-    tk.Button(btn_frame, text="复制 Token",
-             command=lambda: _copy_token(root, token),
-             font=("微软雅黑",9), bg=C_BORDER, fg=C_TEXT,
-             relief="flat", pady=7).pack(side="left", fill="x", expand=True, padx=4)
-    tk.Button(btn_frame, text="完 成",
-             command=lambda: _dismiss_and_start(win, root, agent_id, company_name),
-             font=("微软雅黑",9,"bold"), bg=GREEN, fg="white",
-             relief="flat", pady=7).pack(side="left", fill="x", expand=True, padx=(4,0))
-
-    win.protocol("WM_DELETE_WINDOW", lambda: _dismiss_and_start(win, root, agent_id, company_name))
-    win.wait_window()
-
-
-def _dismiss_and_start(win, root, agent_id, company_name):
-    """setup wizard 点完成后：销毁向导窗口，退出 setup 的 mainloop，返回 main() 继续"""
-    win.destroy()
-    root.quit()  # 退出 _show_setup_window 的 root.mainloop()
-    # 托盘和监控会在 main() 里接着启动，这里不要直接调用 _run_monitoring
-
-
-def _open_mobile(agent_id):
-    import webbrowser
-    webbrowser.open(f"http://82.156.229.67:8000/mobile?agent={agent_id}")
-
-
-def _copy_token(root, token):
-    root.clipboard_clear()
-    root.clipboard_append(token)
-    for w in root.winfo_children():
-        if isinstance(w, tk.Button) and "复制" in str(w.cget("text")):
-            w.config(text="已复制!", bg="#10b981")
 
 
 def main():
