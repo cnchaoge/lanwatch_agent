@@ -1,0 +1,438 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>多维度探测 - LANWatch</title>
+<meta name="description" content="同时探测网关 + 百度/阿里/腾讯/网易四路 DNS 延迟，真实反映网络质量。">
+<link rel="stylesheet" href="/static/theme.css">
+<style>
+:root {
+  --bg: #f4f6fb;
+  --surface: #ffffff;
+  --bg-2: #f0f2f8;
+  --border: rgba(0,0,0,0.08);
+  --text: #111827;
+  --muted: #6b7280;
+  --primary: #2563eb;
+  --primary-dim: rgba(37,99,235,0.08);
+  --primary-hover: #1d4ed8;
+  --green: #22c55e;
+  --green-dim: rgba(34,197,94,0.1);
+  --yellow: #f59e0b;
+  --yellow-dim: rgba(245,158,11,0.1);
+  --red: #ef4444;
+  --red-dim: rgba(239,68,68,0.1);
+  --purple: #7c3aed;
+  --purple-dim: rgba(124,58,237,0.1);
+  --surface-hover: rgba(0,0,0,0.04);
+  --shadow: 0 4px 24px rgba(0,0,0,0.08);
+}
+[data-theme="dark"] {
+  --bg: #0d1117;
+  --surface: #161b22;
+  --bg-2: #1c2128;
+  --border: rgba(255,255,255,0.1);
+  --text: #e6edf3;
+  --muted: #8b949e;
+  --surface-hover: rgba(255,255,255,0.06);
+  --shadow: 0 4px 24px rgba(0,0,0,0.4);
+}
+
+body { background: var(--bg); color: var(--text); font-family: 'Manrope', -apple-system, BlinkMacSystemFont, sans-serif; min-height: 100vh; }
+
+.nav { position: fixed; top: 0; left: 0; right: 0; z-index: 100; background: rgba(255,255,255,0.85); backdrop-filter: blur(12px); border-bottom: 1px solid var(--border); }
+.nav-inner { max-width: 1100px; margin: 0 auto; padding: 0 24px; height: 60px; display: flex; align-items: center; gap: 24px; }
+.nav-brand { display: flex; align-items: center; gap: 8px; font-weight: 800; font-size: 17px; text-decoration: none; color: var(--text); flex-shrink: 0; }
+.nav-icon { width: 30px; height: 30px; background: var(--primary); color: #fff; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 900; }
+.nav-links { display: flex; gap: 4px; margin-left: 8px; }
+.nav-links a { padding: 6px 12px; border-radius: 8px; font-size: 14px; color: var(--muted); text-decoration: none; transition: background 0.15s, color 0.15s; }
+.nav-links a:hover { background: var(--surface-hover); color: var(--text); }
+.nav-right { margin-left: auto; display: flex; align-items: center; gap: 8px; }
+
+.btn { display: inline-flex; align-items: center; gap: 6px; padding: 10px 20px; border-radius: 10px; font-size: 14px; font-weight: 600; text-decoration: none; border: none; cursor: pointer; transition: all 0.15s; }
+.btn-primary { background: var(--primary); color: #fff; }
+.btn-primary:hover { background: var(--primary-hover); transform: translateY(-1px); }
+.btn-secondary { background: var(--surface); color: var(--text); border: 1px solid var(--border); }
+.btn-secondary:hover { background: var(--surface-hover); }
+.btn-ghost { background: transparent; color: var(--text); padding: 10px 16px; }
+.btn-ghost:hover { background: var(--surface-hover); }
+
+.hero { min-height: 100vh; display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; padding: 80px 24px 60px; }
+.hero-eyebrow { display: inline-flex; align-items: center; gap: 8px; background: var(--primary-dim); border: 1px solid rgba(37,99,235,0.2); border-radius: 100px; padding: 6px 16px; font-size: 13px; color: var(--primary); font-weight: 600; margin-bottom: 28px; }
+.hero h1 { font-size: clamp(32px, 6vw, 64px); font-weight: 800; letter-spacing: -0.04em; line-height: 1.05; margin-bottom: 20px; color: var(--text); }
+.hero h1 .accent { color: var(--primary); }
+.hero-sub { font-size: clamp(15px, 2vw, 18px); color: var(--muted); max-width: 540px; line-height: 1.7; margin-bottom: 40px; }
+.hero-actions { display: flex; gap: 12px; flex-wrap: wrap; justify-content: center; }
+
+.demo-section { padding: 40px 24px 80px; max-width: 1100px; margin: 0 auto; }
+.demo-card { background: var(--surface); border: 1px solid var(--border); border-radius: 20px; padding: 36px; box-shadow: var(--shadow); }
+.demo-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 28px; flex-wrap: wrap; gap: 16px; }
+.demo-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; color: var(--primary); margin-bottom: 6px; }
+.demo-title { font-size: 22px; font-weight: 800; }
+.tag { display: inline-flex; align-items: center; padding: 4px 10px; border-radius: 6px; font-size: 12px; font-weight: 600; }
+.tag-green { background: var(--green-dim); color: var(--green); }
+.tag-blue { background: var(--primary-dim); color: var(--primary); }
+
+/* Probe grid */
+.probe-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 16px; }
+.probe-card { background: var(--bg-2); border-radius: 14px; padding: 20px; transition: transform 0.2s; }
+.probe-card:hover { transform: translateY(-2px); }
+.probe-card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; }
+.probe-target { font-size: 13px; font-weight: 700; }
+.probe-target-name { font-size: 12px; color: var(--muted); margin-top: 2px; }
+.probe-status { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+.probe-status.ok { background: var(--green); box-shadow: 0 0 8px var(--green); }
+.probe-status.slow { background: var(--yellow); box-shadow: 0 0 8px var(--yellow); }
+.probe-status.fail { background: var(--red); box-shadow: 0 0 8px var(--red); }
+
+.probe-ms { font-size: 36px; font-weight: 800; font-variant-numeric: tabular-nums; line-height: 1; margin-bottom: 4px; }
+.probe-ms.ok { color: var(--green); }
+.probe-ms.slow { color: var(--yellow); }
+.probe-ms.fail { color: var(--red); }
+.probe-ms-unit { font-size: 14px; font-weight: 400; color: var(--muted); }
+
+.probe-bar-wrap { height: 6px; background: var(--border); border-radius: 3px; overflow: hidden; margin-bottom: 10px; }
+.probe-bar { height: 100%; border-radius: 3px; transition: width 0.6s ease; }
+.probe-bar.ok { background: var(--green); }
+.probe-bar.slow { background: var(--yellow); }
+.probe-bar.fail { background: var(--red); }
+
+.probe-meta { display: flex; gap: 10px; font-size: 11px; color: var(--muted); flex-wrap: wrap; }
+.probe-meta span { display: flex; align-items: center; gap: 3px; }
+
+/* Timeline sparkline */
+.timeline-section { margin-top: 32px; }
+.timeline-title { font-size: 13px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 16px; }
+.timeline-chart { display: flex; align-items: flex-end; gap: 4px; height: 80px; }
+.timeline-row { display: flex; flex-direction: column; align-items: center; gap: 6px; flex: 1; }
+.timeline-bars { display: flex; align-items: flex-end; gap: 3px; height: 60px; }
+.timeline-bar { width: 8px; border-radius: 3px 3px 0 0; transition: height 0.5s ease; }
+.timeline-bar.gw { background: var(--primary); }
+.timeline-bar.baidu { background: var(--green); }
+.timeline-bar.aliyun { background: var(--yellow); }
+.timeline-bar.tencent { background: var(--purple); }
+.timeline-bar.wangyi { background: var(--orange); }
+.timeline-label { font-size: 10px; color: var(--muted); }
+.timeline-time { font-size: 10px; color: var(--muted); margin-top: 4px; }
+
+/* Summary cards */
+.summary-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-top: 28px; }
+.summary-card { background: var(--bg-2); border-radius: 12px; padding: 16px; text-align: center; }
+.summary-num { font-size: 28px; font-weight: 800; color: var(--text); }
+.summary-num.ok { color: var(--green); }
+.summary-num.slow { color: var(--yellow); }
+.summary-label { font-size: 11px; color: var(--muted); margin-top: 4px; }
+
+.features-row { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 16px; margin-top: 40px; }
+.feature-item { background: var(--bg-2); border-radius: 12px; padding: 20px; }
+.feature-icon { font-size: 28px; margin-bottom: 10px; }
+.feature-name { font-size: 14px; font-weight: 700; margin-bottom: 6px; }
+.feature-desc { font-size: 12px; color: var(--muted); line-height: 1.6; }
+
+.divider { height: 1px; background: var(--border); margin: 0; }
+
+.cta-section { background: var(--surface); border: 1px solid var(--border); border-radius: 24px; padding: 48px 40px; text-align: center; margin: 40px 24px 80px; max-width: 1100px; margin-left: auto; margin-right: auto; }
+.cta-title { font-size: clamp(20px, 3.5vw, 28px); font-weight: 800; margin-bottom: 12px; }
+.cta-desc { font-size: 14px; color: var(--muted); margin-bottom: 28px; }
+
+.footer { border-top: 1px solid var(--border); padding: 28px 24px; text-align: center; font-size: 13px; color: var(--muted); }
+.footer a { color: var(--muted); text-decoration: none; }
+.footer a:hover { color: var(--text); }
+
+@media (max-width: 640px) {
+  .hero { padding: 100px 20px 48px; }
+  .demo-card { padding: 20px; }
+  .nav-links { display: none; }
+  .cta-section { padding: 36px 24px; margin: 0 0 48px; }
+  .summary-grid { grid-template-columns: repeat(2, 1fr); }
+}
+</style>
+</head>
+<body>
+
+<nav class="nav">
+  <div class="nav-inner">
+    <a href="/" class="nav-brand"><span class="nav-icon">L</span><span>LANWatch</span></a>
+    <div class="nav-links">
+      <a href="/">首页</a>
+      <a href="/#features">功能</a>
+      <a href="/#deploy">部署</a>
+      <a href="/#faq">FAQ</a>
+    </div>
+    <div class="nav-right">
+      <button class="btn btn-ghost btn-sm" id="themeToggle">🌙</button>
+      <a class="btn btn-primary btn-sm" href="/download">免费下载</a>
+    </div>
+  </div>
+</nav>
+
+<section class="hero">
+  <div class="hero-eyebrow"><span>🆕 Demo 演示</span></div>
+  <h1>多维度探测<br><span class="accent">不止是通或不通</span></h1>
+  <p class="hero-sub">同时探测网关 + 4 路 DNS 延迟，真实反映网络质量。不只是"通"或"不通"，更知道网络好不好。</p>
+  <div class="hero-actions">
+    <a class="btn btn-primary" href="/download">🖥️ 免费下载 Windows 客户端</a>
+    <a class="btn btn-secondary" href="/admin">📊 打开管理后台</a>
+  </div>
+</section>
+
+<div class="demo-section">
+  <div class="demo-card">
+    <div class="demo-header">
+      <div>
+        <div class="demo-label">实时探测 · 每 60 秒</div>
+        <div class="demo-title">多维度网络延迟</div>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center;">
+        <span class="tag tag-green">● 正常</span>
+        <span class="tag tag-blue">HTTP</span>
+        <span class="tag" style="background:var(--bg-2);color:var(--muted);">2026-05-04 14:32</span>
+      </div>
+    </div>
+
+    <!-- Probe cards -->
+    <div class="probe-grid">
+      <div class="probe-card">
+        <div class="probe-card-header">
+          <div>
+            <div class="probe-target" style="color:var(--primary);">网关</div>
+            <div class="probe-target-name">192.168.1.1</div>
+          </div>
+          <div class="probe-status ok"></div>
+        </div>
+        <div class="probe-ms ok">1<span class="probe-ms-unit">ms</span></div>
+        <div class="probe-bar-wrap"><div class="probe-bar ok" style="width:2%;"></div></div>
+        <div class="probe-meta">
+          <span>TCP</span>
+          <span>RTT: 1ms</span>
+          <span>可用性: 100%</span>
+        </div>
+      </div>
+
+      <div class="probe-card">
+        <div class="probe-card-header">
+          <div>
+            <div class="probe-target" style="color:var(--green);">百度</div>
+            <div class="probe-target-name">www.baidu.com</div>
+          </div>
+          <div class="probe-status ok"></div>
+        </div>
+        <div class="probe-ms ok">12<span class="probe-ms-unit">ms</span></div>
+        <div class="probe-bar-wrap"><div class="probe-bar ok" style="width:24%;"></div></div>
+        <div class="probe-meta">
+          <span>HTTP</span>
+          <span>RTT: 12ms</span>
+          <span>可用性: 100%</span>
+        </div>
+      </div>
+
+      <div class="probe-card">
+        <div class="probe-card-header">
+          <div>
+            <div class="probe-target" style="color:var(--yellow);">阿里 DNS</div>
+            <div class="probe-target-name">dns.aliyun.com</div>
+          </div>
+          <div class="probe-status slow"></div>
+        </div>
+        <div class="probe-ms slow">48<span class="probe-ms-unit">ms</span></div>
+        <div class="probe-bar-wrap"><div class="probe-bar slow" style="width:60%;"></div></div>
+        <div class="probe-meta">
+          <span>DNS/UDP</span>
+          <span>RTT: 48ms ⚠️</span>
+          <span>可用性: 98%</span>
+        </div>
+      </div>
+
+      <div class="probe-card">
+        <div class="probe-card-header">
+          <div>
+            <div class="probe-target" style="color:var(--purple);">腾讯</div>
+            <div class="probe-target-name">www.qq.com</div>
+          </div>
+          <div class="probe-status ok"></div>
+        </div>
+        <div class="probe-ms ok">8<span class="probe-ms-unit">ms</span></div>
+        <div class="probe-bar-wrap"><div class="probe-bar ok" style="width:16%;"></div></div>
+        <div class="probe-meta">
+          <span>HTTP</span>
+          <span>RTT: 8ms</span>
+          <span>可用性: 100%</span>
+        </div>
+      </div>
+
+      <div class="probe-card">
+        <div class="probe-card-header">
+          <div>
+            <div class="probe-target" style="color:var(--orange);">网易</div>
+            <div class="probe-target-name">www.163.com</div>
+          </div>
+          <div class="probe-status ok"></div>
+        </div>
+        <div class="probe-ms ok">3<span class="probe-ms-unit">ms</span></div>
+        <div class="probe-bar-wrap"><div class="probe-bar ok" style="width:6%;"></div></div>
+        <div class="probe-meta">
+          <span>HTTP</span>
+          <span>RTT: 3ms</span>
+          <span>可用性: 100%</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Summary -->
+    <div class="summary-grid">
+      <div class="summary-card">
+        <div class="summary-num ok">98.2%</div>
+        <div class="summary-label">综合可用性</div>
+      </div>
+      <div class="summary-card">
+        <div class="summary-num">14ms</div>
+        <div class="summary-label">平均延迟</div>
+      </div>
+      <div class="summary-card">
+        <div class="summary-num">5</div>
+        <div class="summary-label">探测目标</div>
+      </div>
+      <div class="summary-card">
+        <div class="summary-num" style="color:var(--yellow);">1</div>
+        <div class="summary-label">异常项</div>
+      </div>
+    </div>
+
+    <!-- Timeline sparklines -->
+    <div class="timeline-section">
+      <div class="timeline-title">最近 30 分钟延迟趋势</div>
+      <div class="timeline-chart">
+        <!-- Each column = one time point, bars = different targets -->
+        <div class="timeline-row">
+          <div class="timeline-bars">
+            <div class="timeline-bar gw" style="height:8px;"></div>
+            <div class="timeline-bar baidu" style="height:20px;"></div>
+            <div class="timeline-bar aliyun" style="height:32px;"></div>
+            <div class="timeline-bar tencent" style="height:16px;"></div>
+            <div class="timeline-bar wangyi" style="height:10px;"></div>
+          </div>
+          <div class="timeline-time">14:00</div>
+        </div>
+        <div class="timeline-row">
+          <div class="timeline-bars">
+            <div class="timeline-bar gw" style="height:8px;"></div>
+            <div class="timeline-bar baidu" style="height:18px;"></div>
+            <div class="timeline-bar aliyun" style="height:28px;"></div>
+            <div class="timeline-bar tencent" style="height:14px;"></div>
+            <div class="timeline-bar wangyi" style="height:8px;"></div>
+          </div>
+          <div class="timeline-time">14:05</div>
+        </div>
+        <div class="timeline-row">
+          <div class="timeline-bars">
+            <div class="timeline-bar gw" style="height:6px;"></div>
+            <div class="timeline-bar baidu" style="height:16px;"></div>
+            <div class="timeline-bar aliyun" style="height:48px;"></div>
+            <div class="timeline-bar tencent" style="height:12px;"></div>
+            <div class="timeline-bar wangyi" style="height:8px;"></div>
+          </div>
+          <div class="timeline-time">14:10 ⚠️</div>
+        </div>
+        <div class="timeline-row">
+          <div class="timeline-bars">
+            <div class="timeline-bar gw" style="height:8px;"></div>
+            <div class="timeline-bar baidu" style="height:20px;"></div>
+            <div class="timeline-bar aliyun" style="height:36px;"></div>
+            <div class="timeline-bar tencent" style="height:16px;"></div>
+            <div class="timeline-bar wangyi" style="height:10px;"></div>
+          </div>
+          <div class="timeline-time">14:15</div>
+        </div>
+        <div class="timeline-row">
+          <div class="timeline-bars">
+            <div class="timeline-bar gw" style="height:8px;"></div>
+            <div class="timeline-bar baidu" style="height:18px;"></div>
+            <div class="timeline-bar aliyun" style="height:30px;"></div>
+            <div class="timeline-bar tencent" style="height:14px;"></div>
+            <div class="timeline-bar wangyi" style="height:8px;"></div>
+          </div>
+          <div class="timeline-time">14:20</div>
+        </div>
+        <div class="timeline-row">
+          <div class="timeline-bars">
+            <div class="timeline-bar gw" style="height:8px;"></div>
+            <div class="timeline-bar baidu" style="height:16px;"></div>
+            <div class="timeline-bar aliyun" style="height:26px;"></div>
+            <div class="timeline-bar tencent" style="height:14px;"></div>
+            <div class="timeline-bar wangyi" style="height:8px;"></div>
+          </div>
+          <div class="timeline-time">14:25</div>
+        </div>
+        <div class="timeline-row">
+          <div class="timeline-bars">
+            <div class="timeline-bar gw" style="height:8px;"></div>
+            <div class="timeline-bar baidu" style="height:18px;"></div>
+            <div class="timeline-bar aliyun" style="height:28px;"></div>
+            <div class="timeline-bar tencent" style="height:14px;"></div>
+            <div class="timeline-bar wangyi" style="height:8px;"></div>
+          </div>
+          <div class="timeline-time">14:30</div>
+        </div>
+      </div>
+      <div style="display:flex;gap:14px;margin-top:12px;font-size:11px;color:var(--muted);flex-wrap:wrap;justify-content:center;">
+        <span><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:var(--primary);margin-right:4px;vertical-align:middle;"></span>网关</span>
+        <span><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:var(--green);margin-right:4px;vertical-align:middle;"></span>百度</span>
+        <span><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:var(--yellow);margin-right:4px;vertical-align:middle;"></span>阿里</span>
+        <span><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:var(--purple);margin-right:4px;vertical-align:middle;"></span>腾讯</span>
+        <span><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:var(--orange);margin-right:4px;vertical-align:middle;"></span>网易</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="features-row">
+    <div class="feature-item">
+      <div class="feature-icon">📡</div>
+      <div class="feature-name">多路探测</div>
+      <div class="feature-desc">同时探测网关 + 4 路 DNS，不只是"通"或"不通"，更反映真实网络质量。</div>
+    </div>
+    <div class="feature-item">
+      <div class="feature-icon">⚡</div>
+      <div class="feature-name">60 秒间隔</div>
+      <div class="feature-desc">每 60 秒探测一次，实时捕捉网络抖动，不漏掉任何异常。</div>
+    </div>
+    <div class="feature-item">
+      <div class="feature-icon">📊</div>
+      <div class="feature-name">历史趋势</div>
+      <div class="feature-desc">30 分钟延迟趋势图，清晰看出哪段网络不稳定。</div>
+    </div>
+    <div class="feature-item">
+      <div class="feature-icon">🔔</div>
+      <div class="feature-name">超阈值告警</div>
+      <div class="feature-desc">延迟超过阈值（如阿里 DNS > 30ms）自动触发微信报警。</div>
+    </div>
+  </div>
+</div>
+
+<div class="cta-section">
+  <h2 class="cta-title">想亲自试试？</h2>
+  <p class="cta-desc">下载 Windows 客户端，3 分钟完成部署，马上看到你的网络质量。</p>
+  <a class="btn btn-primary" href="/download">🖥️ 免费下载 Windows 客户端</a>
+</div>
+
+<div class="footer">
+  <a href="/">官网首页</a> · <a href="/agents">企业总览</a> · <a href="/download">下载中心</a> · <a href="/admin">管理后台</a>
+  <br><br>
+  LANWatch · © 2026
+</div>
+
+<script>
+var toggle = document.getElementById('themeToggle');
+var stored = localStorage.getItem('lw-theme') || 'light';
+function applyTheme(t) {
+  document.documentElement.setAttribute('data-theme', t);
+  toggle.textContent = t === 'dark' ? '☀️' : '🌙';
+  localStorage.setItem('lw-theme', t);
+}
+applyTheme(stored);
+toggle.addEventListener('click', function() {
+  applyTheme(document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark');
+});
+</script>
+</body>
+</html>

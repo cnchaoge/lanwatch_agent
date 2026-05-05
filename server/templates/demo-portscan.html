@@ -1,0 +1,424 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>端口扫描 - LANWatch</title>
+<meta name="description" content="扫描 43 个常见端口，30 线程并发，3-5 秒完成，自动识别 HTTP/SSH/SMB/DNS 等服务。">
+<link rel="stylesheet" href="/static/theme.css">
+<style>
+:root {
+  --bg: #f4f6fb;
+  --surface: #ffffff;
+  --bg-2: #f0f2f8;
+  --border: rgba(0,0,0,0.08);
+  --text: #111827;
+  --muted: #6b7280;
+  --primary: #2563eb;
+  --primary-dim: rgba(37,99,235,0.08);
+  --primary-hover: #1d4ed8;
+  --green: #22c55e;
+  --green-dim: rgba(34,197,94,0.1);
+  --yellow: #f59e0b;
+  --yellow-dim: rgba(245,158,11,0.1);
+  --red: #ef4444;
+  --red-dim: rgba(239,68,68,0.1);
+  --purple: #7c3aed;
+  --purple-dim: rgba(124,58,237,0.1);
+  --orange: #f97316;
+  --orange-dim: rgba(249,115,22,0.1);
+  --surface-hover: rgba(0,0,0,0.04);
+  --shadow: 0 4px 24px rgba(0,0,0,0.08);
+}
+[data-theme="dark"] {
+  --bg: #0d1117;
+  --surface: #161b22;
+  --bg-2: #1c2128;
+  --border: rgba(255,255,255,0.1);
+  --text: #e6edf3;
+  --muted: #8b949e;
+  --surface-hover: rgba(255,255,255,0.06);
+  --shadow: 0 4px 24px rgba(0,0,0,0.4);
+}
+
+body { background: var(--bg); color: var(--text); font-family: 'Manrope', -apple-system, BlinkMacSystemFont, sans-serif; min-height: 100vh; }
+
+.nav { position: fixed; top: 0; left: 0; right: 0; z-index: 100; background: rgba(255,255,255,0.85); backdrop-filter: blur(12px); border-bottom: 1px solid var(--border); }
+.nav-inner { max-width: 1100px; margin: 0 auto; padding: 0 24px; height: 60px; display: flex; align-items: center; gap: 24px; }
+.nav-brand { display: flex; align-items: center; gap: 8px; font-weight: 800; font-size: 17px; text-decoration: none; color: var(--text); flex-shrink: 0; }
+.nav-icon { width: 30px; height: 30px; background: var(--primary); color: #fff; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 900; }
+.nav-links { display: flex; gap: 4px; margin-left: 8px; }
+.nav-links a { padding: 6px 12px; border-radius: 8px; font-size: 14px; color: var(--muted); text-decoration: none; transition: background 0.15s, color 0.15s; }
+.nav-links a:hover { background: var(--surface-hover); color: var(--text); }
+.nav-right { margin-left: auto; display: flex; align-items: center; gap: 8px; }
+
+.btn { display: inline-flex; align-items: center; gap: 6px; padding: 10px 20px; border-radius: 10px; font-size: 14px; font-weight: 600; text-decoration: none; border: none; cursor: pointer; transition: all 0.15s; }
+.btn-primary { background: var(--primary); color: #fff; }
+.btn-primary:hover { background: var(--primary-hover); transform: translateY(-1px); }
+.btn-secondary { background: var(--surface); color: var(--text); border: 1px solid var(--border); }
+.btn-secondary:hover { background: var(--surface-hover); }
+.btn-ghost { background: transparent; color: var(--text); padding: 10px 16px; }
+.btn-ghost:hover { background: var(--surface-hover); }
+
+.hero { min-height: 100vh; display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; padding: 80px 24px 60px; }
+.hero-eyebrow { display: inline-flex; align-items: center; gap: 8px; background: var(--primary-dim); border: 1px solid rgba(37,99,235,0.2); border-radius: 100px; padding: 6px 16px; font-size: 13px; color: var(--primary); font-weight: 600; margin-bottom: 28px; }
+.hero h1 { font-size: clamp(32px, 6vw, 64px); font-weight: 800; letter-spacing: -0.04em; line-height: 1.05; margin-bottom: 20px; color: var(--text); }
+.hero h1 .accent { color: var(--primary); }
+.hero-sub { font-size: clamp(15px, 2vw, 18px); color: var(--muted); max-width: 540px; line-height: 1.7; margin-bottom: 40px; }
+.hero-actions { display: flex; gap: 12px; flex-wrap: wrap; justify-content: center; }
+
+.demo-section { padding: 40px 24px 80px; max-width: 1100px; margin: 0 auto; }
+.demo-card { background: var(--surface); border: 1px solid var(--border); border-radius: 20px; padding: 36px; box-shadow: var(--shadow); }
+.demo-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 28px; flex-wrap: wrap; gap: 16px; }
+.demo-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; color: var(--primary); margin-bottom: 6px; }
+.demo-title { font-size: 22px; font-weight: 800; }
+.tag { display: inline-flex; align-items: center; padding: 4px 10px; border-radius: 6px; font-size: 12px; font-weight: 600; }
+.tag-green { background: var(--green-dim); color: var(--green); }
+.tag-blue { background: var(--primary-dim); color: var(--primary); }
+
+/* Scan stats */
+.scan-stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 24px; }
+.scan-stat { background: var(--bg-2); border-radius: 12px; padding: 16px; text-align: center; }
+.scan-stat-num { font-size: 28px; font-weight: 800; color: var(--text); }
+.scan-stat-num.green { color: var(--green); }
+.scan-stat-num.yellow { color: var(--yellow); }
+.scan-stat-num.red { color: var(--red); }
+.scan-stat-label { font-size: 11px; color: var(--muted); margin-top: 4px; }
+
+/* Port grid */
+.port-section { margin-bottom: 24px; }
+.port-section-title { font-size: 13px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 14px; }
+.port-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: 8px; }
+.port-chip { display: flex; flex-direction: column; gap: 2px; padding: 8px 12px; border-radius: 8px; background: var(--bg-2); border: 1px solid var(--border); transition: border-color 0.2s; }
+.port-chip.open { background: var(--green-dim); border-color: rgba(34,197,94,0.3); }
+.port-chip.closed { opacity: 0.5; }
+.port-num { font-size: 13px; font-weight: 800; font-family: monospace; }
+.port-num.open { color: var(--green); }
+.port-num.closed { color: var(--muted); }
+.port-service { font-size: 10px; color: var(--muted); }
+
+/* Service table */
+.svc-section {}
+.svc-section-title { font-size: 13px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 14px; }
+.svc-table { width: 100%; border-collapse: collapse; }
+.svc-table th { text-align: left; padding: 8px 12px; font-size: 11px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 1px solid var(--border); }
+.svc-table td { padding: 10px 12px; font-size: 13px; border-bottom: 1px solid var(--border); }
+.svc-table tr:last-child td { border-bottom: none; }
+.svc-table tr:hover td { background: var(--surface-hover); }
+
+.svc-badge { display: inline-flex; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 700; }
+.svc-badge.http { background: var(--primary-dim); color: var(--primary); }
+.svc-badge.ssh { background: var(--purple-dim); color: var(--purple); }
+.svc-badge.smb { background: var(--orange-dim); color: var(--orange); }
+.svc-badge.dns { background: var(--green-dim); color: var(--green); }
+.svc-badge.rdp { background: var(--red-dim); color: var(--red); }
+.svc-badge.ftp { background: var(--yellow-dim); color: var(--yellow); }
+
+.port-open-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+.port-open-dot.yes { background: var(--green); box-shadow: 0 0 6px var(--green); }
+.port-open-dot.no { background: var(--muted); }
+
+/* Progress bar */
+.scan-progress { margin-bottom: 24px; }
+.scan-progress-label { display: flex; justify-content: space-between; font-size: 12px; color: var(--muted); margin-bottom: 8px; }
+.progress-bar { height: 8px; background: var(--bg-2); border-radius: 4px; overflow: hidden; }
+.progress-fill { height: 100%; border-radius: 4px; background: linear-gradient(90deg, var(--primary), var(--green)); transition: width 0.3s ease; }
+
+/* Features */
+.features-row { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 16px; margin-top: 40px; }
+.feature-item { background: var(--bg-2); border-radius: 12px; padding: 20px; }
+.feature-icon { font-size: 28px; margin-bottom: 10px; }
+.feature-name { font-size: 14px; font-weight: 700; margin-bottom: 6px; }
+.feature-desc { font-size: 12px; color: var(--muted); line-height: 1.6; }
+
+.divider { height: 1px; background: var(--border); margin: 0; }
+
+.cta-section { background: var(--surface); border: 1px solid var(--border); border-radius: 24px; padding: 48px 40px; text-align: center; margin: 40px 24px 80px; max-width: 1100px; margin-left: auto; margin-right: auto; }
+.cta-title { font-size: clamp(20px, 3.5vw, 28px); font-weight: 800; margin-bottom: 12px; }
+.cta-desc { font-size: 14px; color: var(--muted); margin-bottom: 28px; }
+
+.footer { border-top: 1px solid var(--border); padding: 28px 24px; text-align: center; font-size: 13px; color: var(--muted); }
+.footer a { color: var(--muted); text-decoration: none; }
+.footer a:hover { color: var(--text); }
+
+@media (max-width: 640px) {
+  .hero { padding: 100px 20px 48px; }
+  .demo-card { padding: 20px; }
+  .nav-links { display: none; }
+  .cta-section { padding: 36px 24px; margin: 0 0 48px; }
+  .scan-stats { grid-template-columns: repeat(2, 1fr); }
+  .port-grid { grid-template-columns: repeat(3, 1fr); }
+}
+</style>
+</head>
+<body>
+
+<nav class="nav">
+  <div class="nav-inner">
+    <a href="/" class="nav-brand"><span class="nav-icon">L</span><span>LANWatch</span></a>
+    <div class="nav-links">
+      <a href="/">首页</a>
+      <a href="/#features">功能</a>
+      <a href="/#deploy">部署</a>
+      <a href="/#faq">FAQ</a>
+    </div>
+    <div class="nav-right">
+      <button class="btn btn-ghost btn-sm" id="themeToggle">🌙</button>
+      <a class="btn btn-primary btn-sm" href="/download">免费下载</a>
+    </div>
+  </div>
+</nav>
+
+<section class="hero">
+  <div class="hero-eyebrow"><span>🆕 Demo 演示</span></div>
+  <h1>端口扫描<br><span class="accent">3-5 秒摸清所有服务</span></h1>
+  <p class="hero-sub">30 线程并发，扫描 43 个常见端口，自动识别 HTTP/SSH/SMB/DNS 等服务。每 5 分钟上报，不漏掉任何变化。</p>
+  <div class="hero-actions">
+    <a class="btn btn-primary" href="/download">🖥️ 免费下载 Windows 客户端</a>
+    <a class="btn btn-secondary" href="/admin">📊 打开管理后台</a>
+  </div>
+</section>
+
+<div class="demo-section">
+  <div class="demo-card">
+    <div class="demo-header">
+      <div>
+        <div class="demo-label">扫描中 · 30 线程并发</div>
+        <div class="demo-title">192.168.1.10 端口扫描</div>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center;">
+        <span class="tag tag-green">● 7 个开放端口</span>
+        <span class="tag tag-blue">TCP Connect</span>
+        <span class="tag" style="background:var(--bg-2);color:var(--muted);">2026-05-04 14:32</span>
+      </div>
+    </div>
+
+    <!-- Progress bar -->
+    <div class="scan-progress">
+      <div class="scan-progress-label">
+        <span>扫描进度</span>
+        <span>43/43 端口已完成 · 3.2 秒</span>
+      </div>
+      <div class="progress-bar">
+        <div class="progress-fill" style="width:100%;"></div>
+      </div>
+    </div>
+
+    <!-- Scan stats -->
+    <div class="scan-stats">
+      <div class="scan-stat">
+        <div class="scan-stat-num">43</div>
+        <div class="scan-stat-label">扫描端口</div>
+      </div>
+      <div class="scan-stat">
+        <div class="scan-stat-num green">7</div>
+        <div class="scan-stat-label">开放端口</div>
+      </div>
+      <div class="scan-stat">
+        <div class="scan-stat-num">3.2s</div>
+        <div class="scan-stat-label">扫描耗时</div>
+      </div>
+      <div class="scan-stat">
+        <div class="scan-stat-num">30</div>
+        <div class="scan-stat-label">并发线程</div>
+      </div>
+    </div>
+
+    <!-- Port grid -->
+    <div class="port-section">
+      <div class="port-section-title">端口详情</div>
+      <div class="port-grid">
+        <div class="port-chip open">
+          <div class="port-num open">21</div>
+          <div class="port-service">FTP</div>
+        </div>
+        <div class="port-chip open">
+          <div class="port-num open">22</div>
+          <div class="port-service">SSH</div>
+        </div>
+        <div class="port-chip open">
+          <div class="port-num open">53</div>
+          <div class="port-service">DNS</div>
+        </div>
+        <div class="port-chip open">
+          <div class="port-num open">80</div>
+          <div class="port-service">HTTP</div>
+        </div>
+        <div class="port-chip open">
+          <div class="port-num open">445</div>
+          <div class="port-service">SMB</div>
+        </div>
+        <div class="port-chip open">
+          <div class="port-num open">3306</div>
+          <div class="port-service">MySQL</div>
+        </div>
+        <div class="port-chip open">
+          <div class="port-num open">3389</div>
+          <div class="port-service">RDP</div>
+        </div>
+        <div class="port-chip closed">
+          <div class="port-num closed">23</div>
+          <div class="port-service">Telnet</div>
+        </div>
+        <div class="port-chip closed">
+          <div class="port-num closed">25</div>
+          <div class="port-service">SMTP</div>
+        </div>
+        <div class="port-chip closed">
+          <div class="port-num closed">110</div>
+          <div class="port-service">POP3</div>
+        </div>
+        <div class="port-chip closed">
+          <div class="port-num closed">143</div>
+          <div class="port-service">IMAP</div>
+        </div>
+        <div class="port-chip closed">
+          <div class="port-num closed">443</div>
+          <div class="port-service">HTTPS</div>
+        </div>
+        <div class="port-chip closed">
+          <div class="port-num closed">1521</div>
+          <div class="port-service">Oracle</div>
+        </div>
+        <div class="port-chip closed">
+          <div class="port-num closed">27017</div>
+          <div class="port-service">MongoDB</div>
+        </div>
+        <div class="port-chip closed">
+          <div class="port-num closed">6379</div>
+          <div class="port-service">Redis</div>
+        </div>
+        <div class="port-chip closed">
+          <div class="port-num closed">8080</div>
+          <div class="port-service">HTTP-Alt</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Service table -->
+    <div class="svc-section">
+      <div class="svc-section-title">开放服务详情</div>
+      <table class="svc-table">
+        <thead>
+          <tr>
+            <th>状态</th>
+            <th>端口</th>
+            <th>协议</th>
+            <th>服务</th>
+            <th>版本</th>
+            <th>风险</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><span class="port-open-dot yes"></span></td>
+            <td style="font-family:monospace;font-weight:700;">21</td>
+            <td>TCP</td>
+            <td><span class="svc-badge ftp">FTP</span></td>
+            <td style="font-size:12px;color:var(--muted);">vsftpd 3.0.3</td>
+            <td style="font-size:12px;color:var(--yellow);">中等（明文传输）</td>
+          </tr>
+          <tr>
+            <td><span class="port-open-dot yes"></span></td>
+            <td style="font-family:monospace;font-weight:700;">22</td>
+            <td>TCP</td>
+            <td><span class="svc-badge ssh">SSH</span></td>
+            <td style="font-size:12px;color:var(--muted);">OpenSSH 8.9</td>
+            <td style="font-size:12px;color:var(--green);">低</td>
+          </tr>
+          <tr>
+            <td><span class="port-open-dot yes"></span></td>
+            <td style="font-family:monospace;font-weight:700;">53</td>
+            <td>UDP</td>
+            <td><span class="svc-badge dns">DNS</span></td>
+            <td style="font-size:12px;color:var(--muted);">BIND 9.16</td>
+            <td style="font-size:12px;color:var(--green);">低</td>
+          </tr>
+          <tr>
+            <td><span class="port-open-dot yes"></span></td>
+            <td style="font-family:monospace;font-weight:700;">80</td>
+            <td>TCP</td>
+            <td><span class="svc-badge http">HTTP</span></td>
+            <td style="font-size:12px;color:var(--muted);">nginx 1.22</td>
+            <td style="font-size:12px;color:var(--green);">低</td>
+          </tr>
+          <tr>
+            <td><span class="port-open-dot yes"></span></td>
+            <td style="font-family:monospace;font-weight:700;">445</td>
+            <td>TCP</td>
+            <td><span class="svc-badge smb">SMB</span></td>
+            <td style="font-size:12px;color:var(--muted);">Samba 4.15</td>
+            <td style="font-size:12px;color:var(--red);">高（勒索病毒入口）</td>
+          </tr>
+          <tr>
+            <td><span class="port-open-dot yes"></span></td>
+            <td style="font-family:monospace;font-weight:700;">3306</td>
+            <td>TCP</td>
+            <td><span class="svc-badge" style="background:var(--orange-dim);color:var(--orange);">MySQL</span></td>
+            <td style="font-size:12px;color:var(--muted);">MySQL 8.0</td>
+            <td style="font-size:12px;color:var(--yellow);">中等（建议限定IP）</td>
+          </tr>
+          <tr>
+            <td><span class="port-open-dot yes"></span></td>
+            <td style="font-family:monospace;font-weight:700;">3389</td>
+            <td>TCP</td>
+            <td><span class="svc-badge rdp">RDP</span></td>
+            <td style="font-size:12px;color:var(--muted);">Windows RDP</td>
+            <td style="font-size:12px;color:var(--red);">高（远程桌面）</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="features-row">
+    <div class="feature-item">
+      <div class="feature-icon">⚡</div>
+      <div class="feature-name">30 线程并发</div>
+      <div class="feature-desc">30 线程同时扫描，43 个端口 3-5 秒完成，不拖慢网络。</div>
+    </div>
+    <div class="feature-item">
+      <div class="feature-icon">🔍</div>
+      <div class="feature-name">43 个常见端口</div>
+      <div class="feature-desc">覆盖 HTTP/HTTPS/SSH/SMB/DNS/FTP/RDP/MySQL 等常见服务。</div>
+    </div>
+    <div class="feature-item">
+      <div class="feature-icon">🏷️</div>
+      <div class="feature-name">服务识别</div>
+      <div class="feature-desc">自动识别服务类型和版本号，给出风险评估建议。</div>
+    </div>
+    <div class="feature-item">
+      <div class="feature-icon">📊</div>
+      <div class="feature-name">每 5 分钟上报</div>
+      <div class="feature-desc">每 5 分钟自动扫描并上报，发现端口变化立即告警。</div>
+    </div>
+  </div>
+</div>
+
+<div class="cta-section">
+  <h2 class="cta-title">想亲自试试？</h2>
+  <p class="cta-desc">下载 Windows 客户端，3 分钟完成部署，马上看到内网所有开放端口。</p>
+  <a class="btn btn-primary" href="/download">🖥️ 免费下载 Windows 客户端</a>
+</div>
+
+<div class="footer">
+  <a href="/">官网首页</a> · <a href="/agents">企业总览</a> · <a href="/download">下载中心</a> · <a href="/admin">管理后台</a>
+  <br><br>
+  LANWatch · © 2026
+</div>
+
+<script>
+var toggle = document.getElementById('themeToggle');
+var stored = localStorage.getItem('lw-theme') || 'light';
+function applyTheme(t) {
+  document.documentElement.setAttribute('data-theme', t);
+  toggle.textContent = t === 'dark' ? '☀️' : '🌙';
+  localStorage.setItem('lw-theme', t);
+}
+applyTheme(stored);
+toggle.addEventListener('click', function() {
+  applyTheme(document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark');
+});
+</script>
+</body>
+</html>

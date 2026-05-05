@@ -1,0 +1,480 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>断点诊断 - LANWatch</title>
+<meta name="description" content="离线后自动 traceroute，定位断在第几跳。节省 80% 排查时间。">
+<link rel="stylesheet" href="/static/theme.css">
+<style>
+:root {
+  --bg: #f4f6fb;
+  --surface: #ffffff;
+  --bg-2: #f0f2f8;
+  --border: rgba(0,0,0,0.08);
+  --text: #111827;
+  --muted: #6b7280;
+  --primary: #2563eb;
+  --primary-dim: rgba(37,99,235,0.08);
+  --primary-hover: #1d4ed8;
+  --green: #22c55e;
+  --green-dim: rgba(34,197,94,0.1);
+  --yellow: #f59e0b;
+  --yellow-dim: rgba(245,158,11,0.1);
+  --red: #ef4444;
+  --red-dim: rgba(239,68,68,0.1);
+  --surface-hover: rgba(0,0,0,0.04);
+  --shadow: 0 4px 24px rgba(0,0,0,0.08);
+}
+[data-theme="dark"] {
+  --bg: #0d1117;
+  --surface: #161b22;
+  --bg-2: #1c2128;
+  --border: rgba(255,255,255,0.1);
+  --text: #e6edf3;
+  --muted: #8b949e;
+  --surface-hover: rgba(255,255,255,0.06);
+  --shadow: 0 4px 24px rgba(0,0,0,0.4);
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'Manrope', -apple-system, BlinkMacSystemFont, sans-serif;
+  min-height: 100vh;
+}
+
+/* Nav */
+.nav { position: fixed; top: 0; left: 0; right: 0; z-index: 100; background: rgba(255,255,255,0.85); backdrop-filter: blur(12px); border-bottom: 1px solid var(--border); }
+.nav-inner { max-width: 1100px; margin: 0 auto; padding: 0 24px; height: 60px; display: flex; align-items: center; gap: 24px; }
+.nav-brand { display: flex; align-items: center; gap: 8px; font-weight: 800; font-size: 17px; text-decoration: none; color: var(--text); flex-shrink: 0; }
+.nav-icon { width: 30px; height: 30px; background: var(--primary); color: #fff; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 900; }
+.nav-links { display: flex; gap: 4px; margin-left: 8px; }
+.nav-links a { padding: 6px 12px; border-radius: 8px; font-size: 14px; color: var(--muted); text-decoration: none; transition: background 0.15s, color 0.15s; }
+.nav-links a:hover { background: var(--surface-hover); color: var(--text); }
+.nav-links a.active { color: var(--primary); background: var(--primary-dim); }
+.nav-right { margin-left: auto; display: flex; align-items: center; gap: 8px; }
+
+/* Buttons */
+.btn { display: inline-flex; align-items: center; gap: 6px; padding: 10px 20px; border-radius: 10px; font-size: 14px; font-weight: 600; text-decoration: none; border: none; cursor: pointer; transition: all 0.15s; }
+.btn-primary { background: var(--primary); color: #fff; }
+.btn-primary:hover { background: var(--primary-hover); transform: translateY(-1px); }
+.btn-secondary { background: var(--surface); color: var(--text); border: 1px solid var(--border); }
+.btn-secondary:hover { background: var(--surface-hover); }
+.btn-ghost { background: transparent; color: var(--text); padding: 10px 16px; }
+.btn-ghost:hover { background: var(--surface-hover); }
+
+/* Hero */
+.hero {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+  padding: 80px 24px 60px;
+}
+.hero-eyebrow {
+  display: inline-flex; align-items: center; gap: 8px;
+  background: var(--primary-dim); border: 1px solid rgba(37,99,235,0.2);
+  border-radius: 100px; padding: 6px 16px;
+  font-size: 13px; color: var(--primary); font-weight: 600;
+  margin-bottom: 28px;
+}
+.hero h1 {
+  font-size: clamp(32px, 6vw, 64px);
+  font-weight: 800;
+  letter-spacing: -0.04em;
+  line-height: 1.05;
+  margin-bottom: 20px;
+  color: var(--text);
+}
+.hero h1 .accent { color: var(--primary); }
+.hero-sub {
+  font-size: clamp(15px, 2vw, 18px);
+  color: var(--muted);
+  max-width: 540px;
+  line-height: 1.7;
+  margin-bottom: 40px;
+}
+.hero-actions { display: flex; gap: 12px; flex-wrap: wrap; justify-content: center; }
+
+/* Demo viz */
+.demo-section {
+  padding: 40px 24px 80px;
+  max-width: 1100px;
+  margin: 0 auto;
+}
+.demo-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  padding: 36px;
+  box-shadow: var(--shadow);
+}
+.demo-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 28px;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+.demo-title-group {}
+.demo-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; color: var(--primary); margin-bottom: 6px; }
+.demo-title { font-size: 22px; font-weight: 800; }
+.demo-meta { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+.tag { display: inline-flex; align-items: center; padding: 4px 10px; border-radius: 6px; font-size: 12px; font-weight: 600; }
+.tag-green { background: var(--green-dim); color: var(--green); }
+.tag-yellow { background: var(--yellow-dim); color: var(--yellow); }
+.tag-red { background: var(--red-dim); color: var(--red); }
+.tag-blue { background: var(--primary-dim); color: var(--primary); }
+
+/* Traceroute path */
+.traceroute-viz { display: flex; flex-direction: column; gap: 0; }
+.hop-row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 14px 16px;
+  border-radius: 12px;
+  transition: background 0.2s;
+  position: relative;
+}
+.hop-row:hover { background: var(--surface-hover); }
+.hop-num {
+  width: 36px; height: 36px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 13px; font-weight: 800;
+  flex-shrink: 0;
+}
+.hop-num.ok { background: var(--green-dim); color: var(--green); border: 2px solid var(--green); }
+.hop-num.slow { background: var(--yellow-dim); color: var(--yellow); border: 2px solid var(--yellow); }
+.hop-num.fail { background: var(--red-dim); color: var(--red); border: 2px solid var(--red); }
+.hop-num.last { background: var(--primary-dim); color: var(--primary); border: 2px solid var(--primary); }
+
+.hop-info { flex: 1; min-width: 0; }
+.hop-ip { font-size: 14px; font-weight: 700; font-family: 'SF Mono', 'Fira Code', monospace; }
+.hop-host { font-size: 12px; color: var(--muted); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.hop-timing { text-align: right; flex-shrink: 0; }
+.hop-ms { font-size: 16px; font-weight: 800; font-variant-numeric: tabular-nums; }
+.hop-ms.ok { color: var(--green); }
+.hop-ms.slow { color: var(--yellow); }
+.hop-ms.fail { color: var(--red); }
+.hop-ms-label { font-size: 11px; color: var(--muted); }
+
+.hop-connector {
+  width: 2px; height: 16px;
+  background: var(--border);
+  margin-left: 27px;
+}
+.hop-connector.fail { background: var(--red); opacity: 0.4; }
+
+.hop-summary {
+  margin-top: 20px;
+  padding: 16px 20px;
+  background: var(--bg-2);
+  border-radius: 12px;
+  font-size: 13px;
+  color: var(--muted);
+  line-height: 1.7;
+}
+.hop-summary strong { color: var(--text); }
+
+/* Animation */
+@keyframes traceIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.hop-row { animation: traceIn 0.4s ease-out backwards; }
+.hop-row:nth-child(1) { animation-delay: 0.1s; }
+.hop-row:nth-child(2) { animation-delay: 0.2s; }
+.hop-row:nth-child(3) { animation-delay: 0.3s; }
+.hop-row:nth-child(4) { animation-delay: 0.4s; }
+.hop-row:nth-child(5) { animation-delay: 0.5s; }
+.hop-row:nth-child(6) { animation-delay: 0.6s; }
+.hop-row:nth-child(7) { animation-delay: 0.7s; }
+.hop-row:nth-child(8) { animation-delay: 0.8s; }
+
+/* Ping bar chart */
+.ping-chart { margin-top: 32px; }
+.ping-chart-title { font-size: 13px; font-weight: 700; color: var(--muted); margin-bottom: 16px; text-transform: uppercase; letter-spacing: 0.05em; }
+.ping-bars { display: flex; align-items: flex-end; gap: 8px; height: 80px; }
+.ping-bar-group { display: flex; flex-direction: column; align-items: center; gap: 6px; flex: 1; }
+.ping-bar-wrap { height: 60px; display: flex; align-items: flex-end; }
+.ping-bar { width: 100%; max-width: 32px; border-radius: 4px 4px 0 0; transition: height 0.6s ease; }
+.ping-bar.ok { background: var(--green); }
+.ping-bar.slow { background: var(--yellow); }
+.ping-bar.fail { background: var(--red); }
+.ping-bar-label { font-size: 10px; color: var(--muted); }
+.ping-bar-val { font-size: 11px; font-weight: 700; }
+
+/* Feature list */
+.features-row { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 16px; margin-top: 40px; }
+.feature-item { background: var(--bg-2); border-radius: 12px; padding: 20px; }
+.feature-icon { font-size: 28px; margin-bottom: 10px; }
+.feature-name { font-size: 14px; font-weight: 700; margin-bottom: 6px; }
+.feature-desc { font-size: 12px; color: var(--muted); line-height: 1.6; }
+
+.divider { height: 1px; background: var(--border); margin: 0; }
+
+/* CTA */
+.cta-section {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 24px; padding: 48px 40px; text-align: center;
+  margin: 40px 24px 80px; max-width: 1100px; margin-left: auto; margin-right: auto;
+}
+.cta-title { font-size: clamp(20px, 3.5vw, 28px); font-weight: 800; margin-bottom: 12px; }
+.cta-desc { font-size: 14px; color: var(--muted); margin-bottom: 28px; }
+
+/* Footer */
+.footer { border-top: 1px solid var(--border); padding: 28px 24px; text-align: center; font-size: 13px; color: var(--muted); }
+.footer a { color: var(--muted); text-decoration: none; }
+.footer a:hover { color: var(--text); }
+
+@media (max-width: 640px) {
+  .hero { padding: 100px 20px 48px; }
+  .demo-card { padding: 20px; }
+  .nav-links { display: none; }
+  .cta-section { padding: 36px 24px; margin: 0 0 48px; }
+}
+</style>
+</head>
+<body>
+
+<!-- Nav -->
+<nav class="nav">
+  <div class="nav-inner">
+    <a href="/" class="nav-brand">
+      <span class="nav-icon">L</span>
+      <span>LANWatch</span>
+    </a>
+    <div class="nav-links">
+      <a href="/">首页</a>
+      <a href="/#features">功能</a>
+      <a href="/#deploy">部署</a>
+      <a href="/#faq">FAQ</a>
+      <a href="/#contact">联系</a>
+    </div>
+    <div class="nav-right">
+      <button class="btn btn-ghost btn-sm" id="themeToggle">🌙</button>
+      <a class="btn btn-primary btn-sm" href="/download">免费下载</a>
+    </div>
+  </div>
+</nav>
+
+<!-- Hero -->
+<section class="hero">
+  <div class="hero-eyebrow">
+    <span>🆕 Demo 演示</span>
+  </div>
+  <h1>断点诊断<br><span class="accent">精准定位断在哪一跳</span></h1>
+  <p class="hero-sub">网络断了？LANWatch 自动 traceroute，告诉你断在第几跳、哪个运营商、什么设备。节省 80% 排查时间。</p>
+  <div class="hero-actions">
+    <a class="btn btn-primary" href="/download">🖥️ 免费下载 Windows 客户端</a>
+    <a class="btn btn-secondary" href="/admin">📊 打开管理后台</a>
+  </div>
+</section>
+
+<!-- Live Demo Viz -->
+<div class="demo-section">
+  <div class="demo-card">
+    <div class="demo-header">
+      <div class="demo-title-group">
+        <div class="demo-label">实时探测</div>
+        <div class="demo-title">traceroute to baidu.com</div>
+      </div>
+      <div class="demo-meta">
+        <span class="tag tag-green">● 在线</span>
+        <span class="tag tag-blue">TCP</span>
+        <span class="tag" style="background:var(--bg-2);color:var(--muted);">2026-05-04 14:32:18</span>
+      </div>
+    </div>
+
+    <!-- Traceroute visualization -->
+    <div class="traceroute-viz">
+      <!-- Hop 1 - OK -->
+      <div class="hop-row">
+        <div class="hop-num ok">1</div>
+        <div class="hop-info">
+          <div class="hop-ip">192.168.1.1</div>
+          <div class="hop-host">网关 · 腾达 F3</div>
+        </div>
+        <div class="hop-timing">
+          <div class="hop-ms ok">1.2<span style="font-size:11px;font-weight:400;color:var(--muted)">ms</span></div>
+          <div class="hop-ms-label">延迟</div>
+        </div>
+      </div>
+      <div class="hop-connector"></div>
+
+      <!-- Hop 2 - OK -->
+      <div class="hop-row">
+        <div class="hop-num ok">2</div>
+        <div class="hop-info">
+          <div class="hop-ip">10.20.0.1</div>
+          <div class="hop-host">小区局域网交换</div>
+        </div>
+        <div class="hop-timing">
+          <div class="hop-ms ok">3.8<span style="font-size:11px;font-weight:400;color:var(--muted)">ms</span></div>
+          <div class="hop-ms-label">延迟</div>
+        </div>
+      </div>
+      <div class="hop-connector"></div>
+
+      <!-- Hop 3 - SLOW -->
+      <div class="hop-row">
+        <div class="hop-num slow">3</div>
+        <div class="hop-info">
+          <div class="hop-ip">61.50.128.1</div>
+          <div class="hop-host">联通骨干网出口</div>
+        </div>
+        <div class="hop-timing">
+          <div class="hop-ms slow">48.3<span style="font-size:11px;font-weight:400;color:var(--muted)">ms</span></div>
+          <div class="hop-ms-label">延迟 ⚠️</div>
+        </div>
+      </div>
+      <div class="hop-connector fail"></div>
+
+      <!-- Hop 4 - FAIL -->
+      <div class="hop-row">
+        <div class="hop-num fail">4</div>
+        <div class="hop-info">
+          <div class="hop-ip">* * *</div>
+          <div class="hop-host" style="color:var(--red);">请求超时 — 断在此跳</div>
+        </div>
+        <div class="hop-timing">
+          <div class="hop-ms fail">—</div>
+          <div class="hop-ms-label">无响应</div>
+        </div>
+      </div>
+      <div class="hop-connector fail"></div>
+
+      <!-- Hop 5 - FAIL -->
+      <div class="hop-row">
+        <div class="hop-num fail">5</div>
+        <div class="hop-info">
+          <div class="hop-ip">* * *</div>
+          <div class="hop-host" style="color:var(--red);">继续丢包</div>
+        </div>
+        <div class="hop-timing">
+          <div class="hop-ms fail">—</div>
+          <div class="hop-ms-label">无响应</div>
+        </div>
+      </div>
+      <div class="hop-connector"></div>
+
+      <!-- Hop 6 - target -->
+      <div class="hop-row">
+        <div class="hop-num last">6</div>
+        <div class="hop-info">
+          <div class="hop-ip">163.177.90.123</div>
+          <div class="hop-host">百度数据中心 · 深圳市</div>
+        </div>
+        <div class="hop-timing">
+          <div class="hop-ms" style="color:var(--primary)">21.6<span style="font-size:11px;font-weight:400;color:var(--muted)">ms</span></div>
+          <div class="hop-ms-label">目标</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Summary -->
+    <div class="hop-summary">
+      <strong>诊断结论：</strong>网络在 <strong style="color:var(--yellow);">第 3 跳（联通骨干网出口）</strong>出现显著延迟（48ms），第 4 跳开始丢包。
+      推测为 <strong>ISP 出口拥塞或对端路由故障</strong>，建议联系运营商确认。
+    </div>
+
+    <!-- Ping bars -->
+    <div class="ping-chart">
+      <div class="ping-chart-title">多维度延迟对比（ms）</div>
+      <div class="ping-bars">
+        <div class="ping-bar-group">
+          <div class="ping-bar-wrap"><div class="ping-bar ok" style="height:12px;"></div></div>
+          <div class="ping-bar-val" style="color:var(--green)">1ms</div>
+          <div class="ping-bar-label">网关</div>
+        </div>
+        <div class="ping-bar-group">
+          <div class="ping-bar-wrap"><div class="ping-bar ok" style="height:24px;"></div></div>
+          <div class="ping-bar-val" style="color:var(--green)">4ms</div>
+          <div class="ping-bar-label">DNS</div>
+        </div>
+        <div class="ping-bar-group">
+          <div class="ping-bar-wrap"><div class="ping-bar slow" style="height:36px;"></div></div>
+          <div class="ping-bar-val" style="color:var(--yellow)">48ms</div>
+          <div class="ping-bar-label">百度</div>
+        </div>
+        <div class="ping-bar-group">
+          <div class="ping-bar-wrap"><div class="ping-bar slow" style="height:40px;"></div></div>
+          <div class="ping-bar-val" style="color:var(--yellow)">52ms</div>
+          <div class="ping-bar-label">阿里</div>
+        </div>
+        <div class="ping-bar-group">
+          <div class="ping-bar-wrap"><div class="ping-bar ok" style="height:28px;"></div></div>
+          <div class="ping-bar-val" style="color:var(--green)">8ms</div>
+          <div class="ping-bar-label">腾讯</div>
+        </div>
+        <div class="ping-bar-group">
+          <div class="ping-bar-wrap"><div class="ping-bar ok" style="height:18px;"></div></div>
+          <div class="ping-bar-val" style="color:var(--green)">3ms</div>
+          <div class="ping-bar-label">网易</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Features -->
+  <div class="features-row">
+    <div class="feature-item">
+      <div class="feature-icon">🔍</div>
+      <div class="feature-name">自动触发</div>
+      <div class="feature-desc">检测到离线超过 3 分钟，自动启动 traceroute，无需手动操作。</div>
+    </div>
+    <div class="feature-item">
+      <div class="feature-icon">🗺️</div>
+      <div class="feature-name">IP 地理定位</div>
+      <div class="feature-desc">识别每跳 IP 归属运营商和地区，精准判断断点位置。</div>
+    </div>
+    <div class="feature-item">
+      <div class="feature-icon">📊</div>
+      <div class="feature-name">多路探测</div>
+      <div class="feature-desc">同时探测网关 + 4 路 DNS 延迟，真实反映网络质量。</div>
+    </div>
+    <div class="feature-item">
+      <div class="feature-icon">🔔</div>
+      <div class="feature-name">微信推送</div>
+      <div class="feature-desc">诊断结果即时推送，结合报警策略，防轰炸机制。</div>
+    </div>
+  </div>
+</div>
+
+<!-- CTA -->
+<div class="cta-section">
+  <h2 class="cta-title">想亲自试试？</h2>
+  <p class="cta-desc">下载 Windows 客户端，3 分钟完成部署，马上看到你的网络拓扑。</p>
+  <a class="btn btn-primary" href="/download">🖥️ 免费下载 Windows 客户端</a>
+</div>
+
+<!-- Footer -->
+<div class="footer">
+  <a href="/">官网首页</a> ·
+  <a href="/agents">企业总览</a> · <a href="/ping_overview">断点检测</a> ·
+  <a href="/download">下载中心</a> ·
+  <a href="/admin">管理后台</a>
+  <br><br>
+  LANWatch · © 2026
+</div>
+
+<script>
+var toggle = document.getElementById('themeToggle');
+var stored = localStorage.getItem('lw-theme') || 'light';
+function applyTheme(t) {
+  document.documentElement.setAttribute('data-theme', t);
+  toggle.textContent = t === 'dark' ? '☀️' : '🌙';
+  localStorage.setItem('lw-theme', t);
+}
+applyTheme(stored);
+toggle.addEventListener('click', function() {
+  applyTheme(document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark');
+});
+</script>
+</body>
+</html>

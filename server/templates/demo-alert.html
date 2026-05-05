@@ -1,0 +1,393 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>微信报警 - LANWatch</title>
+<meta name="description" content="离线超过 3 分钟自动推送 Server酱 微信通知，防轰炸机制。">
+<link rel="stylesheet" href="/static/theme.css">
+<style>
+:root {
+  --bg: #f4f6fb;
+  --surface: #ffffff;
+  --bg-2: #f0f2f8;
+  --border: rgba(0,0,0,0.08);
+  --text: #111827;
+  --muted: #6b7280;
+  --primary: #2563eb;
+  --primary-dim: rgba(37,99,235,0.08);
+  --primary-hover: #1d4ed8;
+  --green: #22c55e;
+  --green-dim: rgba(34,197,94,0.1);
+  --yellow: #f59e0b;
+  --yellow-dim: rgba(245,158,11,0.1);
+  --red: #ef4444;
+  --red-dim: rgba(239,68,68,0.1);
+  --orange: #f97316;
+  --orange-dim: rgba(249,115,22,0.1);
+  --surface-hover: rgba(0,0,0,0.04);
+  --shadow: 0 4px 24px rgba(0,0,0,0.08);
+}
+[data-theme="dark"] {
+  --bg: #0d1117;
+  --surface: #161b22;
+  --bg-2: #1c2128;
+  --border: rgba(255,255,255,0.1);
+  --text: #e6edf3;
+  --muted: #8b949e;
+  --surface-hover: rgba(255,255,255,0.06);
+  --shadow: 0 4px 24px rgba(0,0,0,0.4);
+}
+
+body { background: var(--bg); color: var(--text); font-family: 'Manrope', -apple-system, BlinkMacSystemFont, sans-serif; min-height: 100vh; }
+
+.nav { position: fixed; top: 0; left: 0; right: 0; z-index: 100; background: rgba(255,255,255,0.85); backdrop-filter: blur(12px); border-bottom: 1px solid var(--border); }
+.nav-inner { max-width: 1100px; margin: 0 auto; padding: 0 24px; height: 60px; display: flex; align-items: center; gap: 24px; }
+.nav-brand { display: flex; align-items: center; gap: 8px; font-weight: 800; font-size: 17px; text-decoration: none; color: var(--text); flex-shrink: 0; }
+.nav-icon { width: 30px; height: 30px; background: var(--primary); color: #fff; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 900; }
+.nav-links { display: flex; gap: 4px; margin-left: 8px; }
+.nav-links a { padding: 6px 12px; border-radius: 8px; font-size: 14px; color: var(--muted); text-decoration: none; transition: background 0.15s, color 0.15s; }
+.nav-links a:hover { background: var(--surface-hover); color: var(--text); }
+.nav-right { margin-left: auto; display: flex; align-items: center; gap: 8px; }
+
+.btn { display: inline-flex; align-items: center; gap: 6px; padding: 10px 20px; border-radius: 10px; font-size: 14px; font-weight: 600; text-decoration: none; border: none; cursor: pointer; transition: all 0.15s; }
+.btn-primary { background: var(--primary); color: #fff; }
+.btn-primary:hover { background: var(--primary-hover); transform: translateY(-1px); }
+.btn-secondary { background: var(--surface); color: var(--text); border: 1px solid var(--border); }
+.btn-secondary:hover { background: var(--surface-hover); }
+.btn-ghost { background: transparent; color: var(--text); padding: 10px 16px; }
+.btn-ghost:hover { background: var(--surface-hover); }
+
+.hero { min-height: 100vh; display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; padding: 80px 24px 60px; }
+.hero-eyebrow { display: inline-flex; align-items: center; gap: 8px; background: var(--primary-dim); border: 1px solid rgba(37,99,235,0.2); border-radius: 100px; padding: 6px 16px; font-size: 13px; color: var(--primary); font-weight: 600; margin-bottom: 28px; }
+.hero h1 { font-size: clamp(32px, 6vw, 64px); font-weight: 800; letter-spacing: -0.04em; line-height: 1.05; margin-bottom: 20px; color: var(--text); }
+.hero h1 .accent { color: var(--primary); }
+.hero-sub { font-size: clamp(15px, 2vw, 18px); color: var(--muted); max-width: 540px; line-height: 1.7; margin-bottom: 40px; }
+.hero-actions { display: flex; gap: 12px; flex-wrap: wrap; justify-content: center; }
+
+.demo-section { padding: 40px 24px 80px; max-width: 1100px; margin: 0 auto; }
+.demo-card { background: var(--surface); border: 1px solid var(--border); border-radius: 20px; padding: 36px; box-shadow: var(--shadow); }
+.demo-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 28px; flex-wrap: wrap; gap: 16px; }
+.demo-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; color: var(--primary); margin-bottom: 6px; }
+.demo-title { font-size: 22px; font-weight: 800; }
+.tag { display: inline-flex; align-items: center; padding: 4px 10px; border-radius: 6px; font-size: 12px; font-weight: 600; }
+.tag-green { background: var(--green-dim); color: var(--green); }
+.tag-red { background: var(--red-dim); color: var(--red); }
+.tag-yellow { background: var(--yellow-dim); color: var(--yellow); }
+.tag-blue { background: var(--primary-dim); color: var(--primary); }
+
+/* WeChat mockup */
+.wechat-panel { display: flex; gap: 24px; flex-wrap: wrap; }
+.wechat-phone { width: 280px; flex-shrink: 0; background: var(--bg-2); border-radius: 32px; border: 8px solid #1a1a1a; padding: 16px 12px; position: relative; }
+.wechat-header-bar { height: 32px; background: #1a1a1a; border-radius: 8px 8px 0 0; margin: -16px -12px 12px -12px; display: flex; align-items: center; justify-content: center; gap: 4px; }
+.wechat-notch { width: 80px; height: 16px; background: #000; border-radius: 0 0 12px 12px; }
+.wechat-msgs { display: flex; flex-direction: column; gap: 10px; min-height: 360px; }
+.msg { display: flex; flex-direction: column; gap: 4px; max-width: 220px; }
+.msg.agent { align-self: flex-end; align-items: flex-end; }
+.msg.serverchan { align-self: flex-start; align-items: flex-start; }
+.msg-bubble { padding: 10px 14px; border-radius: 12px; font-size: 13px; line-height: 1.6; }
+.msg.agent .msg-bubble { background: var(--primary); color: #fff; border-bottom-right-radius: 4px; }
+.msg.serverchan .msg-bubble { background: var(--surface); border: 1px solid var(--border); border-bottom-left-radius: 4px; }
+.msg-time { font-size: 10px; color: var(--muted); }
+.msg-date { font-size: 10px; color: var(--muted); text-align: center; margin: 4px 0; }
+
+.wechat-msg-title { font-weight: 700; margin-bottom: 4px; font-size: 14px; }
+.wechat-msg-content { font-size: 13px; line-height: 1.6; }
+.wechat-msg-tag { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 700; margin-bottom: 8px; }
+.wechat-msg-tag.red { background: var(--red-dim); color: var(--red); }
+.wechat-msg-tag.yellow { background: var(--yellow-dim); color: var(--yellow); }
+
+/* Alert feed */
+.alert-feed { flex: 1; min-width: 260px; }
+.alert-feed-title { font-size: 13px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 16px; }
+.alert-item { display: flex; gap: 12px; padding: 14px 0; border-bottom: 1px solid var(--border); }
+.alert-item:last-child { border-bottom: none; }
+.alert-icon { width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 18px; flex-shrink: 0; }
+.alert-icon.critical { background: var(--red-dim); }
+.alert-icon.warning { background: var(--yellow-dim); }
+.alert-icon.info { background: var(--primary-dim); }
+.alert-body { flex: 1; }
+.alert-name { font-size: 13px; font-weight: 700; margin-bottom: 2px; }
+.alert-desc { font-size: 12px; color: var(--muted); line-height: 1.5; }
+.alert-time { font-size: 11px; color: var(--muted); white-space: nowrap; margin-top: 4px; }
+.alert-level { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; margin-top: 6px; }
+.alert-level.critical { background: var(--red); box-shadow: 0 0 6px var(--red); }
+.alert-level.warning { background: var(--yellow); box-shadow: 0 0 6px var(--yellow); }
+.alert-level.info { background: var(--primary); }
+
+/* Policy config */
+.policy-section { margin-top: 28px; background: var(--bg-2); border-radius: 14px; padding: 20px; }
+.policy-title { font-size: 13px; font-weight: 700; margin-bottom: 14px; }
+.policy-row { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--border); }
+.policy-row:last-child { border-bottom: none; }
+.policy-key { font-size: 13px; color: var(--muted); }
+.policy-val { font-size: 13px; font-weight: 700; }
+
+.features-row { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 16px; margin-top: 40px; }
+.feature-item { background: var(--bg-2); border-radius: 12px; padding: 20px; }
+.feature-icon { font-size: 28px; margin-bottom: 10px; }
+.feature-name { font-size: 14px; font-weight: 700; margin-bottom: 6px; }
+.feature-desc { font-size: 12px; color: var(--muted); line-height: 1.6; }
+
+.divider { height: 1px; background: var(--border); margin: 0; }
+
+.cta-section { background: var(--surface); border: 1px solid var(--border); border-radius: 24px; padding: 48px 40px; text-align: center; margin: 40px 24px 80px; max-width: 1100px; margin-left: auto; margin-right: auto; }
+.cta-title { font-size: clamp(20px, 3.5vw, 28px); font-weight: 800; margin-bottom: 12px; }
+.cta-desc { font-size: 14px; color: var(--muted); margin-bottom: 28px; }
+
+.footer { border-top: 1px solid var(--border); padding: 28px 24px; text-align: center; font-size: 13px; color: var(--muted); }
+.footer a { color: var(--muted); text-decoration: none; }
+.footer a:hover { color: var(--text); }
+
+@media (max-width: 640px) {
+  .hero { padding: 100px 20px 48px; }
+  .demo-card { padding: 20px; }
+  .wechat-phone { width: 100%; }
+  .nav-links { display: none; }
+  .cta-section { padding: 36px 24px; margin: 0 0 48px; }
+}
+</style>
+</head>
+<body>
+
+<nav class="nav">
+  <div class="nav-inner">
+    <a href="/" class="nav-brand"><span class="nav-icon">L</span><span>LANWatch</span></a>
+    <div class="nav-links">
+      <a href="/">首页</a>
+      <a href="/#features">功能</a>
+      <a href="/#deploy">部署</a>
+      <a href="/#faq">FAQ</a>
+    </div>
+    <div class="nav-right">
+      <button class="btn btn-ghost btn-sm" id="themeToggle">🌙</button>
+      <a class="btn btn-primary btn-sm" href="/download">免费下载</a>
+    </div>
+  </div>
+</nav>
+
+<section class="hero">
+  <div class="hero-eyebrow"><span>🆕 Demo 演示</span></div>
+  <h1>微信报警<br><span class="accent">离线 3 分钟即知</span></h1>
+  <p class="hero-sub">Server酱 微信推送，离线超过 3 分钟自动报警。防轰炸机制：同一故障 5 分钟内不重复提醒。</p>
+  <div class="hero-actions">
+    <a class="btn btn-primary" href="/download">🖥️ 免费下载 Windows 客户端</a>
+    <a class="btn btn-secondary" href="/admin">📊 打开管理后台</a>
+  </div>
+</section>
+
+<div class="demo-section">
+  <div class="demo-card">
+    <div class="demo-header">
+      <div>
+        <div class="demo-label">报警中心 · 实时推送</div>
+        <div class="demo-title">微信报警体验</div>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center;">
+        <span class="tag tag-red">⚠️ 2 条紧急</span>
+        <span class="tag tag-yellow">⚠️ 1 条警告</span>
+      </div>
+    </div>
+
+    <div class="wechat-panel">
+      <!-- WeChat phone mockup -->
+      <div class="wechat-phone">
+        <div class="wechat-header-bar">
+          <div class="wechat-notch"></div>
+        </div>
+        <div class="wechat-msgs">
+          <div class="msg-date">今天 14:27</div>
+
+          <div class="msg serverchan">
+            <div class="msg-bubble">
+              <div class="wechat-msg-title">🚨 LANWatch 报警</div>
+              <div class="wechat-msg-tag red">紧急</div>
+              <div class="wechat-msg-content">
+                <strong>北京分公司</strong> 网络中断！<br>
+                离线时长：<strong>3 分 12 秒</strong><br>
+                最后在线：14:24<br>
+                <span style="color:var(--muted);font-size:12px;">LANWatch Agent v1.3.0</span>
+              </div>
+            </div>
+            <div class="msg-time">14:27</div>
+          </div>
+
+          <div class="msg serverchan">
+            <div class="msg-bubble">
+              <div class="wechat-msg-title">🚨 LANWatch 诊断</div>
+              <div class="wechat-msg-tag yellow">警告</div>
+              <div class="wechat-msg-content">
+                <strong>阿里 DNS 延迟异常</strong><br>
+                当前延迟：<strong>48ms</strong><br>
+                阈值：30ms<br>
+                <span style="color:var(--muted);font-size:12px;">已持续 5 分钟</span>
+              </div>
+            </div>
+            <div class="msg-time">14:22</div>
+          </div>
+
+          <div class="msg serverchan">
+            <div class="msg-bubble">
+              <div class="wechat-msg-title">✅ 恢复正常</div>
+              <div class="wechat-msg-tag" style="background:var(--green-dim);color:var(--green);">已解决</div>
+              <div class="wechat-msg-content">
+                <strong>上海办公室</strong> 网络恢复<br>
+                中断时长：4 分 38 秒<br>
+                原因：ISP 出口抖动<br>
+                <span style="color:var(--muted);font-size:12px;">14:17 → 14:22</span>
+              </div>
+            </div>
+            <div class="msg-time">14:22</div>
+          </div>
+
+          <div class="msg-date">今天 09:15</div>
+
+          <div class="msg serverchan">
+            <div class="msg-bubble">
+              <div class="wechat-msg-title">📡 LANWatch 上线</div>
+              <div class="wechat-msg-tag" style="background:var(--primary-dim);color:var(--primary);">通知</div>
+              <div class="wechat-msg-content">
+                <strong>广州分部</strong> 客户端已连接<br>
+                IP：192.168.1.100<br>
+                网络质量：正常<br>
+                <span style="color:var(--muted);font-size:12px;">首次接入监控</span>
+              </div>
+            </div>
+            <div class="msg-time">09:15</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Alert feed -->
+      <div class="alert-feed">
+        <div class="alert-feed-title">报警记录（今日）</div>
+
+        <div class="alert-item">
+          <div class="alert-icon critical">🚨</div>
+          <div class="alert-body">
+            <div class="alert-name">北京分公司网络中断</div>
+            <div class="alert-desc">离线超过 3 分钟，自动触发 traceroute。<br>诊断结论：断在第 4 跳（ISP 骨干网出口）</div>
+            <div class="alert-time">14:27 · 紧急 · 已推送微信</div>
+          </div>
+          <div class="alert-level critical"></div>
+        </div>
+
+        <div class="alert-item">
+          <div class="alert-icon warning">⚠️</div>
+          <div class="alert-body">
+            <div class="alert-name">阿里 DNS 延迟超阈值</div>
+            <div class="alert-desc">当前延迟 48ms，超过阈值 30ms，已持续 5 分钟</div>
+            <div class="alert-time">14:22 · 警告 · 已推送微信</div>
+          </div>
+          <div class="alert-level warning"></div>
+        </div>
+
+        <div class="alert-item">
+          <div class="alert-icon" style="background:var(--green-dim);">✅</div>
+          <div class="alert-body">
+            <div class="alert-name">上海办公室网络恢复</div>
+            <div class="alert-desc">中断 4 分 38 秒后恢复上线，原因：ISP 出口抖动</div>
+            <div class="alert-time">14:22 · 已解决</div>
+          </div>
+          <div class="alert-level info"></div>
+        </div>
+
+        <div class="alert-item">
+          <div class="alert-icon info">📡</div>
+          <div class="alert-body">
+            <div class="alert-name">广州分部新设备接入</div>
+            <div class="alert-desc">客户端 v1.3.0 首次连接，网络质量正常</div>
+            <div class="alert-time">09:15 · 通知</div>
+          </div>
+          <div class="alert-level info"></div>
+        </div>
+
+        <div class="alert-item">
+          <div class="alert-icon warning">🔔</div>
+          <div class="alert-body">
+            <div class="alert-name">访客手机离线</div>
+            <div class="alert-desc">192.168.1.31 离线超过 10 分钟，可能已离开公司</div>
+            <div class="alert-time">08:45 · 提示</div>
+          </div>
+          <div class="alert-level warning"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Policy config -->
+    <div class="policy-section">
+      <div class="policy-title">报警策略配置</div>
+      <div class="policy-row">
+        <div class="policy-key">离线报警触发时间</div>
+        <div class="policy-val" style="color:var(--red);">3 分钟</div>
+      </div>
+      <div class="policy-row">
+        <div class="policy-key">同故障重复提醒间隔</div>
+        <div class="policy-val">5 分钟（防轰炸）</div>
+      </div>
+      <div class="policy-row">
+        <div class="policy-key">DNS 延迟告警阈值</div>
+        <div class="policy-val">30 ms</div>
+      </div>
+      <div class="policy-row">
+        <div class="policy-key">报警渠道</div>
+        <div class="policy-val">Server酱 微信推送</div>
+      </div>
+      <div class="policy-row">
+        <div class="policy-key">恢复通知</div>
+        <div class="policy-val">是（网络恢复后推送）</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="features-row">
+    <div class="feature-item">
+      <div class="feature-icon">⚡</div>
+      <div class="feature-name">3 分钟触发</div>
+      <div class="feature-desc">离线超过 3 分钟自动推送微信报警，无需人工盯着屏幕。</div>
+    </div>
+    <div class="feature-item">
+      <div class="feature-icon">🔇</div>
+      <div class="feature-name">防轰炸机制</div>
+      <div class="feature-desc">同一故障 5 分钟内不重复提醒，避免微信被刷屏。</div>
+    </div>
+    <div class="feature-item">
+      <div class="feature-icon">🔄</div>
+      <div class="feature-name">恢复通知</div>
+      <div class="feature-desc">网络恢复后自动推送"恢复正常"通知，清晰知道故障时长。</div>
+    </div>
+    <div class="feature-item">
+      <div class="feature-icon">📋</div>
+      <div class="feature-name">报警历史</div>
+      <div class="feature-desc">管理后台记录所有报警历史，方便复盘和统计分析。</div>
+    </div>
+  </div>
+</div>
+
+<div class="cta-section">
+  <h2 class="cta-title">想亲自试试？</h2>
+  <p class="cta-desc">下载 Windows 客户端，配置 Server酱 Key，3 分钟收到第一条报警。</p>
+  <a class="btn btn-primary" href="/download">🖥️ 免费下载 Windows 客户端</a>
+</div>
+
+<div class="footer">
+  <a href="/">官网首页</a> · <a href="/agents">企业总览</a> · <a href="/download">下载中心</a> · <a href="/admin">管理后台</a>
+  <br><br>
+  LANWatch · © 2026
+</div>
+
+<script>
+var toggle = document.getElementById('themeToggle');
+var stored = localStorage.getItem('lw-theme') || 'light';
+function applyTheme(t) {
+  document.documentElement.setAttribute('data-theme', t);
+  toggle.textContent = t === 'dark' ? '☀️' : '🌙';
+  localStorage.setItem('lw-theme', t);
+}
+applyTheme(stored);
+toggle.addEventListener('click', function() {
+  applyTheme(document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark');
+});
+</script>
+</body>
+</html>
