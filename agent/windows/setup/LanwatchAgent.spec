@@ -5,20 +5,20 @@ PyInstaller 打包配置 v1.3.0 — 单文件 exe，GUI 托盘模式
 """
 import os
 
-WORK_DIR = os.path.dirname(os.path.abspath(SPECPATH))
-PARENT_DIR = os.path.dirname(WORK_DIR)  # windows/
+_here = os.path.dirname(os.path.abspath(__file__))   # setup/
+_src = os.path.dirname(_here)                         # windows/
 
 block_cipher = None
 
 a = Analysis(
-    [os.path.join(PARENT_DIR, "lanwatch_agent.py")],
-    pathex=[PARENT_DIR],
+    [os.path.join(_src, "lanwatch_agent.py")],
+    pathex=[_src],
     binaries=[],
     datas=[
-        (os.path.join(PARENT_DIR, "network_monitor.py"), "."),
-        (os.path.join(PARENT_DIR, "core"), "core"),
-        (os.path.join(PARENT_DIR, "probes"), "probes"),
-        (os.path.join(PARENT_DIR, "version_info.txt"), "."),
+        (os.path.join(_src, "network_monitor.py"), "."),
+        (os.path.join(_src, "core"), "core"),
+        (os.path.join(_src, "probes"), "probes"),
+        (os.path.join(_src, "version_info.txt"), "."),
     ],
     hiddenimports=[
         "pystray", "pillow", "PIL", "PIL.Image", "PIL.ImageDraw",
@@ -57,6 +57,6 @@ exe = EXE(
     codesign_identity=None,
     entitlements_file=None,
     icon=None,
-    version=os.path.join(PARENT_DIR, "version_info.txt"),
+    version=os.path.join(_src, "version_info.txt"),
     onefile=True,
 )
