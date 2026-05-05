@@ -58,4 +58,5 @@ exe = EXE(
     entitlements_file=None,
     icon=None,
     version=os.path.join(PARENT_DIR, "version_info.txt"),
+    onefile=True,
 )
