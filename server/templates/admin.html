@@ -2,8 +2,20 @@
 {% block title %}管理后台 - Lanwatch{% endblock %}
 {% block nav_items %}
 <a class="nav-item" href="/agents.html">📊 总览</a>
-<a class="nav-item active" href="/admin.html">⚙️ 管理后台</a>
-<a class="nav-item" href="/download.html">📥 下载中心</a>
+<a class="nav-item" href="/admin_users.html">👤 企业</a>
+<a class="nav-item" href="/admin_snmp.html">🔌 SNMP</a>
+<a class="nav-item" href="/admin_targets.html">🎯 目标</a>
+<a class="nav-item" href="/admin_ping.html">📡 连通</a>
+<a class="nav-item" href="/download.html">📥 下载</a>
+{% endblock %}
+
+{% block mobile_nav_items %}
+<a class="nav-item" href="/agents.html">📊 总览</a>
+<a class="nav-item" href="/admin_users.html">👤 企业</a>
+<a class="nav-item" href="/admin_snmp.html">🔌 SNMP</a>
+<a class="nav-item" href="/admin_targets.html">🎯 目标</a>
+<a class="nav-item" href="/admin_ping.html">📡 连通</a>
+<a class="nav-item" href="/download.html">📥 下载</a>
 {% endblock %}
 {% block mobile_nav_items %}
 <a class="nav-item" href="/agents.html">📊 总览</a>
