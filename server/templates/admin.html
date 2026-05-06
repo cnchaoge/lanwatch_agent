@@ -5,14 +5,14 @@
 <a class="nav-item" href="/agents.html">📊 总览</a>
 <a class="nav-item active" href="/admin.html">⚙️ 管理后台</a>
 <a class="nav-item" href="/download.html">📥 下载中心</a>
-<a class="nav-item" href="/ping_overview.html">📡 连通性监控</a>
+
 {% endblock %}
 
 {% block mobile_nav_items %}
 <a class="nav-item" href="/agents.html">📊 总览</a>
 <a class="nav-item" href="/admin.html">⚙️ 管理后台</a>
 <a class="nav-item" href="/download.html">📥 下载中心</a>
-<a class="nav-item" href="/ping_overview.html">📡 连通性监控</a>
+
 {% endblock %}
 
 {% block head_extra %}
@@ -98,6 +98,31 @@
 .btn-xs { padding: 4px 8px; font-size: 11px; }
 
 .empty { text-align: center; padding: 48px; color: var(--muted); font-size: 14px; }
+
+/* 连通性监控面板 */
+.stats-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-bottom: 0; }
+.stat-card { background: var(--bg-tertiary); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px 16px; text-align: center; }
+.stat-num { font-size: 24px; font-weight: 800; margin-bottom: 2px; }
+.stat-num.green { color: var(--accent-green); }
+.stat-num.red { color: var(--accent-red); }
+.stat-num.orange { color: var(--accent-yellow); }
+.stat-label { font-size: 11px; color: var(--muted); }
+.monitor-list { display: flex; flex-direction: column; gap: 8px; padding: 12px 20px; }
+.monitor-row { background: var(--bg-tertiary); border: 1px solid var(--border); border-radius: var(--radius); padding: 11px 14px; display: flex; align-items: center; gap: 12px; cursor: pointer; transition: background 0.15s; }
+.monitor-row:hover { background: var(--surface-hover); }
+.monitor-status { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
+.s-online { background: var(--accent-green); box-shadow: 0 0 5px rgba(63,185,80,0.4); }
+.s-offline { background: var(--accent-red); box-shadow: 0 0 5px rgba(248,81,73,0.4); }
+.s-unknown { background: var(--muted); }
+.monitor-info { flex: 1; min-width: 0; }
+.monitor-name { font-size: 13px; font-weight: 700; margin-bottom: 2px; }
+.monitor-ip { font-size: 11px; color: var(--muted); font-family: monospace; }
+.monitor-meta { font-size: 11px; color: var(--muted); margin-top: 2px; }
+.monitor-right { text-align: right; flex-shrink: 0; font-size: 11px; color: var(--muted); }
+.monitor-right .status-label { font-weight: 600; }
+.monitor-right .status-label.green { color: var(--accent-green); }
+.monitor-right .status-label.red { color: var(--accent-red); }
+
 </style>
 {% endblock %}
 
@@ -143,6 +168,17 @@
 
     <div class="panel" style="margin-top:18px;">
       <div class="panel-head">
+        📡 连通性监控
+        <span class="sub" id="ping-count"></span>
+      </div>
+      <div id="ping-stats" class="stats-grid" style="padding:12px 20px;display:none"></div>
+      <div id="ping-list" class="monitor-list" style="display:none"></div>
+      <div id="ping-empty" style="text-align:center;padding:32px;color:var(--muted);font-size:13px;display:none">暂无监控节点</div>
+      <div id="ping-loading" style="text-align:center;padding:32px;color:var(--muted);font-size:13px;">加载中...</div>
+    </div>
+
+    <div class="panel" style="margin-top:18px;">
+      <div class="panel-head">
         🎯 监控目标
         <span class="sub" id="target-count"></span>
         <button class="btn btn-sm" style="margin-left:8px;background:var(--accent-green);color:#fff;" onclick="showAddTarget()">+ 添加目标</button>
@@ -155,7 +191,6 @@
     <a href="/" style="color:var(--text-muted)">官网首页</a> ·
     <a href="/download.html" style="color:var(--text-muted)">下载中心</a> ·
     <a href="/admin.html" style="color:var(--text-muted)">管理后台</a> ·
-    <a href="/ping_overview.html" style="color:var(--text-muted)">连通性监控</a>
   </div>
 </div>
 
@@ -382,6 +417,7 @@ function showAdminPage() {
   document.getElementById('admin-page').style.display = 'block';
   document.getElementById('login-error').style.display = 'none';
   loadData();
+  loadPingOverview();
   _startActivityWatch();
 }
 
@@ -914,5 +950,68 @@ document.querySelectorAll('.modal-overlay').forEach(function(el) {
     if (e.target === el) el.style.display = 'none';
   });
 });
+
+/* 连通性监控 */
+function fmtPingTime(ts) {
+  if (!ts || ts === 0) return '从未';
+  var diff = Math.floor((Date.now() / 1000 - ts));
+  if (diff < 60) return diff + '秒前';
+  if (diff < 3600) return Math.floor(diff / 60) + '分钟前';
+  if (diff < 86400) return Math.floor(diff / 3600) + '小时前';
+  return new Date(ts * 1000).toLocaleDateString('zh-CN');
+}
+
+function loadPingOverview() {
+  document.getElementById('ping-loading').style.display = 'block';
+  fetch(SERVER + '/api/admin/ping')
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      document.getElementById('ping-loading').style.display = 'none';
+      if (!Array.isArray(data) || data.length === 0) {
+        document.getElementById('ping-empty').style.display = 'block';
+        return;
+      }
+      var online = 0, offline = 0;
+      data.forEach(function(m) {
+        if (m.status === 'online') online++;
+        else offline++;
+      });
+      document.getElementById('ping-count').textContent = data.length + ' 个节点';
+      var statsHtml =
+        '<div class="stat-card"><div class="stat-num">' + data.length + '</div><div class="stat-label">监控节点</div></div>' +
+        '<div class="stat-card"><div class="stat-num green">' + online + '</div><div class="stat-label">在线</div></div>' +
+        '<div class="stat-card"><div class="stat-num red">' + offline + '</div><div class="stat-label">离线</div></div>';
+      document.getElementById('ping-stats').innerHTML = statsHtml;
+      document.getElementById('ping-stats').style.display = 'grid';
+      var html = '';
+      data.forEach(function(m) {
+        var sClass = m.status === 'online' ? 's-online' : (m.status === 'offline' ? 's-offline' : 's-unknown');
+        var sLabel = m.status === 'online' ? '在线' : (m.status === 'offline' ? '离线' : '未知');
+        var lastSeen = m.last_seen ? fmtPingTime(m.last_seen) : '未知';
+        var slCls = m.status === 'online' ? 'status-label green' : (m.status === 'offline' ? 'status-label red' : 'status-label');
+        html +=
+          '<div class="monitor-row" onclick="location.href='/ping_detail/' + m.id + ''">' +
+            '<div class="monitor-status ' + sClass + '"></div>' +
+            '<div class="monitor-info">' +
+              '<div class="monitor-name">' + (m.name || '未命名') + '</div>' +
+              '<div class="monitor-ip">' + m.ip + '</div>' +
+              '<div class="monitor-meta'>最后活跃：' + lastSeen + '</div>' +
+            '</div>' +
+            '<div class="monitor-right">' +
+              '<div class="' + slCls + '">' + sLabel + '</div>' +
+              '<div style="margin-top:3px">查看详情 →</div>' +
+            '</div>' +
+          '</div>';
+      });
+      document.getElementById('ping-list').innerHTML = html;
+      document.getElementById('ping-list').style.display = 'flex';
+    })
+    .catch(function(e) {
+      document.getElementById('ping-loading').style.display = 'none';
+      document.getElementById('ping-empty').textContent = '加载失败：' + e.message;
+      document.getElementById('ping-empty').style.display = 'block';
+    });
+}
+
 </script>
 {% endblock %}
