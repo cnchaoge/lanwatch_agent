@@ -990,7 +990,7 @@ function loadPingOverview() {
         var lastSeen = m.last_seen ? fmtPingTime(m.last_seen) : '未知';
         var slCls = m.status === 'online' ? 'status-label green' : (m.status === 'offline' ? 'status-label red' : 'status-label');
         html +=
-          `<div class="monitor-row" onclick="location.href='/ping_detail/${m.id}'">` +
+          '<div class="monitor-row" onclick="location.href=\'/ping_detail/\' + m.id">' +
             '<div class="monitor-status ' + sClass + '"></div>' +
             '<div class="monitor-info">' +
               '<div class="monitor-name">' + (m.name || '未命名') + '</div>' +
