@@ -42,10 +42,8 @@ class TargetUpdate(BaseModel):
 # ── Admin 查看指定 Agent 的目标（需 admin 密码）────────────────────
 
 @router.get("/{agent_id}/targets")
-async def get_agent_targets(agent_id: str, password: str = Query(...)):
+async def get_agent_targets(agent_id: str):
     """查看指定 Agent 的所有监控目标（管理后台用）"""
-    if password != config.ADMIN_PASSWORD:
-        raise HTTPException(status_code=401, detail="密码错误")
     with get_db() as conn:
         cursor = conn.cursor()
         cursor.execute(
@@ -114,10 +112,9 @@ async def get_targets(
 # ── CRUD（需要 admin 密码）──────────────────────────────────────────
 
 @router.post("/targets")
-async def create_target(payload: TargetCreate, password: str = Query(...)):
-    """新增监控目标（需 admin 密码）"""
-    if password != config.ADMIN_PASSWORD:
-        raise HTTPException(status_code=401, detail="密码错误")
+async def create_target(payload: TargetCreate):
+    """新增监控目标（同时写入 targets 表和 scheduler_jobs 探测任务）"""
+    from modules.scheduler import scheduler
     with get_db() as conn:
         cursor = conn.cursor()
         try:
@@ -136,6 +133,17 @@ async def create_target(payload: TargetCreate, password: str = Query(...)):
                 ),
             )
             target_id = cursor.lastrowid
+            # 同时创建 scheduler_jobs 探测任务
+            job_id = f"{payload.agent_id}:{payload.probe_type}:{payload.target}"
+            scheduler.add_job(
+                job_id=job_id,
+                agent_id=payload.agent_id,
+                probe_type=payload.probe_type,
+                target=payload.target,
+                interval_seconds=payload.interval,
+                enabled=payload.enabled,
+                name=payload.name or payload.target,
+            )
             return {"success": True, "id": target_id}
         except Exception as e:
             if "UNIQUE constraint" in str(e):
@@ -144,10 +152,8 @@ async def create_target(payload: TargetCreate, password: str = Query(...)):
 
 
 @router.get("/targets/{target_id}")
-async def get_target(target_id: int, password: str = Query(...)):
+async def get_target(target_id: int):
     """获取单个目标详情"""
-    if password != config.ADMIN_PASSWORD:
-        raise HTTPException(status_code=401, detail="密码错误")
     with get_db() as conn:
         cursor = conn.cursor()
         cursor.execute(
@@ -175,24 +181,27 @@ async def get_target(target_id: int, password: str = Query(...)):
 
 
 @router.put("/targets/{target_id}")
-async def update_target(target_id: int, payload: TargetUpdate, password: str = Query(...)):
-    """更新监控目标"""
-    if password != config.ADMIN_PASSWORD:
-        raise HTTPException(status_code=401, detail="密码错误")
+async def update_target(target_id: int, payload: TargetUpdate):
+    """更新监控目标，同时同步 scheduler_jobs"""
+    from modules.scheduler import scheduler
     with get_db() as conn:
         cursor = conn.cursor()
-        cursor.execute("SELECT id FROM targets WHERE id = ?", (target_id,))
-        if not cursor.fetchone():
+        cursor.execute("SELECT agent_id, probe_type, target FROM targets WHERE id = ?", (target_id,))
+        old = cursor.fetchone()
+        if not old:
             raise HTTPException(status_code=404, detail="目标不存在")
 
         updates = []
         values = []
+        new_agent = old["agent_id"]
+        new_probe = old["probe_type"]
+        new_target = old["target"]
         if payload.name is not None:
             updates.append("name = ?"); values.append(payload.name)
         if payload.target is not None:
-            updates.append("target = ?"); values.append(payload.target)
+            updates.append("target = ?"); values.append(new_target := payload.target)
         if payload.probe_type is not None:
-            updates.append("probe_type = ?"); values.append(payload.probe_type)
+            updates.append("probe_type = ?"); values.append(new_probe := payload.probe_type)
         if payload.port is not None:
             updates.append("port = ?"); values.append(payload.port)
         if payload.timeout is not None:
@@ -207,17 +216,35 @@ async def update_target(target_id: int, payload: TargetUpdate, password: str = Q
 
         values.append(target_id)
         cursor.execute(f"UPDATE targets SET {', '.join(updates)} WHERE id = ?", values)
+
+        # 同步更新 scheduler_jobs（用旧 job_id 删，再按新参数建）
+        old_job_id = f"{old['agent_id']}:{old['probe_type']}:{old['target']}"
+        scheduler.remove_job(old_job_id)
+        if payload.enabled is None or payload.enabled:
+            new_job_id = f"{new_agent}:{new_probe}:{new_target}"
+            scheduler.add_job(new_job_id, new_agent, new_probe, new_target,
+                             interval_seconds=payload.interval or 60,
+                             enabled=payload.enabled if payload.enabled is not None else True,
+                             name=payload.name or new_target)
+
         return {"success": True}
 
 
 @router.delete("/targets/{target_id}")
-async def delete_target(target_id: int, password: str = Query(...)):
-    """删除监控目标"""
-    if password != config.ADMIN_PASSWORD:
-        raise HTTPException(status_code=401, detail="密码错误")
+async def delete_target(target_id: int):
+    """删除监控目标，同时清理 targets 和 scheduler_jobs"""
+    from modules.scheduler import scheduler
     with get_db() as conn:
         cursor = conn.cursor()
-        cursor.execute("DELETE FROM targets WHERE id = ?", (target_id,))
-        if cursor.rowcount == 0:
+        # 先查目标信息，用于删除 scheduler_jobs
+        cursor.execute("SELECT agent_id, probe_type, target FROM targets WHERE id = ?", (target_id,))
+        row = cursor.fetchone()
+        if not row:
             raise HTTPException(status_code=404, detail="目标不存在")
+        agent_id, probe_type, target = row["agent_id"], row["probe_type"], row["target"]
+        # 删除 targets
+        cursor.execute("DELETE FROM targets WHERE id = ?", (target_id,))
+        # 删除 scheduler_jobs
+        job_id = f"{agent_id}:{probe_type}:{target}"
+        scheduler.remove_job(job_id)
         return {"success": True}
