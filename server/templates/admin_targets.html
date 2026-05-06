@@ -148,11 +148,10 @@ var SERVER = location.origin;
 
 var allTargets = [];
 var allUsers = [];
-function getAdminPassword() { return localStorage.getItem('admin_pw') || ''; }
 function loadTargets() {
   document.getElementById("target-loading").style.display = "block";
-  var pw = getAdminPassword();
-  if (!pw) { alert('请先在管理后台登录'); location.href='/admin.html'; return; }
+  var pw = "";
+  
   fetch(SERVER + '/api/admin/targets?password=' + encodeURIComponent(pw))
     .then(function(r){ return r.json(); })
     .then(function(data) {
@@ -166,7 +165,7 @@ function loadTargets() {
     });
 }
 function loadUsersForTarget() {
-  var pw = getAdminPassword();
+  var pw = "";
   fetch(SERVER + '/api/admin/users?password=' + encodeURIComponent(pw))
     .then(function(r){ return r.json(); })
     .then(function(users) { allUsers = users; });
@@ -283,7 +282,7 @@ function submitTarget() {
     interval: parseInt(document.getElementById('f-target-interval').value) || 60,
     timeout: parseInt(document.getElementById('f-target-timeout').value) || 5,
   };
-  var pw = getAdminPassword();
+  var pw = "";
   var method = id ? "PUT" : "POST";
   var url = SERVER + "/api/admin/targets" + (id ? "/" + id : "") + "?password=" + encodeURIComponent(pw);
   fetch(url, {method:method, headers:{"Content-Type":"application/json"}, body:JSON.stringify(data)})
@@ -293,7 +292,7 @@ function submitTarget() {
 }
 function deleteTarget(id) {
   if (!confirm("确定删除该监控目标吗？")) return;
-  var pw = getAdminPassword();
+  var pw = "";
   fetch(SERVER + "/api/admin/targets/" + id + "?password=" + encodeURIComponent(pw), {method:"DELETE"})
     .then(function(r){ return r.json(); })
     .then(function(d) { if (d.success !== false) loadTargets(); else alert("删除失败"); });
