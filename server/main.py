@@ -97,14 +97,6 @@ async def generic_exception_handler(request: Request, exc: Exception):
 app.include_router(alert_router, prefix="/api")     # 必须在 agents_router 之前，避免 /api/alerts 被 /{agent_id} 捕获
 app.include_router(agents_router, prefix="/api")   # 静态 /agents 必须在 /{agent_id} 之前
 app.include_router(snmp_router, prefix="/api")     # 必须在 probe_router 之前，避免 /snmp/latest 被 /{agent_id}/latest 拦截
-app.include_router(targets_router, prefix="/api")  # 必须在 probe_router 之前，避免 /api/targets 被 /{agent_id} 捕获
-
-@app.get("/api/version")
-async def api_version():
-    from version import get_version_info
-    return get_version_info()
-
-app.include_router(probe_router, prefix="/api")
 app.include_router(diag_router, prefix="/api")
 app.include_router(probes_router, prefix="/api")
 app.include_router(scheduler_router, prefix="/api")
@@ -114,6 +106,13 @@ app.include_router(diagnosis_router, prefix="/api")
 app.include_router(wizard_router, prefix="/api")
 app.include_router(propagation_router, prefix="/api")
 app.include_router(admin_router, prefix="/api")
+app.include_router(targets_router, prefix="/api")   # 必须在 admin_router 之后，避免 /api/admin/targets 被 /{agent_id}/targets 拦截
+
+
+@app.get("/api/version")
+async def api_version():
+    from version import get_version_info
+    return get_version_info()
 
 register_web(app)
 
