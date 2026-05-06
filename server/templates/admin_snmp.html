@@ -33,13 +33,26 @@
 .panel-head .sub { font-size: 12px; color: var(--text-muted); font-weight: 400; margin-left: auto; }
 .empty { text-align: center; padding: 48px; color: var(--text-muted); font-size: 14px; }
 
-.snmp-row { display: flex; align-items: center; gap: 12px; padding: 12px 20px; border-bottom: 1px solid var(--border); font-size: 13px; }
-.snmp-row:last-child { border-bottom: none; }
-.snmp-icon { font-size: 18px; flex-shrink: 0; }
-.snmp-info { flex: 1; min-width: 0; }
-.snmp-name { font-weight: 700; margin-bottom: 2px; }
-.snmp-meta { font-size: 11px; color: var(--text-muted); display: flex; gap: 10px; flex-wrap: wrap; }
-.snmp-actions { display: flex; gap: 5px; flex-shrink: 0; }
+.stats-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-bottom: 0; }
+.stat-card { background: var(--bg-tertiary); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px 16px; text-align: center; }
+.stat-num { font-size: 24px; font-weight: 800; margin-bottom: 2px; }
+.stat-num.green { color: var(--accent-green); }
+.stat-num.red { color: var(--accent-red); }
+.stat-label { font-size: 11px; color: var(--text-muted); }
+
+.monitor-list { display: flex; flex-direction: column; gap: 8px; padding: 12px 20px; }
+.monitor-row { background: var(--bg-tertiary); border: 1px solid var(--border); border-radius: var(--radius); padding: 11px 14px; cursor: pointer; transition: background 0.15s; }
+.monitor-row:hover { background: var(--surface-hover); }
+.monitor-status { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; display: inline-block; }
+.s-online { background: var(--accent-green); }
+.s-offline { background: var(--accent-red); }
+.s-unknown { background: var(--text-muted); }
+.monitor-info { flex: 1; min-width: 0; }
+.monitor-name { font-size: 13px; font-weight: 700; margin-bottom: 2px; }
+.monitor-ip { font-size: 11px; color: var(--text-muted); font-family: monospace; }
+.monitor-meta { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+.monitor-right { text-align: right; flex-shrink: 0; font-size: 11px; color: var(--text-muted); }
+
 .tag { display: inline-flex; align-items: center; padding: 2px 6px; border-radius: 4px; font-size: 11px; font-weight: 600; }
 .tag-green { background: rgba(63,185,80,0.15); color: var(--accent-green); }
 .tag-red { background: rgba(239,68,68,0.15); color: var(--accent-red); }
@@ -60,7 +73,10 @@
         SNMP 设备
         <span class="sub" id="snmp-count"></span>
       </div>
-      <div id="snmp-list"></div>
+      <div id="snmp-stats" class="stats-grid" style="padding:12px 20px;display:none"></div>
+      <div id="snmp-list" class="monitor-list" style="display:none"></div>
+      <div id="snmp-empty" style="text-align:center;padding:32px;color:var(--text-muted);font-size:13px;display:none">暂无 SNMP 设备</div>
+      <div id="snmp-loading" style="text-align:center;padding:32px;color:var(--text-muted);font-size:13px;">加载中...</div>
     </div>
 
   </div>
@@ -153,45 +169,69 @@
 <script>
 var SERVER = location.origin;
 
+var allSnmpDevices = [];
 function getAdminPassword() { return localStorage.getItem('admin_pw') || ''; }
 function loadSnmp() {
-  var pw = getAdminPassword();
-  if (!pw) { alert('请先在管理后台登录'); location.href='/admin.html'; return; }
+  document.getElementById("snmp-loading").style.display = "block";
   fetch(SERVER + '/api/admin/snmp')
     .then(function(r){ return r.json(); })
     .then(function(devs) {
+      document.getElementById("snmp-loading").style.display = "none";
       allSnmpDevices = devs;
       renderSnmp(devs);
+    })
+    .catch(function(e) {
+      document.getElementById("snmp-loading").style.display = "none";
+      document.getElementById("snmp-empty").textContent = "加载失败：" + e.message;
+      document.getElementById("snmp-empty").style.display = "block";
     });
 }
-var allSnmpDevices = [];
 function renderSnmp(devs) {
-  document.getElementById('snmp-count').textContent = devs.length + ' 台设备';
-  if (!devs.length) {
-    document.getElementById('snmp-list').innerHTML = '<div class="empty">暂无 SNMP 设备，点击右上方「+ 添加设备」</div>';
+  var total = devs.length;
+  var online = 0;
+  devs.forEach(function(d) { if (d.status === 'online') online++; });
+  document.getElementById('snmp-count').textContent = total + ' 台设备';
+  var stats = document.getElementById('snmp-stats');
+  stats.innerHTML =
+    "<div class='stat-card'><div class='stat-num'>" + total + "</div><div class='stat-label'>SNMP设备</div></div>" +
+    "<div class='stat-card'><div class='stat-num green'>" + online + "</div><div class='stat-label'>在线</div></div>" +
+    "<div class='stat-card'><div class='stat-num red'>" + (total - online) + "</div><div class='stat-label'>离线</div></div>";
+  stats.style.display = "grid";
+  if (!total) {
+    document.getElementById('snmp-list').style.display = "none";
+    document.getElementById('snmp-empty').style.display = "block";
     return;
   }
-  var html = '';
+  var list = document.getElementById('snmp-list');
+  list.innerHTML = "";
   devs.forEach(function(d) {
     var isOnline = d.status === 'online';
+    var sClass = isOnline ? 's-online' : 's-offline';
+    var sLabel = isOnline ? '在线' : '离线';
+    var slColor = isOnline ? 'var(--accent-green)' : 'var(--accent-red)';
     var icon = d.device_type === 'switch' ? '🔃' : '📶';
-    html += '<div class="snmp-row">';
-    html += '<span class="snmp-icon">' + icon + '</span>';
-    html += '<div class="snmp-info">';
-    html += '<div class="snmp-name">' + (d.device_name || d.ip) + ' <span class="tag tag-grey" style="font-size:10px">v' + (d.snmp_version || '2c') + '</span></div>';
-    html += '<div class="snmp-meta">';
-    html += '<span style="font-family:monospace">' + d.ip + '</span>';
-    html += '<span>' + (d.snmp_version === '3' ? '用户: ' + (d.snmpv3_username || '-') : '社区: ' + d.community) + '</span>';
-    html += '</div></div>';
-    html += '<span class="tag ' + (isOnline ? 'tag-green' : 'tag-red') + '">' + (isOnline ? '在线' : '离线') + '</span>';
-    html += '<span style="font-size:11px;color:var(--text-muted);min-width:65px;">轮询: ' + timeAgoLocal(d.last_poll) + '</span>';
-    html += '<div class="snmp-actions">';
-    html += '<button class="btn btn-xs btn-secondary" onclick="editSnmp(' + d.id + ')">编辑</button>';
-    html += '<button class="btn btn-xs btn-secondary" onclick="pollSnmpNow(' + d.id + ')">轮询</button>';
-    html += '<button class="btn btn-xs btn-danger" onclick="deleteSnmp(' + d.id + ')">删除</button>';
-    html += '</div></div>';
+    var ver = d.snmp_version || '2c';
+    var authInfo = ver === '3' ? '用户: ' + (d.snmpv3_username || '-') : '社区: ' + (d.community || 'public');
+    var lastPoll = timeAgoLocal(d.last_poll);
+    var row = document.createElement("div");
+    row.className = "monitor-row";
+    row.style.cssText = "display:flex;align-items:center;gap:12px;padding:11px 14px;cursor:pointer;transition:background 0.15s;";
+    row.onclick = function() { editSnmp(d.id); };
+    row.innerHTML =
+      "<div class='monitor-status " + sClass + "'></div>" +
+      "<div style='font-size:18px;flex-shrink:0'>" + icon + "</div>" +
+      "<div class='monitor-info'>" +
+        "<div class='monitor-name'>" + (d.device_name || d.ip) + " <span class='tag tag-grey' style='font-size:10px'>v" + ver + "</span></div>" +
+        "<div class='monitor-ip'>" + d.ip + " · " + authInfo + "</div>" +
+        "<div class='monitor-meta'>最后轮询：" + lastPoll + "</div>" +
+      "</div>" +
+      "<div class='monitor-right'>" +
+        "<div style='font-weight:600;color:" + slColor + "'>" + sLabel + "</div>" +
+        "<div style='margin-top:3px'>编辑</div>" +
+      "</div>";
+    list.appendChild(row);
   });
-  document.getElementById('snmp-list').innerHTML = html;
+  list.style.display = "flex";
 }
 function showAddSnmp() {
   document.getElementById('f-snmp-id').value = '';
@@ -267,9 +307,9 @@ function timeAgoLocal(ts) {
     var parts = ts.match(/(\d+)-(\d+)-(\d+) (\d+):(\d+):(\d+)/);
     if (!parts) return ts;
     var d = new Date(parseInt(parts[1]), parseInt(parts[2])-1, parseInt(parts[3]), parseInt(parts[4]), parseInt(parts[5]), parseInt(parts[6]));
-    ms = d.getTime(); localMs = d.getTime();
+    localMs = d.getTime();
   } else {
-    ms = ts * 1000; localMs = ts * 1000;
+    localMs = ts * 1000;
   }
   var diff = Date.now() - localMs;
   if (diff < 0) diff = 0;

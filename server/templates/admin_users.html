@@ -32,22 +32,34 @@
 .panel-head { padding: 14px 20px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 10px; font-size: 14px; font-weight: 700; }
 .panel-head .sub { font-size: 12px; color: var(--text-muted); font-weight: 400; margin-left: auto; }
 .empty { text-align: center; padding: 48px; color: var(--text-muted); font-size: 14px; }
-.corp-item { border-bottom: 1px solid var(--border); }
-.corp-item:last-child { border-bottom: none; }
-.corp-main { padding: 14px 20px; display: flex; align-items: center; gap: 12px; cursor: pointer; transition: background 0.15s; }
+
+.stats-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-bottom: 0; }
+.stat-card { background: var(--bg-tertiary); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px 16px; text-align: center; }
+.stat-num { font-size: 24px; font-weight: 800; margin-bottom: 2px; }
+.stat-num.green { color: var(--accent-green); }
+.stat-num.blue { color: var(--accent-blue); }
+.stat-label { font-size: 11px; color: var(--text-muted); }
+
+.monitor-list { display: flex; flex-direction: column; gap: 8px; padding: 12px 20px; }
+.corp-card { background: var(--bg-tertiary); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
+.corp-main { display: flex; align-items: center; gap: 12px; padding: 12px 14px; cursor: pointer; transition: background 0.15s; }
 .corp-main:hover { background: var(--surface-hover); }
-.corp-toggle { font-size: 12px; color: var(--text-muted); width: 18px; text-align: center; flex-shrink: 0; transition: transform 0.2s; }
+.corp-toggle { font-size: 11px; color: var(--text-muted); width: 18px; text-align: center; flex-shrink: 0; transition: transform 0.2s; }
 .corp-info { flex: 1; min-width: 0; }
-.corp-name { font-size: 15px; font-weight: 700; margin-bottom: 3px; }
-.corp-meta { display: flex; flex-wrap: wrap; gap: 8px 14px; font-size: 12px; color: var(--text-muted); }
-.agent-list { background: var(--bg-tertiary); border-top: 1px solid var(--border); padding: 10px 20px 14px 52px; display: none; }
-.agent-list.open { display: block; }
-.agent-row { display: flex; align-items: center; gap: 10px; padding: 9px 0; border-bottom: 1px solid var(--border); font-size: 13px; }
+.corp-name { font-size: 14px; font-weight: 700; margin-bottom: 2px; }
+.corp-meta { font-size: 11px; color: var(--text-muted); }
+.corp-actions { display: flex; gap: 5px; flex-shrink: 0; flex-wrap: wrap; justify-content: flex-end; }
+
+.agent-sublist { border-top: 1px solid var(--border); background: var(--bg); display: none; }
+.agent-sublist.open { display: block; }
+.agent-row { display: flex; align-items: center; gap: 10px; padding: 9px 14px 9px 44px; border-bottom: 1px solid var(--border); font-size: 12px; }
 .agent-row:last-child { border-bottom: none; }
-.agent-name { font-weight: 600; min-width: 100px; }
-.agent-ip { font-family: monospace; font-size: 11px; color: var(--text-muted); }
-.agent-time { font-size: 11px; color: var(--text-muted); min-width: 65px; text-align: right; }
-.agent-actions { display: flex; gap: 5px; flex-shrink: 0; }
+.agent-row:hover { background: var(--surface-hover); }
+.agent-name { font-weight: 600; min-width: 90px; }
+.agent-ip { font-family: monospace; font-size: 11px; color: var(--text-muted); flex: 1; }
+.agent-time { font-size: 11px; color: var(--text-muted); min-width: 60px; text-align: right; }
+.agent-actions { display: flex; gap: 4px; flex-shrink: 0; }
+
 </style>
 {% endblock %}
 {% block content %}
@@ -63,7 +75,10 @@
         企业与设备
         <span class="sub" id="total-count"></span>
       </div>
-      <div id="main-list"></div>
+      <div id="user-stats" class="stats-grid" style="padding:12px 20px;display:none"></div>
+      <div id="main-list" class="monitor-list" style="display:none"></div>
+      <div id="user-empty" style="text-align:center;padding:32px;color:var(--text-muted);font-size:13px;display:none">暂无企业</div>
+      <div id="user-loading" style="text-align:center;padding:32px;color:var(--text-muted);font-size:13px;">加载中...</div>
     </div>
 
   </div>
@@ -83,6 +98,7 @@
       <button class="modal-close" onclick="closeModal('modal-user')">×</button>
     </div>
     <div class="modal-body">
+      <input type="hidden" id="f-user-id">
       <div class="form-row">
         <label class="form-label">企业名称 *</label>
         <input class="search-input" id="f-name" placeholder="例如：盐山县亿维网络" style="width:100%">
@@ -101,10 +117,11 @@
       </div>
     </div>
   </div>
-</div><div class="modal-overlay" id="modal-agent">
+</div>
+<div class="modal-overlay" id="modal-agent">
   <div class="modal">
     <div class="modal-header">
-      <div class="modal-title" style="font-size:16px;font-weight:700">编辑设备</div>
+      <div class="modal-title" id="modal-agent-title" style="font-size:16px;font-weight:700">编辑设备</div>
       <button class="modal-close" onclick="closeModal('modal-agent')">×</button>
     </div>
     <div class="modal-body">
@@ -121,6 +138,7 @@
         <input class="search-input" id="f-agent-remark" placeholder="可选备注" style="width:100%">
       </div>
       <input type="hidden" id="f-agent-id">
+      <input type="hidden" id="f-agent-user-id">
       <div class="modal-btns">
         <button class="btn btn-sm btn-secondary" onclick="closeModal('modal-agent')">取消</button>
         <button class="btn btn-sm btn-primary" onclick="submitAgent()">保存</button>
@@ -136,16 +154,24 @@ var SERVER = location.origin;
 var allUsers = [];
 function getAdminPassword() { return localStorage.getItem('admin_pw') || ''; }
 function loadData() {
+  document.getElementById("user-loading").style.display = "block";
   var pw = getAdminPassword();
   if (!pw) { alert('请先在管理后台登录'); location.href='/admin.html'; return; }
   fetch(SERVER + '/api/admin/users?password=' + encodeURIComponent(pw))
     .then(function(r){ return r.json(); })
     .then(function(users) {
+      document.getElementById("user-loading").style.display = "none";
       allUsers = users;
       render(users);
+    })
+    .catch(function(e) {
+      document.getElementById("user-loading").style.display = "none";
+      document.getElementById("user-empty").textContent = "加载失败：" + e.message;
+      document.getElementById("user-empty").style.display = "block";
     });
 }
 function render(users) {
+  var totalCorps = users.length;
   var totalAgents = 0, totalOnline = 0;
   users.forEach(function(u) {
     var agents = u.agents || [];
@@ -154,48 +180,68 @@ function render(users) {
       if (a.last_seen && (Date.now()/1000 - a.last_seen) < 300) totalOnline++;
     });
   });
-  var txt = users.length + ' 个企业 · ' + totalAgents + ' 台设备 · ' + totalOnline + ' 在线';
-  document.getElementById('total-count').textContent = txt;
+  document.getElementById('total-count').textContent = totalCorps + ' 个企业';
+  var stats = document.getElementById('user-stats');
+  stats.innerHTML =
+    "<div class='stat-card'><div class='stat-num'>" + totalCorps + "</div><div class='stat-label'>企业</div></div>" +
+    "<div class='stat-card'><div class='stat-num blue'>" + totalAgents + "</div><div class='stat-label'>设备</div></div>" +
+    "<div class='stat-card'><div class='stat-num green'>" + totalOnline + "</div><div class='stat-label'>在线</div></div>";
+  stats.style.display = "grid";
   if (!users.length) {
-    document.getElementById('main-list').innerHTML = '<div class="empty">暂无企业，点击上方「+ 新建企业」添加</div>';
+    document.getElementById('main-list').style.display = "none";
+    document.getElementById('user-empty').style.display = "block";
     return;
   }
-  var html = '';
+  var list = document.getElementById('main-list');
+  list.innerHTML = "";
   users.forEach(function(u) {
     var agents = u.agents || [];
-    html += '<div class="corp-item" id="corp-' + u.id + '">';
-    html += '<div class="corp-main" onclick="toggleCorp(\'' + u.id + '\')">';
-    html += '<span class="corp-toggle" id="toggle-' + u.id + '">▶</span>';
-    html += '<div class="corp-info"><div class="corp-name">' + u.name + '</div>';
-    html += '<div class="corp-meta">';
-    html += '<span>' + agents.length + ' 台设备</span>';
-    html += '<span>Token: <span style="font-family:monospace;font-size:10px">' + (u.token||'').substring(0,8) + '...</span></span>';
-    html += '</div></div>';
-    html += '<div style="margin-left:auto;display:flex;gap:6px">';
-    html += '<button class="btn btn-xs btn-secondary" onclick="event.stopPropagation();editUser(\'' + u.id + '\')">编辑</button>';
-    html += '<button class="btn btn-xs btn-secondary" onclick="event.stopPropagation();resetToken(\'' + u.id + '\')">重置Token</button>';
-    html += '<button class="btn btn-xs btn-danger" onclick="event.stopPropagation();deleteUser(\'' + u.id + '\','' + u.name + '')">删除</button>';
-    html += '<button class="btn btn-xs" style="background:var(--accent-blue);color:#fff" onclick="event.stopPropagation();showAddAgent(\'' + u.id + '\')">+ 添加设备</button>';
-    html += '</div></div>';
-    html += '<div class="agent-list" id="agent-list-' + u.id + '">';
+    var onlineAgents = agents.filter(function(a){ return a.last_seen && (Date.now()/1000 - a.last_seen) < 300; }).length;
+
+    var card = document.createElement("div");
+    card.className = "corp-card";
+
+    var mainRow = document.createElement("div");
+    mainRow.className = "corp-main";
+    mainRow.onclick = function() { toggleCorp(u.id); };
+    mainRow.innerHTML =
+      "<span class='corp-toggle' id='toggle-" + u.id + "'>▶</span>" +
+      "<div class='corp-info'>" +
+        "<div class='corp-name'>" + u.name + "</div>" +
+        "<div class='corp-meta'>" + agents.length + " 台设备 · " + onlineAgents + " 在线 · Token: " + (u.token||'').substring(0,8) + "...</div>" +
+      "</div>" +
+      "<div class='corp-actions' onclick='event.stopPropagation()'>" +
+        "<button class='btn btn-xs btn-secondary' onclick='editUser(\"" + u.id + "\")'>编辑</button>" +
+        "<button class='btn btn-xs btn-secondary' onclick='resetToken(\"" + u.id + "\")'>重置Token</button>" +
+        "<button class='btn btn-xs btn-danger' onclick='deleteUser(\"" + u.id + "\",\"" + u.name.replace(/"/g,'\\"') + "\")'>删除</button>" +
+        "<button class='btn btn-xs' style='background:var(--accent-blue);color:#fff' onclick='showAddAgent(\"" + u.id + "\")'>+ 设备</button>" +
+      "</div>";
+    card.appendChild(mainRow);
+
+    var subList = document.createElement("div");
+    subList.className = "agent-sublist";
+    subList.id = "agent-list-" + u.id;
     if (!agents.length) {
-      html += '<div style="padding:10px 0;color:var(--text-muted);font-size:12px">暂无可视化代理，点击「添加设备」</div>';
+      subList.innerHTML = "<div style='padding:10px 44px;color:var(--text-muted);font-size:12px'>暂无可视化代理</div>";
     }
     agents.forEach(function(a) {
       var isOnline = a.last_seen && (Date.now()/1000 - a.last_seen) < 300;
-      html += '<div class="agent-row">';
-      html += '<div class="agent-name">' + (a.name||'未命名') + '</div>';
-      html += '<div class="agent-ip">' + (a.ip||'') + '</div>';
-      html += '<div style="flex:1"></div>';
-      html += '<div class="agent-time">' + timeAgo(a.last_seen) + '</div>';
-      html += '<div class="agent-actions">';
-      html += '<button class="btn btn-xs btn-secondary" onclick="editAgent(\'' + a.id + '\')">编辑</button>';
-      html += '<button class="btn btn-xs btn-danger" onclick="deleteAgent(\'' + a.id + '\')">删除</button>';
-      html += '</div></div>';
+      var agentRow = document.createElement("div");
+      agentRow.className = "agent-row";
+      agentRow.innerHTML =
+        "<div class='agent-name'>" + (a.name||'未命名') + "</div>" +
+        "<div class='agent-ip'>" + (a.ip||'') + "</div>" +
+        "<div class='agent-time'>" + timeAgo(a.last_seen) + "</div>" +
+        "<div class='agent-actions'>" +
+          "<button class='btn btn-xs btn-secondary' onclick='editAgent(\"" + a.id + "\")'>编辑</button>" +
+          "<button class='btn btn-xs btn-danger' onclick='deleteAgent(\"" + a.id + "\")'>删除</button>" +
+        "</div>";
+      subList.appendChild(agentRow);
     });
-    html += '</div></div>';
+    card.appendChild(subList);
+    list.appendChild(card);
   });
-  document.getElementById('main-list').innerHTML = html;
+  list.style.display = "flex";
 }
 function toggleCorp(id) {
   var el = document.getElementById('agent-list-' + id);
@@ -205,10 +251,10 @@ function toggleCorp(id) {
   else { el.classList.add('open'); tog.textContent = '▼'; }
 }
 function showAddUser() {
+  document.getElementById('f-user-id').value = '';
   document.getElementById('f-name').value = '';
   document.getElementById('f-phone').value = '';
   document.getElementById('f-ip').value = '';
-  document.getElementById('f-user-id').value = '';
   document.getElementById('modal-user-title').textContent = '新建企业';
   document.getElementById('modal-user').style.display = 'flex';
 }
@@ -258,7 +304,7 @@ function showAddAgent(userId) {
   document.getElementById('modal-agent').style.display = 'flex';
 }
 function editAgent(id) {
-  var u, a;
+  var u = null, a = null;
   for (var i = 0; i < allUsers.length; i++) {
     var ag = (allUsers[i].agents||[]).find(function(x){ return x.id === id; });
     if (ag) { u = allUsers[i]; a = ag; break; }

@@ -33,6 +33,27 @@
 .panel-head .sub { font-size: 12px; color: var(--text-muted); font-weight: 400; margin-left: auto; }
 .empty { text-align: center; padding: 48px; color: var(--text-muted); font-size: 14px; }
 
+.stats-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-bottom: 0; }
+.stat-card { background: var(--bg-tertiary); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px 16px; text-align: center; }
+.stat-num { font-size: 24px; font-weight: 800; margin-bottom: 2px; }
+.stat-num.green { color: var(--accent-green); }
+.stat-num.red { color: var(--accent-red); }
+.stat-num.blue { color: var(--accent-blue); }
+.stat-label { font-size: 11px; color: var(--text-muted); }
+
+.monitor-list { display: flex; flex-direction: column; gap: 8px; padding: 12px 20px; }
+.monitor-row { background: var(--bg-tertiary); border: 1px solid var(--border); border-radius: var(--radius); padding: 11px 14px; cursor: pointer; transition: background 0.15s; }
+.monitor-row:hover { background: var(--surface-hover); }
+.monitor-status { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; display: inline-block; }
+.s-online { background: var(--accent-green); }
+.s-offline { background: var(--accent-red); }
+.s-unknown { background: var(--text-muted); }
+.monitor-info { flex: 1; min-width: 0; }
+.monitor-name { font-size: 13px; font-weight: 700; margin-bottom: 2px; }
+.monitor-ip { font-size: 11px; color: var(--text-muted); font-family: monospace; }
+.monitor-meta { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+.monitor-right { text-align: right; flex-shrink: 0; font-size: 11px; color: var(--text-muted); }
+
 .tag { display: inline-flex; align-items: center; padding: 2px 6px; border-radius: 4px; font-size: 11px; font-weight: 600; }
 .tag-green { background: rgba(63,185,80,0.15); color: var(--accent-green); }
 .tag-grey { background: var(--bg-tertiary); color: var(--text-muted); }
@@ -52,7 +73,10 @@
         监控目标
         <span class="sub" id="target-count"></span>
       </div>
-      <div id="target-list"></div>
+      <div id="target-stats" class="stats-grid" style="padding:12px 20px;display:none"></div>
+      <div id="target-list" class="monitor-list" style="display:none"></div>
+      <div id="target-empty" style="text-align:center;padding:32px;color:var(--text-muted);font-size:13px;display:none">暂无监控目标</div>
+      <div id="target-loading" style="text-align:center;padding:32px;color:var(--text-muted);font-size:13px;">加载中...</div>
     </div>
 
   </div>
@@ -126,12 +150,19 @@ var allTargets = [];
 var allUsers = [];
 function getAdminPassword() { return localStorage.getItem('admin_pw') || ''; }
 function loadTargets() {
+  document.getElementById("target-loading").style.display = "block";
   var pw = getAdminPassword();
   if (!pw) { alert('请先在管理后台登录'); location.href='/admin.html'; return; }
   fetch(SERVER + '/api/admin/targets?password=' + encodeURIComponent(pw))
     .then(function(r){ return r.json(); })
     .then(function(data) {
+      document.getElementById("target-loading").style.display = "none";
       if (Array.isArray(data)) { allTargets = data; renderTargets(allTargets); }
+    })
+    .catch(function(e) {
+      document.getElementById("target-loading").style.display = "none";
+      document.getElementById("target-empty").textContent = "加载失败：" + e.message;
+      document.getElementById("target-empty").style.display = "block";
     });
 }
 function loadUsersForTarget() {
@@ -141,33 +172,58 @@ function loadUsersForTarget() {
     .then(function(users) { allUsers = users; });
 }
 function renderTargets(targets) {
-  document.getElementById('target-count').textContent = targets.length + ' 个目标';
-  if (!targets.length) {
-    document.getElementById('target-list').innerHTML = '<div class="empty">暂无监控目标，点击右上方「+ 添加目标」</div>';
+  var total = targets.length;
+  var online = 0, offline = 0;
+  targets.forEach(function(t) {
+    if (t.last_status === 'success' || t.last_status === 'online') online++;
+    else if (t.last_status === 'failed' || t.last_status === 'offline') offline++;
+  });
+  document.getElementById('target-count').textContent = total + ' 个目标';
+  var stats = document.getElementById('target-stats');
+  stats.innerHTML =
+    "<div class='stat-card'><div class='stat-num'>" + total + "</div><div class='stat-label'>监控目标</div></div>" +
+    "<div class='stat-card'><div class='stat-num green'>" + online + "</div><div class='stat-label'>正常</div></div>" +
+    "<div class='stat-card'><div class='stat-num red'>" + offline + "</div><div class='stat-label'>异常</div></div>";
+  stats.style.display = "grid";
+  if (!total) {
+    document.getElementById('target-list').style.display = "none";
+    document.getElementById('target-empty').style.display = "block";
     return;
   }
-  var html = "<table style='width:100%;border-collapse:collapse;font-size:13px'>";
-  html += "<tr style='background:var(--bg-tertiary);border-bottom:1px solid var(--border)'>";
-  html += "<th style='padding:10px 12px;text-align:left;font-weight:700'>名称</th>";
-  html += "<th style='padding:10px 12px;text-align:left;font-weight:700'>类型</th>";
-  html += "<th style='padding:10px 12px;text-align:left;font-weight:700'>目标</th>";
-  html += "<th style='padding:10px 12px;text-align:left;font-weight:700'>间隔</th>";
-  html += "<th style='padding:10px 12px;text-align:left;font-weight:700'>操作</th>";
-  html += "</tr>";
+  var list = document.getElementById('target-list');
+  list.innerHTML = "";
+  var probeLabels = {"ping":"ping","http":"HTTP","port":"TCP","dns":"DNS"};
   targets.forEach(function(t) {
-    var probeLabel = {"ping":"ping","http":"HTTP","port":"TCP","dns":"DNS"}[t.probe_type] || t.probe_type;
-    html += "<tr style='border-bottom:1px solid var(--border)'>";
-    html += "<td style='padding:10px 12px'>" + (t.name||'-') + "</td>";
-    html += "<td style='padding:10px 12px'><span class='tag tag-grey'>" + probeLabel + "</span></td>";
-    html += "<td style='padding:10px 12px;font-family:monospace;font-size:12px'>" + t.target + "</td>";
-    html += "<td style='padding:10px 12px;color:var(--text-muted)'>" + t.interval + "秒</td>";
-    html += "<td style='padding:10px 12px'>";
-    html += "<button class='btn btn-xs btn-secondary' onclick='editTarget(" + t.id + ")'>编辑</button> ";
-    html += "<button class='btn btn-xs btn-danger' onclick='deleteTarget(" + t.id + ")'>删除</button>";
-    html += "</td></tr>";
+    var sClass = (t.last_status === 'success' || t.last_status === 'online') ? 's-online' : (t.last_status === 'failed' || t.last_status === 'offline') ? 's-offline' : 's-unknown';
+    var sLabel = (t.last_status === 'success' || t.last_status === 'online') ? '正常' : (t.last_status === 'failed' || t.last_status === 'offline') ? '异常' : '未知';
+    var slColor = (t.last_status === 'success' || t.last_status === 'online') ? 'var(--accent-green)' : (t.last_status === 'failed' || t.last_status === 'offline') ? 'var(--accent-red)' : 'var(--text-muted)';
+    var lastCheck = t.last_check ? fmtTime(t.last_check) : '从未';
+    var row = document.createElement("div");
+    row.className = "monitor-row";
+    row.style.cssText = "display:flex;align-items:center;gap:12px;padding:11px 14px;cursor:pointer;transition:background 0.15s;";
+    row.onclick = function() { editTarget(t.id); };
+    row.innerHTML =
+      "<div class='monitor-status " + sClass + "'></div>" +
+      "<div class='monitor-info'>" +
+        "<div class='monitor-name'>" + (t.name || '未命名') + "</div>" +
+        "<div class='monitor-ip'>" + t.target + " · <span class='tag tag-grey' style='font-size:10px'>" + (probeLabels[t.probe_type] || t.probe_type) + "</span> · " + t.interval + "秒间隔</div>" +
+        "<div class='monitor-meta'>最后检查：" + lastCheck + "</div>" +
+      "</div>" +
+      "<div class='monitor-right'>" +
+        "<div style='font-weight:600;color:" + slColor + "'>" + sLabel + "</div>" +
+        "<div style='margin-top:3px'>编辑</div>" +
+      "</div>";
+    list.appendChild(row);
   });
-  html += "</table>";
-  document.getElementById('target-list').innerHTML = html;
+  list.style.display = "flex";
+}
+function fmtTime(ts) {
+  if (!ts || ts === 0) return '从未';
+  var diff = Math.floor((Date.now() / 1000 - ts));
+  if (diff < 60) return diff + '秒前';
+  if (diff < 3600) return Math.floor(diff / 60) + '分钟前';
+  if (diff < 86400) return Math.floor(diff / 3600) + '小时前';
+  return Math.floor(diff / 86400) + '天前';
 }
 function showAddTarget() {
   loadUsersForTarget();
