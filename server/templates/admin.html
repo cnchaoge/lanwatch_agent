@@ -141,18 +141,11 @@
 <!-- 管理后台 -->
 <div id="admin-page" style="display:none">
   <div class="container" style="padding-top:28px;">
-    <div class="page-header">
-      <h1>企业管理后台</h1>
-      <div class="header-right">
-        <span id="total-count" style="font-size:13px;color:var(--muted);"></span>
-        <button class="btn btn-sm btn-primary" onclick="showAddUser()">+ 新建企业</button>
-      </div>
-    </div>
-
     <div class="panel">
       <div class="panel-head">
         企业与设备
         <span class="sub" id="total-count2"></span>
+        <button class="btn btn-sm" style="margin-left:8px;background:var(--accent-green);color:#fff;" onclick="showAddUser()">+ 新建企业</button>
       </div>
       <div id="main-list"></div>
     </div>
@@ -474,11 +467,10 @@ function render(users) {
     });
   });
   var txt = users.length + ' 个企业 · ' + totalAgents + ' 台设备 · ' + totalOnline + ' 在线';
-  document.getElementById('total-count').textContent = txt;
   document.getElementById('total-count2').textContent = txt;
 
   if (!users.length) {
-    document.getElementById('main-list').innerHTML = '<div class="empty">暂无企业，点击右上角「新建企业」添加</div>';
+    document.getElementById('main-list').innerHTML = '<div class="empty">暂无企业，点击上方「+ 新建企业」按钮添加</div>';
     return;
   }
 
