@@ -827,11 +827,11 @@ function showAddTarget() {
   // 填充企业下拉框
   var sel = document.getElementById('f-target-agent');
   sel.innerHTML = '<option value="">-- 选择企业 --</option>';
+  // 每个企业只出现一次，value 为其第一个 agent 的 agent_id
   allUsers.forEach(function(u) {
-    (u.agents||[]).forEach(function(a) {
-      var label = u.name + (a.name ? ' / ' + a.name : '');
-      sel.innerHTML += '<option value="' + a.agent_id + '">' + label + '</option>';
-    });
+    var firstAgent = (u.agents && u.agents.length > 0) ? u.agents[0] : null;
+    var val = firstAgent ? firstAgent.agent_id : u.id;
+    sel.innerHTML += '<option value="' + val + '">' + u.name + '</option>';
   });
   document.getElementById('modal-target-title').textContent = '添加监控目标';
   document.getElementById('modal-target').style.display = 'flex';
@@ -851,12 +851,12 @@ function editTarget(id) {
   // 填充企业下拉框并选中
   var sel = document.getElementById('f-target-agent');
   sel.innerHTML = '<option value="">-- 选择企业 --</option>';
+  // 每个企业只出现一次
   allUsers.forEach(function(u) {
-    (u.agents||[]).forEach(function(a) {
-      var selected = a.id === t.agent_id ? ' selected' : '';
-      var label = u.name + (a.name ? ' / ' + a.name : '');
-      sel.innerHTML += '<option value="' + a.agent_id + '"' + selected + '>' + label + '</option>';
-    });
+    var firstAgent = (u.agents && u.agents.length > 0) ? u.agents[0] : null;
+    var val = firstAgent ? firstAgent.agent_id : u.id;
+    var selected = val === t.agent_id ? ' selected' : '';
+    sel.innerHTML += '<option value="' + val + '"' + selected + '>' + u.name + '</option>';
   });
   document.getElementById('modal-target-title').textContent = '编辑监控目标';
   document.getElementById('modal-target').style.display = 'flex';
