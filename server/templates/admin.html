@@ -476,19 +476,19 @@ function timeAgo(ts) {
 
 
 function timeAgoLocal(ts) {
-  if (!ts) return '-';
+  if (!ts || ts === 'null' || ts === 'undefined') return '-';
+  var ms;
   if (typeof ts === 'string' && ts.includes('-')) {
-    // 假设数据库存储的是 UTC+8 时间，转换为 Unix 时间戳后用 timeAgo
-    var parts = ts.match(/(\d+)-(\d+)-(\d+) (\d+):(\d+):(\d+)/);
-    if (parts) {
-      var d = new Date(Date.UTC(parts[1], parts[2]-1, parts[3], parts[4], parts[5], parts[6]) + 8*3600*1000);
-      ts = Math.floor(d.getTime() / 1000);
-    } else {
-      return ts;
-    }
+    // 数据库存的日期字符串视为 UTC+8，直接解析为本地时间
+    var d = new Date(ts);
+    if (isNaN(d.getTime())) return ts;
+    ms = d.getTime();
+  } else {
+    ms = ts * 1000;
   }
-  var s = Math.floor(Date.now()/1000 - ts);
-  if (isNaN(s) || s < 0) return '-';
+  var diff = Date.now() - ms;
+  if (diff < 0) diff = 0;
+  var s = Math.floor(diff / 1000);
   if (s < 60) return s + '秒前';
   if (s < 3600) return Math.floor(s/60) + '分钟前';
   if (s < 86400) return Math.floor(s/3600) + '小时前';
