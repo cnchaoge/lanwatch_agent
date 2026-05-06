@@ -1,0 +1,283 @@
+{% extends "base.html" %}
+{% block title %}SNMP设备 - Lanwatch{% endblock %}
+{% block nav_items %}
+<a class="nav-item" href="/agents.html">📊 总览</a>
+<a class="nav-item" href="/admin_users.html">👤 企业与设备</a>
+<a class="nav-item active" href="/admin_snmp.html">🔌 SNMP设备</a>
+<a class="nav-item" href="/admin_targets.html">🎯 监控目标</a>
+<a class="nav-item" href="/admin_ping.html">📡 连通性监控</a>
+<a class="nav-item" href="/download.html">📥 下载中心</a>
+{% endblock %}
+{% block mobile_nav_items %}
+<a class="nav-item" href="/agents.html">📊 总览</a>
+<a class="nav-item" href="/admin_users.html">👤 企业与设备</a>
+<a class="nav-item active" href="/admin_snmp.html">🔌 SNMP设备</a>
+<a class="nav-item" href="/admin_targets.html">🎯 监控目标</a>
+<a class="nav-item" href="/admin_ping.html">📡 连通性监控</a>
+<a class="nav-item" href="/download.html">📥 下载中心</a>
+{% endblock %}
+{% block head_extra %}
+<style>
+.admin-wrap { min-height: 80vh; display: flex; flex-direction: column; }
+.admin-content { flex: 1; padding: 24px 0; }
+.admin-footer { text-align: center; font-size: 12px; color: var(--text-muted); padding: 16px 0; margin-top: auto; }
+.admin-footer a { color: var(--text-muted); text-decoration: none; margin: 0 6px; }
+.admin-footer a:hover { color: var(--accent-blue); }
+.admin-footer span { margin: 0 6px; color: var(--text-muted); }
+.page-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; flex-wrap: wrap; gap: 12px; }
+.page-header h1 { font-size: 18px; font-weight: 800; }
+.panel { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); margin-bottom: 18px; overflow: hidden; }
+.panel-head { padding: 14px 20px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 10px; font-size: 14px; font-weight: 700; }
+.panel-head .sub { font-size: 12px; color: var(--text-muted); font-weight: 400; margin-left: auto; }
+.empty { text-align: center; padding: 48px; color: var(--text-muted); font-size: 14px; }
+
+.snmp-row { display: flex; align-items: center; gap: 12px; padding: 12px 20px; border-bottom: 1px solid var(--border); font-size: 13px; }
+.snmp-row:last-child { border-bottom: none; }
+.snmp-icon { font-size: 18px; flex-shrink: 0; }
+.snmp-info { flex: 1; min-width: 0; }
+.snmp-name { font-weight: 700; margin-bottom: 2px; }
+.snmp-meta { font-size: 11px; color: var(--text-muted); display: flex; gap: 10px; flex-wrap: wrap; }
+.snmp-actions { display: flex; gap: 5px; flex-shrink: 0; }
+.tag { display: inline-flex; align-items: center; padding: 2px 6px; border-radius: 4px; font-size: 11px; font-weight: 600; }
+.tag-green { background: rgba(63,185,80,0.15); color: var(--accent-green); }
+.tag-red { background: rgba(239,68,68,0.15); color: var(--accent-red); }
+.tag-grey { background: var(--bg-tertiary); color: var(--text-muted); }
+
+</style>
+{% endblock %}
+{% block content %}
+<div class="container admin-wrap">
+  <div class="admin-content">
+    
+    <div class="page-header">
+      <h1>🔌 SNMP 设备监控</h1>
+      <button class="btn btn-sm" style="background:var(--accent-purple);color:#fff" onclick="showAddSnmp()">+ 添加设备</button>
+    </div>
+    <div class="panel">
+      <div class="panel-head">
+        SNMP 设备
+        <span class="sub" id="snmp-count"></span>
+      </div>
+      <div id="snmp-list"></div>
+    </div>
+
+  </div>
+  <div class="admin-footer container">
+    <a href="/agents.html">总览</a>
+    <a href="/admin_users.html">企业管理</a>
+    <a href="/admin_snmp.html">SNMP设备</a>
+    <a href="/admin_targets.html">监控目标</a>
+    <a href="/admin_ping.html">连通性监控</a>
+    <a href="/download.html">下载中心</a>
+  </div>
+</div>
+<div class="modal-overlay" id="modal-snmp">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title" id="modal-snmp-title" style="font-size:16px;font-weight:700">添加 SNMP 设备</div>
+      <button class="modal-close" onclick="closeModal('modal-snmp')">×</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="f-snmp-id">
+      <div class="form-row">
+        <label class="form-label">设备名称</label>
+        <input class="search-input" id="f-snmp-name" placeholder="例如：总部路由器" style="width:100%">
+      </div>
+      <div class="form-row">
+        <label class="form-label">IP地址 *</label>
+        <input class="search-input" id="f-snmp-ip" placeholder="例如：192.168.1.1" style="width:100%">
+      </div>
+      <div class="form-row">
+        <label class="form-label">Community</label>
+        <input class="search-input" id="f-snmp-community" value="public" placeholder="通常为 public" style="width:100%">
+      </div>
+      <div class="form-row">
+        <label class="form-label">设备类型</label>
+        <select class="search-input" id="f-snmp-type" style="width:100%">
+          <option value="router">路由器</option>
+          <option value="switch">交换机</option>
+          <option value="firewall">防火墙</option>
+          <option value="gateway">网关</option>
+        </select>
+      </div>
+      <div class="form-row">
+        <label class="form-label">SNMP 版本</label>
+        <select class="search-input" id="f-snmp-version" style="width:100%" onchange="toggleSnmpVersion()">
+          <option value="2c">v2c</option>
+          <option value="3">v3</option>
+        </select>
+      </div>
+      <div id="snmp-v3-fields" style="display:none">
+        <div class="form-row">
+          <label class="form-label">v3 用户名</label>
+          <input class="search-input" id="f-snmpv3-user" placeholder="SNMP v3 用户名" style="width:100%">
+        </div>
+        <div class="form-row" style="display:flex;gap:10px">
+          <div style="flex:1">
+            <label class="form-label">认证协议</label>
+            <select class="search-input" id="f-snmpv3-auth-proto" style="width:100%">
+              <option value="MD5">MD5</option>
+              <option value="SHA">SHA</option>
+            </select>
+          </div>
+          <div style="flex:2">
+            <label class="form-label">认证密码</label>
+            <input class="search-input" type="password" id="f-snmpv3-auth-key" placeholder="认证密码" style="width:100%">
+          </div>
+        </div>
+        <div class="form-row" style="display:flex;gap:10px">
+          <div style="flex:1">
+            <label class="form-label">加密协议</label>
+            <select class="search-input" id="f-snmpv3-priv-proto" style="width:100%">
+              <option value="DES">DES</option>
+              <option value="AES">AES</option>
+            </select>
+          </div>
+          <div style="flex:2">
+            <label class="form-label">加密密码</label>
+            <input class="search-input" type="password" id="f-snmpv3-priv-key" placeholder="加密密码" style="width:100%">
+          </div>
+        </div>
+      </div>
+      <div class="modal-btns">
+        <button class="btn btn-sm btn-secondary" onclick="closeModal('modal-snmp')">取消</button>
+        <button class="btn btn-sm btn-primary" onclick="submitSnmp()">保存</button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+var SERVER = location.origin;
+
+function getAdminPassword() { return localStorage.getItem('admin_pw') || ''; }
+function loadSnmp() {
+  var pw = getAdminPassword();
+  if (!pw) { alert('请先在管理后台登录'); location.href='/admin.html'; return; }
+  fetch(SERVER + '/api/admin/snmp')
+    .then(function(r){ return r.json(); })
+    .then(function(devs) {
+      allSnmpDevices = devs;
+      renderSnmp(devs);
+    });
+}
+var allSnmpDevices = [];
+function renderSnmp(devs) {
+  document.getElementById('snmp-count').textContent = devs.length + ' 台设备';
+  if (!devs.length) {
+    document.getElementById('snmp-list').innerHTML = '<div class="empty">暂无 SNMP 设备，点击右上方「+ 添加设备」</div>';
+    return;
+  }
+  var html = '';
+  devs.forEach(function(d) {
+    var isOnline = d.status === 'online';
+    var icon = d.device_type === 'switch' ? '🔃' : '📶';
+    html += '<div class="snmp-row">';
+    html += '<span class="snmp-icon">' + icon + '</span>';
+    html += '<div class="snmp-info">';
+    html += '<div class="snmp-name">' + (d.device_name || d.ip) + ' <span class="tag tag-grey" style="font-size:10px">v' + (d.snmp_version || '2c') + '</span></div>';
+    html += '<div class="snmp-meta">';
+    html += '<span style="font-family:monospace">' + d.ip + '</span>';
+    html += '<span>' + (d.snmp_version === '3' ? '用户: ' + (d.snmpv3_username || '-') : '社区: ' + d.community) + '</span>';
+    html += '</div></div>';
+    html += '<span class="tag ' + (isOnline ? 'tag-green' : 'tag-red') + '">' + (isOnline ? '在线' : '离线') + '</span>';
+    html += '<span style="font-size:11px;color:var(--text-muted);min-width:65px;">轮询: ' + timeAgoLocal(d.last_poll) + '</span>';
+    html += '<div class="snmp-actions">';
+    html += '<button class="btn btn-xs btn-secondary" onclick="editSnmp(' + d.id + ')">编辑</button>';
+    html += '<button class="btn btn-xs btn-secondary" onclick="pollSnmpNow(' + d.id + ')">轮询</button>';
+    html += '<button class="btn btn-xs btn-danger" onclick="deleteSnmp(' + d.id + ')">删除</button>';
+    html += '</div></div>';
+  });
+  document.getElementById('snmp-list').innerHTML = html;
+}
+function showAddSnmp() {
+  document.getElementById('f-snmp-id').value = '';
+  document.getElementById('f-snmp-name').value = '';
+  document.getElementById('f-snmp-ip').value = '';
+  document.getElementById('f-snmp-community').value = 'public';
+  document.getElementById('f-snmp-type').value = 'router';
+  document.getElementById('f-snmp-version').value = '2c';
+  document.getElementById('snmp-v3-fields').style.display = 'none';
+  document.getElementById('modal-snmp-title').textContent = '添加 SNMP 设备';
+  document.getElementById('modal-snmp').style.display = 'flex';
+}
+function editSnmp(id) {
+  var d = allSnmpDevices.find(function(x){ return x.id === id; });
+  if (!d) return;
+  document.getElementById('f-snmp-id').value = id;
+  document.getElementById('f-snmp-name').value = d.device_name || '';
+  document.getElementById('f-snmp-ip').value = d.ip || '';
+  document.getElementById('f-snmp-community').value = d.community || 'public';
+  document.getElementById('f-snmp-type').value = d.device_type || 'router';
+  document.getElementById('f-snmp-version').value = d.snmp_version || '2c';
+  document.getElementById('snmp-v3-fields').style.display = d.snmp_version === '3' ? 'block' : 'none';
+  if (d.snmp_version === '3') {
+    document.getElementById('f-snmpv3-user').value = d.snmpv3_username || '';
+    document.getElementById('f-snmpv3-auth-proto').value = d.snmpv3_auth_protocol || 'MD5';
+    document.getElementById('f-snmpv3-priv-proto').value = d.snmpv3_priv_protocol || 'DES';
+  }
+  document.getElementById('modal-snmp-title').textContent = '编辑设备';
+  document.getElementById('modal-snmp').style.display = 'flex';
+}
+function submitSnmp() {
+  var id = document.getElementById('f-snmp-id').value;
+  var ver = document.getElementById('f-snmp-version').value;
+  var data = {
+    ip: document.getElementById('f-snmp-ip').value.trim(),
+    community: document.getElementById('f-snmp-community').value.trim(),
+    device_name: document.getElementById('f-snmp-name').value.trim(),
+    device_type: document.getElementById('f-snmp-type').value,
+    snmp_version: ver
+  };
+  if (ver === '3') {
+    data.snmpv3_username = document.getElementById('f-snmpv3-user').value.trim();
+    data.snmpv3_auth_protocol = document.getElementById('f-snmpv3-auth-proto').value;
+    data.snmpv3_priv_protocol = document.getElementById('f-snmpv3-priv-proto').value;
+  }
+  if (!data.ip) { alert('请填写 IP 地址'); return; }
+  var method = id ? 'PATCH' : 'POST';
+  var url = id ? SERVER + '/api/admin/snmp/' + id : SERVER + '/api/admin/snmp';
+  fetch(url, {method:method, headers:{'Content-Type':'application/json'}, body:JSON.stringify(data)})
+    .then(function(r){ return r.json(); })
+    .then(function() { closeModal('modal-snmp'); loadSnmp(); })
+    .catch(function(){ alert('保存失败，请重试'); });
+}
+function deleteSnmp(id) {
+  if (!confirm('确定删除该 SNMP 设备吗？')) return;
+  fetch(SERVER + '/api/admin/snmp/' + id, {method:'DELETE'}).then(function(r){ return r.json(); }).then(function() { loadSnmp(); });
+}
+function pollSnmpNow(id) {
+  fetch(SERVER + '/api/admin/snmp/' + id + '/poll', {method:'POST'}).then(function(r){ return r.json(); }).then(function(d) {
+    alert('轮询完成！\n状态: ' + (d.status || 'unknown'));
+    loadSnmp();
+  });
+}
+function toggleSnmpVersion() {
+  var v = document.getElementById('f-snmp-version').value;
+  document.getElementById('snmp-v3-fields').style.display = v === '3' ? 'block' : 'none';
+}
+function closeModal(id) { document.getElementById(id).style.display = 'none'; }
+function timeAgoLocal(ts) {
+  if (!ts || ts === 'null' || ts === 'undefined') return '-';
+  var ms, localMs;
+  if (typeof ts === 'string' && ts.includes('-')) {
+    var parts = ts.match(/(\d+)-(\d+)-(\d+) (\d+):(\d+):(\d+)/);
+    if (!parts) return ts;
+    var d = new Date(parseInt(parts[1]), parseInt(parts[2])-1, parseInt(parts[3]), parseInt(parts[4]), parseInt(parts[5]), parseInt(parts[6]));
+    ms = d.getTime(); localMs = d.getTime();
+  } else {
+    ms = ts * 1000; localMs = ts * 1000;
+  }
+  var diff = Date.now() - localMs;
+  if (diff < 0) diff = 0;
+  var s = Math.floor(diff / 1000);
+  if (s < 60) return s + '秒前';
+  if (s < 3600) return Math.floor(s/60) + '分钟前';
+  if (s < 86400) return Math.floor(s/3600) + '小时前';
+  return Math.floor(s/86400) + '天前';
+}
+loadSnmp();
+
+</script>
+{% endblock %}

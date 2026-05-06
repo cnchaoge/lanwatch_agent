@@ -1,0 +1,305 @@
+{% extends "base.html" %}
+{% block title %}企业管理 - Lanwatch{% endblock %}
+{% block nav_items %}
+<a class="nav-item" href="/agents.html">📊 总览</a>
+<a class="nav-item active" href="/admin_users.html">👤 企业与设备</a>
+<a class="nav-item" href="/admin_snmp.html">🔌 SNMP设备</a>
+<a class="nav-item" href="/admin_targets.html">🎯 监控目标</a>
+<a class="nav-item" href="/admin_ping.html">📡 连通性监控</a>
+<a class="nav-item" href="/download.html">📥 下载中心</a>
+{% endblock %}
+{% block mobile_nav_items %}
+<a class="nav-item" href="/agents.html">📊 总览</a>
+<a class="nav-item active" href="/admin_users.html">👤 企业与设备</a>
+<a class="nav-item" href="/admin_snmp.html">🔌 SNMP设备</a>
+<a class="nav-item" href="/admin_targets.html">🎯 监控目标</a>
+<a class="nav-item" href="/admin_ping.html">📡 连通性监控</a>
+<a class="nav-item" href="/download.html">📥 下载中心</a>
+{% endblock %}
+{% block head_extra %}
+<style>
+.admin-wrap { min-height: 80vh; display: flex; flex-direction: column; }
+.admin-content { flex: 1; padding: 24px 0; }
+.admin-footer { text-align: center; font-size: 12px; color: var(--text-muted); padding: 16px 0; margin-top: auto; }
+.admin-footer a { color: var(--text-muted); text-decoration: none; margin: 0 6px; }
+.admin-footer a:hover { color: var(--accent-blue); }
+.admin-footer span { margin: 0 6px; color: var(--text-muted); }
+.page-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; flex-wrap: wrap; gap: 12px; }
+.page-header h1 { font-size: 18px; font-weight: 800; }
+.panel { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); margin-bottom: 18px; overflow: hidden; }
+.panel-head { padding: 14px 20px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 10px; font-size: 14px; font-weight: 700; }
+.panel-head .sub { font-size: 12px; color: var(--text-muted); font-weight: 400; margin-left: auto; }
+.empty { text-align: center; padding: 48px; color: var(--text-muted); font-size: 14px; }
+.corp-item { border-bottom: 1px solid var(--border); }
+.corp-item:last-child { border-bottom: none; }
+.corp-main { padding: 14px 20px; display: flex; align-items: center; gap: 12px; cursor: pointer; transition: background 0.15s; }
+.corp-main:hover { background: var(--surface-hover); }
+.corp-toggle { font-size: 12px; color: var(--text-muted); width: 18px; text-align: center; flex-shrink: 0; transition: transform 0.2s; }
+.corp-info { flex: 1; min-width: 0; }
+.corp-name { font-size: 15px; font-weight: 700; margin-bottom: 3px; }
+.corp-meta { display: flex; flex-wrap: wrap; gap: 8px 14px; font-size: 12px; color: var(--text-muted); }
+.agent-list { background: var(--bg-tertiary); border-top: 1px solid var(--border); padding: 10px 20px 14px 52px; display: none; }
+.agent-list.open { display: block; }
+.agent-row { display: flex; align-items: center; gap: 10px; padding: 9px 0; border-bottom: 1px solid var(--border); font-size: 13px; }
+.agent-row:last-child { border-bottom: none; }
+.agent-name { font-weight: 600; min-width: 100px; }
+.agent-ip { font-family: monospace; font-size: 11px; color: var(--text-muted); }
+.agent-time { font-size: 11px; color: var(--text-muted); min-width: 65px; text-align: right; }
+.agent-actions { display: flex; gap: 5px; flex-shrink: 0; }
+</style>
+{% endblock %}
+{% block content %}
+<div class="container admin-wrap">
+  <div class="admin-content">
+    
+    <div class="page-header">
+      <h1>👤 企业与设备</h1>
+      <button class="btn btn-sm" style="background:var(--accent-green);color:#fff" onclick="showAddUser()">+ 新建企业</button>
+    </div>
+    <div class="panel">
+      <div class="panel-head">
+        企业与设备
+        <span class="sub" id="total-count"></span>
+      </div>
+      <div id="main-list"></div>
+    </div>
+
+  </div>
+  <div class="admin-footer container">
+    <a href="/agents.html">总览</a>
+    <a href="/admin_users.html">企业管理</a>
+    <a href="/admin_snmp.html">SNMP设备</a>
+    <a href="/admin_targets.html">监控目标</a>
+    <a href="/admin_ping.html">连通性监控</a>
+    <a href="/download.html">下载中心</a>
+  </div>
+</div>
+<div class="modal-overlay" id="modal-user">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title" id="modal-user-title" style="font-size:16px;font-weight:700">新建企业</div>
+      <button class="modal-close" onclick="closeModal('modal-user')">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-row">
+        <label class="form-label">企业名称 *</label>
+        <input class="search-input" id="f-name" placeholder="例如：盐山县亿维网络" style="width:100%">
+      </div>
+      <div class="form-row">
+        <label class="form-label">联系电话</label>
+        <input class="search-input" id="f-phone" placeholder="可选" style="width:100%">
+      </div>
+      <div class="form-row">
+        <label class="form-label">IP 地址（连通性监控目标）</label>
+        <input class="search-input" id="f-ip" placeholder="例如：192.168.1.1" style="width:100%">
+      </div>
+      <div class="modal-btns">
+        <button class="btn btn-sm btn-secondary" onclick="closeModal('modal-user')">取消</button>
+        <button class="btn btn-sm btn-primary" onclick="submitUser()">保存</button>
+      </div>
+    </div>
+  </div>
+</div><div class="modal-overlay" id="modal-agent">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title" style="font-size:16px;font-weight:700">编辑设备</div>
+      <button class="modal-close" onclick="closeModal('modal-agent')">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-row">
+        <label class="form-label">设备名称</label>
+        <input class="search-input" id="f-agent-name" placeholder="例如：财务室监控" style="width:100%">
+      </div>
+      <div class="form-row">
+        <label class="form-label">安装位置</label>
+        <input class="search-input" id="f-agent-location" placeholder="例如：机房" style="width:100%">
+      </div>
+      <div class="form-row">
+        <label class="form-label">备注</label>
+        <input class="search-input" id="f-agent-remark" placeholder="可选备注" style="width:100%">
+      </div>
+      <input type="hidden" id="f-agent-id">
+      <div class="modal-btns">
+        <button class="btn btn-sm btn-secondary" onclick="closeModal('modal-agent')">取消</button>
+        <button class="btn btn-sm btn-primary" onclick="submitAgent()">保存</button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+var SERVER = location.origin;
+
+var allUsers = [];
+function getAdminPassword() { return localStorage.getItem('admin_pw') || ''; }
+function loadData() {
+  var pw = getAdminPassword();
+  if (!pw) { alert('请先在管理后台登录'); location.href='/admin.html'; return; }
+  fetch(SERVER + '/api/admin/users?password=' + encodeURIComponent(pw))
+    .then(function(r){ return r.json(); })
+    .then(function(users) {
+      allUsers = users;
+      render(users);
+    });
+}
+function render(users) {
+  var totalAgents = 0, totalOnline = 0;
+  users.forEach(function(u) {
+    var agents = u.agents || [];
+    totalAgents += agents.length;
+    agents.forEach(function(a) {
+      if (a.last_seen && (Date.now()/1000 - a.last_seen) < 300) totalOnline++;
+    });
+  });
+  var txt = users.length + ' 个企业 · ' + totalAgents + ' 台设备 · ' + totalOnline + ' 在线';
+  document.getElementById('total-count').textContent = txt;
+  if (!users.length) {
+    document.getElementById('main-list').innerHTML = '<div class="empty">暂无企业，点击上方「+ 新建企业」添加</div>';
+    return;
+  }
+  var html = '';
+  users.forEach(function(u) {
+    var agents = u.agents || [];
+    html += '<div class="corp-item" id="corp-' + u.id + '">';
+    html += '<div class="corp-main" onclick="toggleCorp(\'' + u.id + '\')">';
+    html += '<span class="corp-toggle" id="toggle-' + u.id + '">▶</span>';
+    html += '<div class="corp-info"><div class="corp-name">' + u.name + '</div>';
+    html += '<div class="corp-meta">';
+    html += '<span>' + agents.length + ' 台设备</span>';
+    html += '<span>Token: <span style="font-family:monospace;font-size:10px">' + (u.token||'').substring(0,8) + '...</span></span>';
+    html += '</div></div>';
+    html += '<div style="margin-left:auto;display:flex;gap:6px">';
+    html += '<button class="btn btn-xs btn-secondary" onclick="event.stopPropagation();editUser(\'' + u.id + '\')">编辑</button>';
+    html += '<button class="btn btn-xs btn-secondary" onclick="event.stopPropagation();resetToken(\'' + u.id + '\')">重置Token</button>';
+    html += '<button class="btn btn-xs btn-danger" onclick="event.stopPropagation();deleteUser(\'' + u.id + '\','' + u.name + '')">删除</button>';
+    html += '<button class="btn btn-xs" style="background:var(--accent-blue);color:#fff" onclick="event.stopPropagation();showAddAgent(\'' + u.id + '\')">+ 添加设备</button>';
+    html += '</div></div>';
+    html += '<div class="agent-list" id="agent-list-' + u.id + '">';
+    if (!agents.length) {
+      html += '<div style="padding:10px 0;color:var(--text-muted);font-size:12px">暂无可视化代理，点击「添加设备」</div>';
+    }
+    agents.forEach(function(a) {
+      var isOnline = a.last_seen && (Date.now()/1000 - a.last_seen) < 300;
+      html += '<div class="agent-row">';
+      html += '<div class="agent-name">' + (a.name||'未命名') + '</div>';
+      html += '<div class="agent-ip">' + (a.ip||'') + '</div>';
+      html += '<div style="flex:1"></div>';
+      html += '<div class="agent-time">' + timeAgo(a.last_seen) + '</div>';
+      html += '<div class="agent-actions">';
+      html += '<button class="btn btn-xs btn-secondary" onclick="editAgent(\'' + a.id + '\')">编辑</button>';
+      html += '<button class="btn btn-xs btn-danger" onclick="deleteAgent(\'' + a.id + '\')">删除</button>';
+      html += '</div></div>';
+    });
+    html += '</div></div>';
+  });
+  document.getElementById('main-list').innerHTML = html;
+}
+function toggleCorp(id) {
+  var el = document.getElementById('agent-list-' + id);
+  var tog = document.getElementById('toggle-' + id);
+  var isOpen = el.classList.contains('open');
+  if (isOpen) { el.classList.remove('open'); tog.textContent = '▶'; }
+  else { el.classList.add('open'); tog.textContent = '▼'; }
+}
+function showAddUser() {
+  document.getElementById('f-name').value = '';
+  document.getElementById('f-phone').value = '';
+  document.getElementById('f-ip').value = '';
+  document.getElementById('f-user-id').value = '';
+  document.getElementById('modal-user-title').textContent = '新建企业';
+  document.getElementById('modal-user').style.display = 'flex';
+}
+function editUser(id) {
+  var u = allUsers.find(function(x){ return x.id === id; });
+  if (!u) return;
+  document.getElementById('f-user-id').value = id;
+  document.getElementById('f-name').value = u.name || '';
+  document.getElementById('f-phone').value = u.phone || '';
+  document.getElementById('f-ip').value = u.ip || '';
+  document.getElementById('modal-user-title').textContent = '编辑企业：' + u.name;
+  document.getElementById('modal-user').style.display = 'flex';
+}
+function submitUser() {
+  var id = document.getElementById('f-user-id').value;
+  var data = { name: document.getElementById('f-name').value.trim(), phone: document.getElementById('f-phone').value.trim(), ip: document.getElementById('f-ip').value.trim() };
+  var pw = getAdminPassword();
+  var method = id ? 'PATCH' : 'POST';
+  var url = id ? SERVER + '/api/admin/users/' + id + '?password=' + encodeURIComponent(pw) : SERVER + '/api/admin/users?password=' + encodeURIComponent(pw);
+  fetch(url, {method:method, headers:{'Content-Type':'application/json'}, body:JSON.stringify(data)})
+    .then(function(r){ return r.json(); })
+    .then(function(d) { if (d.success !== false) { closeModal('modal-user'); loadData(); } else { alert('保存失败'); } })
+    .catch(function(){ alert('保存失败'); });
+}
+function deleteUser(id, name) {
+  if (!confirm('确定删除企业「' + name + '」及其所有设备？')) return;
+  var pw = getAdminPassword();
+  fetch(SERVER + '/api/admin/users/' + id + '?password=' + encodeURIComponent(pw), {method:'DELETE'})
+    .then(function(r){ return r.json(); })
+    .then(function(){ loadData(); });
+}
+function resetToken(id) {
+  if (!confirm('确定重置该企业的Token？')) return;
+  var pw = getAdminPassword();
+  fetch(SERVER + '/api/admin/users/' + id + '/reset-token?password=' + encodeURIComponent(pw), {method:'POST'})
+    .then(function(r){ return r.json(); })
+    .then(function(d) { if (d.token) { alert('Token已重置！\n新Token：' + d.token); loadData(); } })
+    .catch(function(){ alert('重置失败'); });
+}
+function showAddAgent(userId) {
+  document.getElementById('f-agent-id').value = '';
+  document.getElementById('f-agent-user-id').value = userId;
+  document.getElementById('f-agent-name').value = '';
+  document.getElementById('f-agent-location').value = '';
+  document.getElementById('f-agent-remark').value = '';
+  document.getElementById('modal-agent-title').textContent = '添加设备';
+  document.getElementById('modal-agent').style.display = 'flex';
+}
+function editAgent(id) {
+  var u, a;
+  for (var i = 0; i < allUsers.length; i++) {
+    var ag = (allUsers[i].agents||[]).find(function(x){ return x.id === id; });
+    if (ag) { u = allUsers[i]; a = ag; break; }
+  }
+  if (!a) return;
+  document.getElementById('f-agent-id').value = id;
+  document.getElementById('f-agent-user-id').value = u.id;
+  document.getElementById('f-agent-name').value = a.name || '';
+  document.getElementById('f-agent-location').value = a.location || '';
+  document.getElementById('f-agent-remark').value = a.remark || '';
+  document.getElementById('modal-agent-title').textContent = '编辑设备：' + (a.name||'');
+  document.getElementById('modal-agent').style.display = 'flex';
+}
+function submitAgent() {
+  var id = document.getElementById('f-agent-id').value;
+  var userId = document.getElementById('f-agent-user-id').value;
+  var data = { name: document.getElementById('f-agent-name').value.trim(), location: document.getElementById('f-agent-location').value.trim(), remark: document.getElementById('f-agent-remark').value.trim() };
+  var pw = getAdminPassword();
+  var method = id ? 'PATCH' : 'POST';
+  var url = id ? SERVER + '/api/admin/agents/' + id + '?password=' + encodeURIComponent(pw) : SERVER + '/api/admin/agents?password=' + encodeURIComponent(pw) + '&user_id=' + encodeURIComponent(userId);
+  fetch(url, {method:method, headers:{'Content-Type':'application/json'}, body:JSON.stringify(data)})
+    .then(function(r){ return r.json(); })
+    .then(function(d) { if (d.success !== false) { closeModal('modal-agent'); loadData(); } else { alert('保存失败'); } })
+    .catch(function(){ alert('保存失败'); });
+}
+function deleteAgent(id) {
+  if (!confirm('确定删除该设备？')) return;
+  var pw = getAdminPassword();
+  fetch(SERVER + '/api/admin/agents/' + id + '?password=' + encodeURIComponent(pw), {method:'DELETE'})
+    .then(function(r){ return r.json(); })
+    .then(function(){ loadData(); });
+}
+function closeModal(id) { document.getElementById(id).style.display = 'none'; }
+function timeAgo(ts) {
+  if (!ts) return '-';
+  var s = Math.floor(Date.now()/1000 - ts);
+  if (isNaN(s) || s < 0) return '-';
+  if (s < 60) return s + '秒前';
+  if (s < 3600) return Math.floor(s/60) + '分钟前';
+  if (s < 86400) return Math.floor(s/3600) + '小时前';
+  return Math.floor(s/86400) + '天前';
+}
+loadData();
+
+</script>
+{% endblock %}
