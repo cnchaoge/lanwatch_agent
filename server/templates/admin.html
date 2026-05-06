@@ -477,16 +477,20 @@ function timeAgo(ts) {
 
 function timeAgoLocal(ts) {
   if (!ts || ts === 'null' || ts === 'undefined') return '-';
-  var ms;
+  var ms, localMs;
   if (typeof ts === 'string' && ts.includes('-')) {
-    // 数据库存的日期字符串视为 UTC+8，直接解析为本地时间
-    var d = new Date(ts);
-    if (isNaN(d.getTime())) return ts;
+    // 日期字符串格式：解析为本地时间的 Date 对象
+    var parts = ts.match(/(\d+)-(\d+)-(\d+) (\d+):(\d+):(\d+)/);
+    if (!parts) return ts;
+    // new Date(年, 月-1, 日, 时, 分, 秒) 按本地时区解析
+    var d = new Date(parseInt(parts[1]), parseInt(parts[2])-1, parseInt(parts[3]), parseInt(parts[4]), parseInt(parts[5]), parseInt(parts[6]));
     ms = d.getTime();
+    localMs = d.getTime();
   } else {
     ms = ts * 1000;
+    localMs = ts * 1000;
   }
-  var diff = Date.now() - ms;
+  var diff = Date.now() - localMs;
   if (diff < 0) diff = 0;
   var s = Math.floor(diff / 1000);
   if (s < 60) return s + '秒前';
