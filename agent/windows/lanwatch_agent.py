@@ -77,7 +77,7 @@ log = logging.getLogger("agent")
 # ═══════════════════════════════════════════════════════════════
 PROBE_INTERVAL = 60          # 探测周期（秒）
 TOPOLOGY_INTERVAL = 300      # 拓扑扫描周期（秒）
-UPDATE_CHECK_INTERVAL = 86400 # 自动升级检查周期（秒）
+UPDATE_CHECK_INTERVAL = 21600   # 自动升级检查周期（6小时，秒）
 UPDATE_DIR = os.path.join(os.environ.get("PROGRAMDATA", "C:\\ProgramData"), "LanwatchAgent")
 UPDATE_EXE = os.path.join(UPDATE_DIR, "update.exe")
 UPDATE_BAT = os.path.join(UPDATE_DIR, "update.bat")
