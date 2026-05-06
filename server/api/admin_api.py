@@ -29,73 +29,68 @@ async def admin_login(payload: dict):
 
 @router.get("/admin/users")
 async def admin_get_users():
-    """返回所有企业（agent），含拓扑节点作为设备列表"""
+    """返回所有企业（agent），从 scheduler_jobs 读取（与连通检测数据同源）"""
     with get_db() as conn:
         cursor = conn.cursor()
+        # 从 scheduler_jobs 获取所有 ping 任务，按 agent_id 分组
         cursor.execute(
-            "SELECT agent_id, name, token, ip, os_type, last_seen FROM agents ORDER BY created_at DESC"
+            """SELECT sj.agent_id, sj.target, sj.name, sj.enabled,
+                      pr.status as last_status, pr.rtt_ms, pr.created_at as last_check
+               FROM scheduler_jobs sj
+               LEFT JOIN (
+                   SELECT target, status, rtt_ms, created_at,
+                          ROW_NUMBER() OVER (PARTITION BY target ORDER BY created_at DESC) rn
+                   FROM probe_results WHERE probe_type='ping'
+               ) pr ON sj.target = pr.target AND pr.rn = 1
+               WHERE sj.probe_type='ping'
+               ORDER BY sj.agent_id, sj.target"""
         )
         rows = cursor.fetchall()
-        result = []
+        # 按 agent_id 分组
+        from collections import defaultdict
+        agents_map = defaultdict(lambda: {"id": "", "name": "", "token": "", "ip": "", "agents": []})
         for r in rows:
-            aid = r["agent_id"]
-            # 把拓扑节点作为该企业下的设备
-            cursor.execute(
-                "SELECT id, ip, hostname, device_type, last_seen FROM topology_nodes WHERE agent_id = ? ORDER BY last_seen DESC",
-                (aid,),
-            )
-            devices = []
-            for d in cursor.fetchall():
-                d = dict(d)
-                devices.append({
-                    "id": str(d["id"]),
-                    "agent_id": aid,
-                    "name": d.get("hostname") or d.get("ip", ""),
-                    "ip": d.get("ip", ""),
-                    "device_type": d.get("device_type", ""),
-                    "last_seen": d.get("last_seen"),
-                })
-            # 查询该企业关联的 ping 监控状态（先按 agent_id 匹配，再按 IP 匹配）
-            ping_status = None
-            cursor.execute(
-                """SELECT sj.enabled, pr.status as last_status, pr.rtt_ms as last_rtt,
-                          pr.created_at as last_check
-                   FROM scheduler_jobs sj
-                   LEFT JOIN (
-                       SELECT target, status, rtt_ms, created_at,
-                              ROW_NUMBER() OVER (PARTITION BY target ORDER BY created_at DESC) rn
-                       FROM probe_results WHERE probe_type='ping'
-                   ) pr ON sj.target = pr.target AND pr.rn = 1
-                   WHERE sj.probe_type='ping'
-                     AND (sj.agent_id=? OR (sj.agent_id='admin' AND sj.target=?))
-                   ORDER BY CASE WHEN sj.agent_id=? THEN 0 ELSE 1 END
-                   LIMIT 1""",
-                (aid, r["ip"], aid),
-            )
-            ping_row = cursor.fetchone()
-            if ping_row:
-                pr = dict(ping_row)
-                ping_status = {
-                    "enabled": bool(pr.get("enabled", 1)),
-                    "status": "online" if pr.get("last_status") == "ok" else "offline",
-                    "rtt_ms": pr.get("last_rtt"),
-                }
-                if pr.get("last_check"):
-                    try:
-                        ping_status["last_seen"] = datetime.fromisoformat(pr["last_check"] + "+00:00").timestamp()
-                    except Exception:
-                        pass
-
+            d = dict(r)
+            aid = d["agent_id"]
+            # 企业名称：取第一个任务的 name 或 target
+            if not agents_map[aid]["name"] and d.get("name"):
+                agents_map[aid]["name"] = d["name"]
+            if not agents_map[aid]["name"]:
+                agents_map[aid]["name"] = aid
+            agents_map[aid]["id"] = aid
+            # 每个 ping job 作为一个设备
+            is_online = d.get("last_status") == "ok"
+            last_seen = None
+            if d.get("last_check"):
+                try:
+                    last_seen = datetime.fromisoformat(d["last_check"] + "+00:00").timestamp()
+                except Exception:
+                    pass
+            agents_map[aid]["agents"].append({
+                "id": d["job_id"] if d.get("job_id") else d["target"],
+                "agent_id": aid,
+                "name": d.get("name") or d["target"],
+                "ip": d["target"],
+                "device_type": "ping",
+                "last_seen": last_seen,
+                "is_online": is_online,
+                "enabled": bool(d.get("enabled", 1)),
+            })
+        result = []
+        for aid, info in agents_map.items():
+            agents = info["agents"]
+            online_count = sum(1 for a in agents if a.get("is_online"))
             result.append({
                 "id": aid,
-                "name": r["name"] or "",
+                "name": info["name"],
                 "phone": "",
-                "token": r["token"],
-                "agents": devices,
-                "ip": r["ip"] or "",
-                "os_type": r["os_type"] or "",
-                "last_seen": r["last_seen"],
-                "ping": ping_status,
+                "token": "",
+                "agents": agents,
+                "ip": "",
+                "os_type": "",
+                "last_seen": None,
+                "ping": None,
+                "_online_count": online_count,
             })
         return result
 
@@ -541,9 +536,8 @@ async def admin_ping_history(job_id: str, hours: int = Query(default=24, ge=1, l
 # ── 监控目标管理（v1.3.0）──────────────────────────────────────────
 
 @router.get("/admin/targets")
-async def admin_list_targets(password: str = Query(...), agent_id: Optional[str] = None):
+async def admin_list_targets(agent_id: Optional[str] = None):
     """列出所有监控目标（含所属企业名称），可选按 agent_id 过滤"""
-    _verify_admin(password=password)
     with get_db() as conn:
         cursor = conn.cursor()
         sql = """
@@ -579,9 +573,8 @@ async def admin_list_targets(password: str = Query(...), agent_id: Optional[str]
 
 
 @router.post("/admin/targets")
-async def admin_create_target(payload: dict, password: str = Query(...)):
+async def admin_create_target(payload: dict):
     """新建监控目标"""
-    _verify_admin(password=password)
     required = ["agent_id", "target", "probe_type"]
     for f in required:
         if not payload.get(f):
@@ -611,9 +604,8 @@ async def admin_create_target(payload: dict, password: str = Query(...)):
 
 
 @router.put("/admin/targets/{target_id}")
-async def admin_update_target(target_id: int, payload: dict, password: str = Query(...)):
+async def admin_update_target(target_id: int, payload: dict):
     """更新监控目标"""
-    _verify_admin(password=password)
     with get_db() as conn:
         cursor = conn.cursor()
         cursor.execute("SELECT id FROM targets WHERE id = ?", (target_id,))
@@ -635,9 +627,8 @@ async def admin_update_target(target_id: int, payload: dict, password: str = Que
 
 
 @router.delete("/admin/targets/{target_id}")
-async def admin_delete_target(target_id: int, password: str = Query(...)):
+async def admin_delete_target(target_id: int):
     """删除监控目标"""
-    _verify_admin(password=password)
     with get_db() as conn:
         cursor = conn.cursor()
         cursor.execute("DELETE FROM targets WHERE id = ?", (target_id,))
