@@ -474,6 +474,26 @@ function timeAgo(ts) {
   }
 }
 
+
+function timeAgoLocal(ts) {
+  if (!ts) return '-';
+  if (typeof ts === 'string' && ts.includes('-')) {
+    // 假设数据库存储的是 UTC+8 时间，转换为 Unix 时间戳后用 timeAgo
+    var parts = ts.match(/(\d+)-(\d+)-(\d+) (\d+):(\d+):(\d+)/);
+    if (parts) {
+      var d = new Date(Date.UTC(parts[1], parts[2]-1, parts[3], parts[4], parts[5], parts[6]) + 8*3600*1000);
+      ts = Math.floor(d.getTime() / 1000);
+    } else {
+      return ts;
+    }
+  }
+  var s = Math.floor(Date.now()/1000 - ts);
+  if (isNaN(s) || s < 0) return '-';
+  if (s < 60) return s + '秒前';
+  if (s < 3600) return Math.floor(s/60) + '分钟前';
+  if (s < 86400) return Math.floor(s/3600) + '小时前';
+  return Math.floor(s/86400) + '天前';
+}
 function fmtDateTime(ts) {
   if (!ts) return '-';
   if (typeof ts === 'string' && ts.includes('-')) {
@@ -706,7 +726,7 @@ function renderSnmp(devs) {
     html += '<span>' + (d.snmp_version === '3' ? '用户: ' + (d.snmpv3_username || '-') : '社区: ' + d.community) + '</span>';
     html += '</div></div>';
     html += '<span class="tag ' + (isOnline ? 'tag-green' : 'tag-red') + '">' + (isOnline ? '在线' : '离线') + '</span>';
-    html += '<span style="font-size:11px;color:var(--muted);min-width:130px;">轮询: ' + fmtDateTime(d.last_poll) + '</span>';
+    html += '<span style="font-size:11px;color:var(--muted);min-width:65px;">轮询: ' + timeAgoLocal(d.last_poll) + '</span>';
     html += '<div class="snmp-actions">';
     html += '<button class="btn btn-xs btn-secondary" onclick="editSnmp(' + d.id + ')">编辑</button>';
     html += '<button class="btn btn-xs btn-secondary" onclick="pollSnmpNow(' + d.id + ')">轮询</button>';
