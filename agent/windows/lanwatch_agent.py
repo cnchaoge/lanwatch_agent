@@ -288,85 +288,243 @@ def _do_update_tray_icon(color: str):
 
 
 # ═══════════════════════════════════════════════════════════════
-# 注册向导（保留，简洁有效）
+# 注册向导 v1.3.1 — 两步引导 + 连接测试 + 友好错误提示
 # ═══════════════════════════════════════════════════════════════
 
 def _show_setup_window():
     import tkinter as tk
-    from tkinter import messagebox
+    from tkinter import messagebox, ttk
 
     root = tk.Tk()
     root.withdraw()
+
     win = tk.Toplevel()
     win.title("Lanwatch 网络监控 - 初始化设置")
-    win.geometry("420x220")
+    win.geometry("480x380")
     win.resizable(False, False)
     win.attributes("-topmost", True)
 
-    bg = "#FFFFFF"
-    accent = "#2563EB"
-    muted = "#6B7280"
-    border = "#E5E7EB"
+    bg       = "#F9FAFB"
+    card_bg  = "#FFFFFF"
+    accent   = "#2563EB"
+    green    = "#10B981"
+    red      = "#EF4444"
+    muted    = "#9CA3AF"
+    border   = "#E5E7EB"
+    dark     = "#111827"
     win.configure(bg=bg)
 
-    header = tk.Label(win, text="初始化设置", font=("微软雅黑", 16, "bold"),
-                     bg=bg, fg=accent)
-    header.pack(pady=(20, 4))
-    sub = tk.Label(win, text="填写企业名称即可完成注册", font=("微软雅黑", 9),
-                  bg=bg, fg=muted)
-    sub.pack()
+    # ── 顶部标题 ──
+    hdr = tk.Frame(win, bg=bg)
+    hdr.pack(fill="x", padx=32, pady=(24, 0))
+    tk.Label(hdr, text="Lanwatch 网络监控", font=("微软雅黑", 17, "bold"),
+             bg=bg, fg=accent).pack(anchor="w")
+    tk.Label(hdr, text="填写以下信息即可完成部署", font=("微软雅黑", 10),
+             bg=bg, fg=muted).pack(anchor="w", pady=(4, 0))
 
-    form = tk.Frame(win, bg=bg)
-    form.pack(pady=16, padx=24, fill="x")
+    # ── 卡片容器 ──
+    card = tk.Frame(win, bg=card_bg, relief="solid", bd=1, highlightbackground=border)
+    card.pack(fill="x", padx=32, pady=(20, 0), ipady=16)
 
-    tk.Label(form, text="企业名称", font=("微软雅黑", 10), bg=bg,
-             fg=muted).pack(anchor="w")
+
+    # ── 模式切换 ──
+    mode_var = tk.StringVar(value="new")   # "new" | "existing"
+    mode_frame = tk.Frame(card, bg=card_bg)
+    mode_frame.pack(fill="x", padx=24, pady=(0, 14))
+    for val, txt in [("new",       "新用户注册"),
+                     ("existing", "已有账号登录")]:
+        b = tk.Radiobutton(mode_frame, text=txt, value=val, variable=mode_var,
+                           font=("微软雅黑", 10, "bold" if val=="new" else "normal"),
+                           bg=card_bg, fg=accent if val=="new" else muted,
+                           activebackground=card_bg, selectcolor="#DBEAFE",
+                           command=lambda v=val: _on_mode_changed(v))
+        b.pack(side="left", padx=(0, 20))
+
+    # ── 服务端地址 ──
+    tk.Label(card, text="服务端地址", font=("微软雅黑", 9), bg=card_bg,
+             fg=muted).pack(anchor="w", padx=24)
+    server_var = tk.StringVar()
+    server_entry = tk.Entry(card, textvariable=server_var,
+                              font=("微软雅黑", 11), bg=card_bg, fg=dark,
+                              relief="solid", bd=1, insertbackground=accent,
+                              highlightthickness=1, highlightcolor=border,
+                              highlightbackground=border)
+    server_entry.pack(fill="x", padx=24, pady=(4, 8))
+
+    # 连接测试
+    test_btn = tk.Button(card, text="测试连接", font=("微软雅黑", 9),
+                         bg=card_bg, fg=accent, relief="solid", bd=1,
+                         pady=3, command=_test_connection)
+    test_btn.pack(anchor="w", padx=24)
+    test_lbl = tk.Label(card, text="", font=("微软雅黑", 9), bg=card_bg)
+    test_lbl.pack(anchor="w", padx=24, pady=(2, 0))
+
+    sep = tk.Frame(card, bg=border, height=1)
+    sep.pack(fill="x", padx=24, pady=(12, 0))
+
+    # ── 企业名称 ──
+    tk.Label(card, text="企业名称", font=("微软雅黑", 9), bg=card_bg,
+             fg=muted).pack(anchor="w", padx=24, pady=(12, 0))
     name_var = tk.StringVar()
-    tk.Entry(form, textvariable=name_var, font=("微软雅黑", 11),
-             bg=bg, fg="#111827", relief="solid", bd=1,
-             insertbackground=accent,
-             highlightthickness=1, highlightcolor=border,
-             highlightbackground=border).pack(pady=(4, 16), fill="x")
+    name_entry = tk.Entry(card, textvariable=name_var,
+                          font=("微软雅黑", 11), bg=card_bg, fg=dark,
+                          relief="solid", bd=1, insertbackground=accent,
+                          highlightthickness=1, highlightcolor=border,
+                          highlightbackground=border)
+    name_entry.pack(fill="x", padx=24, pady=(4, 0))
+    tk.Label(card, text="用于识别企业身份，不可修改", font=("微软雅黑", 8),
+             bg=card_bg, fg=muted).pack(anchor="w", padx=24)
+
+    # ── Agent ID（已有账号模式）──
+    id_lbl_frame = tk.Frame(card, bg=card_bg)
+    tk.Label(id_lbl_frame, text="Agent ID", font=("微软雅黑", 9),
+             bg=card_bg, fg=muted).pack(anchor="w")
+    tk.Label(id_lbl_frame, text="（联系管理员获取）", font=("微软雅黑", 8),
+             bg=card_bg, fg=muted).pack(anchor="w")
+    id_var = tk.StringVar()
+    id_entry = tk.Entry(id_lbl_frame, textvariable=id_var,
+                         font=("微软雅黑", 11), bg=card_bg, fg=dark,
+                         relief="solid", bd=1, insertbackground=accent,
+                         highlightthickness=1, highlightcolor=border,
+                         highlightbackground=border)
+
+    # ── 底部状态 + 按钮 ──
+    status_lbl = tk.Label(win, text="", font=("微软雅黑", 9), bg=bg, fg=muted)
+    status_lbl.pack(side="bottom", pady=(0, 8))
 
     btn_frame = tk.Frame(win, bg=bg)
     btn_frame.pack(side="bottom", pady=(0, 20))
 
-    status_lbl = tk.Label(win, text="", font=("微软雅黑", 9), bg=bg, fg=muted)
-    status_lbl.pack(side="bottom", pady=(0, 8))
 
-    register_done = threading.Event()
     result = {}
+    is_registering = [False]  # 用列表包裹以便在内嵌函数中修改
 
-    def do_register():
-        name = name_var.get().strip()
-        if not name:
-            status_lbl.config(text="请填写企业名称", fg="#EF4444")
+    def _on_mode_changed(val):
+        """切换注册/登录模式"""
+        if val == "new":
+            name_entry.pack(fill="x", padx=24, pady=(4, 0))
+            id_lbl_frame.pack_forget()
+            id_entry.pack_forget()
+            name_entry.focus()
+        else:
+            name_entry.pack_forget()
+            id_lbl_frame.pack(anchor="w", padx=24, pady=(12, 0))
+            id_entry.pack(fill="x", padx=24, pady=(4, 0))
+            id_entry.focus()
+
+    def _test_connection():
+        url = server_var.get().strip().rstrip("/")
+        if not url:
+            test_lbl.config(text="请先填写服务端地址", fg=red)
             return
-        status_lbl.config(text="正在注册...", fg=muted)
+        test_lbl.config(text="正在连接...", fg=muted)
+        test_btn.config(state="disabled")
         win.update()
         try:
+            import urllib.request
+            req = urllib.request.Request(url + "/health",
+                                         headers={"User-Agent": "lanwatch_agent"})
+            with urllib.request.urlopen(req, timeout=5) as resp:
+                data = json.loads(resp.read())
+                if resp.status in (200, 404):  # 200=健康，404=服务存在但无health端点
+                    test_lbl.config(text=f"✓ 连接成功 ({resp.status})", fg=green)
+                else:
+                    test_lbl.config(text=f"服务端异常 ({resp.status})", fg=red)
+        except urllib.error.URLError as e:
+            test_lbl.config(text=f"无法连接：{e.reason}", fg=red)
+        except Exception as e:
+            test_lbl.config(text=f"连接失败：{e}", fg=red)
+        finally:
+            test_btn.config(state="normal")
+
+    def _do_submit():
+        global _tray_icon_ref
+        url = server_var.get().strip().rstrip("/")
+        if not url:
+            status_lbl.config(text="请填写服务端地址", fg=red)
+            return
+        mode = mode_var.get()
+        name = name_var.get().strip()
+        agent_id_val = id_var.get().strip()
+
+
+        if mode == "new":
+            if not name:
+                status_lbl.config(text="请填写企业名称", fg=red)
+                return
+            status_lbl.config(text="正在注册...", fg=muted)
+        else:
+            if not agent_id_val:
+                status_lbl.config(text="请填写 Agent ID", fg=red)
+                return
+            status_lbl.config(text="正在登录...", fg=muted)
+
+        if is_registering[0]:
+            return
+        is_registering[0] = True
+        win.update()
+
+        try:
             cfg = load_config()
-            transport = Transport(cfg.server_url, "", "")
-            resp = transport.register({"name": name, "os_type": "windows"})
-            if resp and resp.get("success"):
+            cfg.set("server_url", url)
+
+            if mode == "new":
+                transport = Transport(url, "", "")
+                resp = transport.register({"name": name, "os_type": "windows"})
+                transport.close()
+                if not (resp and resp.get("success")):
+                    err = resp.get("detail", resp.get("message", "")) if resp else ""
+                    status_lbl.config(
+                        text=f"注册失败：{err}" if err else "注册失败：服务端返回异常",
+                        fg=red)
+                    return
                 cfg.set("agent_id", resp["agent_id"])
                 cfg.set("agent_token", resp.get("token", ""))
                 cfg.set("company_name", name)
-                cfg.save()
-                status_lbl.config(text=f"注册成功！Agent ID: {resp['agent_id']}", fg="#10B981")
-                result["ok"] = True
-                win.after(1500, lambda: win.destroy())
-                win.after(1600, lambda: root.quit())
+                status_lbl.config(text=f"✓ 注册成功！企业：{name}", fg=green)
             else:
-                status_lbl.config(text=f"注册失败: {resp}", fg="#EF4444")
-        except Exception as e:
-            status_lbl.config(text=f"注册异常: {e}", fg="#EF4444")
-        finally:
-            register_done.set()
+                # 已有账号：验证 agent_id 是否有效
+                from core.transport import Transport as T
+                transport = T(url, agent_id_val, "")
+                resp = transport.fetch_targets()  # 用拉取 targets 验证
+                if resp is None:
+                    status_lbl.config(text="Agent ID 无效或服务端不可达", fg=red)
+                    return
+                cfg.set("agent_id", agent_id_val)
+                cfg.set("agent_token", "")
+                cfg.set("company_name", "")
+                status_lbl.config(text=f"✓ 登录成功！", fg=green)
 
-    tk.Button(btn_frame, text="确认注册", command=do_register,
-              font=("微软雅黑", 10, "bold"), width=10,
-              bg=accent, fg="white", relief="flat", pady=7).pack(side="right")
+            cfg.save()
+            result["ok"] = True
+            win.after(1200, lambda: win.destroy())
+            win.after(1300, lambda: root.quit())
+        except Exception as e:
+            status_lbl.config(text=f"操作失败：{e}", fg=red)
+        finally:
+            is_registering[0] = False
+
+    tk.Button(btn_frame, text="取消", font=("微软雅黑", 10), width=9,
+              bg="#F3F4F6", fg=muted, relief="flat", pady=6,
+              command=lambda: (messagebox.askyesno("退出", "确定要退出吗？")
+                              and os._exit(0) or None)).pack(side="left", padx=(0, 10))
+    tk.Button(btn_frame, text="确认", font=("微软雅黑", 10, "bold"), width=10,
+              bg=accent, fg="white", relief="flat", pady=6,
+              command=_do_submit).pack(side="right")
+
+    # 默认加载配置中的服务端地址
+    cfg_init = load_config()
+    if cfg_init.server_url:
+        server_var.set(cfg_init.server_url)
+
+    name_entry.focus()
+
+    def on_close():
+        if not result.get("ok"):
+            if messagebox.askyesno("退出", "确定要退出吗？"):
+                os._exit(0)
+    win.protocol("WM_DELETE_WINDOW", on_close)
+    root.mainloop()
 
     def on_close():
         if not result.get("ok"):
