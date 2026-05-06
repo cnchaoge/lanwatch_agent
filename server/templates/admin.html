@@ -454,7 +454,12 @@ function doLogin() {
 
 function timeAgo(ts) {
   if (!ts) return '-';
+  // 支持 Unix 时间戳（整数）和日期字符串格式
+  if (typeof ts === 'string' && ts.includes('-')) {
+    ts = Math.floor(new Date(ts).getTime() / 1000);
+  }
   var s = Math.floor(Date.now()/1000 - ts);
+  if (isNaN(s) || s < 0) return '-';
   if (s < 60) return s + '秒前';
   if (s < 3600) return Math.floor(s/60) + '分钟前';
   if (s < 86400) return Math.floor(s/3600) + '小时前';
