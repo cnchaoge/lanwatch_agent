@@ -2,19 +2,19 @@
 {% block title %}SNMP设备 - Lanwatch{% endblock %}
 {% block nav_items %}
 <a class="nav-item" href="/agents.html">📊 总览</a>
-<a class="nav-item" href="/admin_users.html">👤 企业</a>
-<a class="nav-item" href="/admin_snmp.html">🔌 SNMP</a>
-<a class="nav-item" href="/admin_targets.html">🎯 目标</a>
-<a class="nav-item" href="/admin_ping.html">📡 连通</a>
+<a class="nav-item" href="/admin_users.html">👤 企业用户</a>
+<a class="nav-item" href="/admin_snmp.html">🔌 SNMP 设备</a>
+<a class="nav-item" href="/admin_targets.html">🎯 目标配置</a>
+<a class="nav-item" href="/admin_ping.html">📡 连通检测</a>
 <a class="nav-item" href="/download.html">📥 下载</a>
 {% endblock %}
 
 {% block mobile_nav_items %}
 <a class="nav-item" href="/agents.html">📊 总览</a>
-<a class="nav-item" href="/admin_users.html">👤 企业</a>
-<a class="nav-item" href="/admin_snmp.html">🔌 SNMP</a>
-<a class="nav-item" href="/admin_targets.html">🎯 目标</a>
-<a class="nav-item" href="/admin_ping.html">📡 连通</a>
+<a class="nav-item" href="/admin_users.html">👤 企业用户</a>
+<a class="nav-item" href="/admin_snmp.html">🔌 SNMP 设备</a>
+<a class="nav-item" href="/admin_targets.html">🎯 目标配置</a>
+<a class="nav-item" href="/admin_ping.html">📡 连通检测</a>
 <a class="nav-item" href="/download.html">📥 下载</a>
 {% endblock %}
 
@@ -82,10 +82,10 @@
   </div>
   <div class="admin-footer container">
     <a href="/agents.html">总览</a>
-    <a href="/admin_users.html">企业管理</a>
-    <a href="/admin_snmp.html">SNMP设备</a>
-    <a href="/admin_targets.html">监控目标</a>
-    <a href="/admin_ping.html">连通性监控</a>
+    <a href="/admin_users.html">企业用户</a>
+    <a href="/admin_snmp.html">SNMP 设备</a>
+    <a href="/admin_targets.html">目标配置</a>
+    <a href="/admin_ping.html">连通检测</a>
     <a href="/download.html">下载中心</a>
   </div>
 </div>
@@ -193,7 +193,7 @@ function renderSnmp(devs) {
   document.getElementById('snmp-count').textContent = total + ' 台设备';
   var stats = document.getElementById('snmp-stats');
   stats.innerHTML =
-    "<div class='stat-card'><div class='stat-num'>" + total + "</div><div class='stat-label'>SNMP设备</div></div>" +
+    "<div class='stat-card'><div class='stat-num'>" + total + "</div><div class='stat-label'>SNMP 设备</div></div>" +
     "<div class='stat-card'><div class='stat-num green'>" + online + "</div><div class='stat-label'>在线</div></div>" +
     "<div class='stat-card'><div class='stat-num red'>" + (total - online) + "</div><div class='stat-label'>离线</div></div>";
   stats.style.display = "grid";
