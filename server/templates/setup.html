@@ -1,24 +1,28 @@
 {% extends "base.html" %}
-{% block title %}注册 - Lanwatch{% endblock %}
+{% block nav_items %}
+<a class="nav-item" href="/agents.html">📊 总览</a>
+<a class="nav-item" href="/admin_users.html">👤 企业</a>
+<a class="nav-item" href="/admin_snmp.html">🔌 SNMP</a>
+<a class="nav-item" href="/admin_targets.html">🎯 目标</a>
+<a class="nav-item" href="/admin_ping.html">📡 连通</a>
+<a class="nav-item" href="/download.html">📥 下载</a>
+{% endblock %}
 
+{% block mobile_nav_items %}
+<a class="nav-item" href="/agents.html">📊 总览</a>
+<a class="nav-item" href="/admin_users.html">👤 企业</a>
+<a class="nav-item" href="/admin_snmp.html">🔌 SNMP</a>
+<a class="nav-item" href="/admin_targets.html">🎯 目标</a>
+<a class="nav-item" href="/admin_ping.html">📡 连通</a>
+<a class="nav-item" href="/download.html">📥 下载</a>
+{% endblock %}
+
+{% block title %}注册 - Lanwatch{% endblock %}
 {% block navbar_brand %}
 <a class="navbar-brand" href="/">
   <span style="font-weight:800;font-size:16px">Lanwatch</span>
 </a>
 {% endblock %}
-
-{% block nav_items %}
-<a class="nav-item" href="/agents.html">📊 总览</a>
-<a class="nav-item" href="/download.html">📥 下载中心</a>
-<a class="nav-item" href="/admin.html">⚙️ 管理后台</a>
-{% endblock %}
-
-{% block mobile_nav_items %}
-<a class="nav-item" href="/agents.html">📊 总览</a>
-<a class="nav-item" href="/download.html">📥 下载中心</a>
-<a class="nav-item" href="/admin.html">⚙️ 管理后台</a>
-{% endblock %}
-
 {% block head_extra %}
 <style>
 .page-wrap { max-width: 480px; margin: 0 auto; padding: 0 16px; }
@@ -44,7 +48,6 @@
 .foot-link { color: var(--accent-blue); text-align: center; font-size: 12px; margin-top: 8px; }
 </style>
 {% endblock %}
-
 {% block content %}
 <div class="page-wrap" style="padding-top: 32px; padding-bottom: 40px;">
   <div id="view-form">
@@ -62,7 +65,6 @@
       <p class="foot-link">已有账号？<a href="/mobile.html" style="color:var(--accent-blue);font-weight:600;">直接登录</a></p>
     </div>
   </div>
-
   <div id="view-success" class="hidden">
     <div class="success-card">
       <div class="success-icon">✓</div>
@@ -71,7 +73,6 @@
       <div class="token-box" id="show-token"></div>
       <button class="btn-reg" id="btn-copy" onclick="copyAndDownload()">复制 Token → 下载安装包</button>
     </div>
-
     <div class="reg-card">
       <h2>📋 安装后做什么</h2>
       <div class="step-list">
@@ -87,12 +88,10 @@
   </div>
 </div>
 {% endblock %}
-
 {% block scripts %}
 <script>
 var SERVER = location.origin;
 var REGISTERED_TOKEN = null;
-
 async function doRegister() {
   var name = document.getElementById('input-name').value.trim();
   var phone = document.getElementById('input-phone').value.trim();
@@ -116,7 +115,6 @@ async function doRegister() {
     btn.disabled = false; btn.textContent = '立即注册';
   }
 }
-
 function copyAndDownload() {
   var token = document.getElementById('show-token').textContent;
   navigator.clipboard.writeText(token).then(function() {

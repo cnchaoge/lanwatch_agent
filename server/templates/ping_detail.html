@@ -1,22 +1,26 @@
 {% extends "base.html" %}
-{% block title %}连通性监控详情 - Lanwatch{% endblock %}
-
-{% block navbar_brand %}
-<a class="navbar-brand" href="/" style="font-size:15px">Lanwatch</a>
-{% endblock %}
-
 {% block nav_items %}
 <a class="nav-item" href="/agents.html">📊 总览</a>
-<a class="nav-item" href="/ping_overview.html">📡 连通性监控</a>
-<a class="nav-item" href="/admin.html">⚙️ 管理后台</a>
+<a class="nav-item" href="/admin_users.html">👤 企业</a>
+<a class="nav-item" href="/admin_snmp.html">🔌 SNMP</a>
+<a class="nav-item" href="/admin_targets.html">🎯 目标</a>
+<a class="nav-item" href="/admin_ping.html">📡 连通</a>
+<a class="nav-item" href="/download.html">📥 下载</a>
 {% endblock %}
 
 {% block mobile_nav_items %}
 <a class="nav-item" href="/agents.html">📊 总览</a>
-<a class="nav-item" href="/ping_overview.html">📡 连通性监控</a>
-<a class="nav-item" href="/admin.html">⚙️ 管理后台</a>
+<a class="nav-item" href="/admin_users.html">👤 企业</a>
+<a class="nav-item" href="/admin_snmp.html">🔌 SNMP</a>
+<a class="nav-item" href="/admin_targets.html">🎯 目标</a>
+<a class="nav-item" href="/admin_ping.html">📡 连通</a>
+<a class="nav-item" href="/download.html">📥 下载</a>
 {% endblock %}
 
+{% block title %}连通性监控详情 - Lanwatch{% endblock %}
+{% block navbar_brand %}
+<a class="navbar-brand" href="/" style="font-size:15px">Lanwatch</a>
+{% endblock %}
 {% block head_extra %}
 <style>
 .info-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 12px; margin-bottom: 24px; }
@@ -39,14 +43,12 @@
 .loading { text-align: center; padding: 40px; color: var(--muted); }
 </style>
 {% endblock %}
-
 {% block content %}
 <div class="container" style="max-width:900px">
   <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:24px;">
     <h1 style="font-size:20px;font-weight:800" id="pageTitle">连通性监控详情</h1>
     <a href="/ping_overview.html" class="btn btn-sm btn-secondary">← 返回列表</a>
   </div>
-
   <div id="loading" class="loading">加载中...</div>
   <div id="content" style="display:none">
     <div class="info-grid" id="infoGrid"></div>
@@ -56,7 +58,6 @@
       <button class="btn btn-sm btn-danger" onclick="deleteMonitor()">🗑 删除</button>
     </div>
     <div id="statsGrid" class="stats-grid"></div>
-
     <div class="chart-card">
       <div class="chart-title">📈 延迟趋势（最近24小时）</div>
       <div class="chart-wrap"><canvas id="rttChart"></canvas></div>
@@ -65,7 +66,6 @@
       <div class="chart-title">✅ 可用率（最近7天）</div>
       <div class="chart-wrap"><canvas id="upChart"></canvas></div>
     </div>
-
     <div class="chart-card">
       <div class="chart-title">📋 最近探测记录</div>
       <div style="overflow-x:auto">
@@ -78,7 +78,6 @@
   </div>
 </div>
 {% endblock %}
-
 {% block scripts %}
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <script>
@@ -87,7 +86,6 @@ var monitorId = decodeURIComponent(location.pathname.split('/').pop());
 var currentMonitor = null;
 var rttChart = null;
 var upChart = null;
-
 function timeAgo(ts) {
   if (!ts) return '无数据';
   var s = Math.floor(Date.now()/1000 - ts);
@@ -96,7 +94,6 @@ function timeAgo(ts) {
   if (s < 86400) return Math.floor(s/3600) + '小时前';
   return Math.floor(s/86400) + '天前';
 }
-
 function load() {
   fetch(SERVER + '/api/admin/ping').then(function(r){ return r.json(); }).then(function(monitors) {
     var m = monitors.find(function(x){ return x.id === monitorId; });
@@ -117,7 +114,6 @@ function load() {
     loadHistory();
   });
 }
-
 function loadHistory() {
   fetch(SERVER + '/api/admin/ping/' + monitorId + '/history').then(function(r){ return r.json(); }).then(function(data) {
     renderRttChart(data.rtt_history || []);
@@ -126,7 +122,6 @@ function loadHistory() {
     renderRecent(data.recent_results || []);
   }).catch(function() {});
 }
-
 function renderStats(stats) {
   var total = stats.total || 0;
   var okCount = stats.ok_count || 0;
@@ -141,7 +136,6 @@ function renderStats(stats) {
     '<div class="stat-card"><div class="stat-num green">' + min + '</div><div class="stat-label">最低延迟</div></div>' +
     '<div class="stat-card"><div class="stat-num red">' + max + '</div><div class="stat-label">最高延迟</div></div>';
 }
-
 function renderRecent(results) {
   var tbody = document.querySelector('#recentTable tbody');
   if (!results.length) {
@@ -157,7 +151,6 @@ function renderRecent(results) {
       '<td style="font-family:monospace">' + rttStr + '</td></tr>';
   }).join('');
 }
-
 function renderRttChart(rttHistory) {
   var ctx = document.getElementById('rttChart').getContext('2d');
   if (rttChart) rttChart.destroy();
@@ -170,7 +163,6 @@ function renderRttChart(rttHistory) {
     options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { ticks: { maxTicksLimit: 8 } }, y: { beginAtZero: true } } }
   });
 }
-
 function renderUpChart(upHistory) {
   var ctx = document.getElementById('upChart').getContext('2d');
   if (upChart) upChart.destroy();
@@ -183,7 +175,6 @@ function renderUpChart(upHistory) {
     options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { display: true }, y: { display: true, beginAtZero: true, max: 100 } } }
   });
 }
-
 function testNow() {
   fetch(SERVER + '/api/admin/ping/' + monitorId + '/test', {method:'POST'}).then(function(r){ return r.json(); }).then(function(d) {
     alert('Ping ' + d.ip + ': ' + (d.online ? '✅ 在线 (' + d.rtt_ms + 'ms)' : '❌ 离线'));

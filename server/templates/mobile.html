@@ -1,20 +1,26 @@
 {% extends "base.html" %}
-{% block title %}手机端 - Lanwatch{% endblock %}
-
-{% block navbar_brand %}
-<a class="navbar-brand" href="/" style="font-size:15px">Lanwatch</a>
-{% endblock %}
-
 {% block nav_items %}
 <a class="nav-item" href="/agents.html">📊 总览</a>
-<a class="nav-item" href="/mobile.html">📱 手机端</a>
+<a class="nav-item" href="/admin_users.html">👤 企业</a>
+<a class="nav-item" href="/admin_snmp.html">🔌 SNMP</a>
+<a class="nav-item" href="/admin_targets.html">🎯 目标</a>
+<a class="nav-item" href="/admin_ping.html">📡 连通</a>
+<a class="nav-item" href="/download.html">📥 下载</a>
 {% endblock %}
 
 {% block mobile_nav_items %}
 <a class="nav-item" href="/agents.html">📊 总览</a>
-<a class="nav-item" href="/mobile.html">📱 手机端</a>
+<a class="nav-item" href="/admin_users.html">👤 企业</a>
+<a class="nav-item" href="/admin_snmp.html">🔌 SNMP</a>
+<a class="nav-item" href="/admin_targets.html">🎯 目标</a>
+<a class="nav-item" href="/admin_ping.html">📡 连通</a>
+<a class="nav-item" href="/download.html">📥 下载</a>
 {% endblock %}
 
+{% block title %}手机端 - Lanwatch{% endblock %}
+{% block navbar_brand %}
+<a class="navbar-brand" href="/" style="font-size:15px">Lanwatch</a>
+{% endblock %}
 {% block head_extra %}
 <style>
 body { background: var(--bg-primary); color: var(--text-primary); padding: 0; min-height: 100vh; }
@@ -55,14 +61,12 @@ body { background: var(--bg-primary); color: var(--text-primary); padding: 0; mi
 .hidden { display: none; }
 </style>
 {% endblock %}
-
 {% block content %}
 <div class="container" style="max-width:480px">
   <div class="page-header">
     <h1 id="page-title">Lanwatch</h1>
     <p id="page-sub">网络监控系统</p>
   </div>
-
   <div id="view-login">
     <div class="card">
       <p style="font-size:14px;color:var(--text-secondary);text-align:center;margin-bottom:14px;">请输入登录凭证</p>
@@ -75,7 +79,6 @@ body { background: var(--bg-primary); color: var(--text-primary); padding: 0; mi
       </p>
     </div>
   </div>
-
   <div id="view-agents" class="hidden">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
       <span style="font-size:13px;color:var(--muted);">选择设备</span>
@@ -87,7 +90,6 @@ body { background: var(--bg-primary); color: var(--text-primary); padding: 0; mi
       </ul>
     </div>
   </div>
-
   <div id="view-monitor" class="hidden">
     <button class="refresh-btn" onclick="loadData()">🔄 刷新状态</button>
     <div id="content"><div class="loading">加载中...</div></div>
@@ -107,32 +109,27 @@ body { background: var(--bg-primary); color: var(--text-primary); padding: 0; mi
   </div>
 </div>
 {% endblock %}
-
 {% block scripts %}
 <script>
 var SERVER = location.origin;
 var TOKEN = localStorage.getItem("nm_token") || null;
 var CURRENT_AGENT = null;
-
 function showView(id) {
   document.getElementById('view-login').classList.add('hidden');
   document.getElementById('view-agents').classList.add('hidden');
   document.getElementById('view-monitor').classList.add('hidden');
   if (id) document.getElementById(id).classList.remove('hidden');
 }
-
 function logout() {
   localStorage.removeItem("nm_token"); localStorage.removeItem("nm_agent_id");
   localStorage.removeItem("nm_user_name"); TOKEN = null; CURRENT_AGENT = null;
   document.getElementById('input-token').value = ''; showView('view-login');
 }
-
 function doLogin() {
   var token = document.getElementById('input-token').value.trim();
   if (!token) { alert('请输入登录凭证'); return; }
   TOKEN = token; localStorage.setItem("nm_token", token); loadMe();
 }
-
 function loadMe() {
   var xhr = new XMLHttpRequest();
   xhr.open('GET', SERVER + '/api/me', false);
@@ -148,7 +145,6 @@ function loadMe() {
     } catch(e) { alert('登录失败'); logout(); }
   } else if (xhr.status === 401) { alert('登录凭证无效'); logout(); }
 }
-
 function renderAgentList(agents) {
   var list = document.getElementById('agent-list');
   if (!agents || !agents.length) { list.innerHTML = '<li class="error-msg">暂无设备</li>'; return; }
@@ -160,7 +156,6 @@ function renderAgentList(agents) {
   });
   list.innerHTML = html;
 }
-
 function selectAgent(agentId) {
   CURRENT_AGENT = agentId; localStorage.setItem("nm_agent_id", agentId);
   var mobileUrl = SERVER + '/mobile?id=' + agentId;
@@ -168,7 +163,6 @@ function selectAgent(agentId) {
   document.getElementById('qr-section').style.display = 'block';
   loadData(); showView('view-monitor');
 }
-
 function loadData() {
   if (!CURRENT_AGENT) { showView('view-agents'); return; }
   document.getElementById('content').innerHTML = '<div class="loading">加载中...</div>';
@@ -177,7 +171,6 @@ function loadData() {
   xhr.send(null);
   try { render(JSON.parse(xhr.responseText)); } catch(e) { render(null); }
 }
-
 function render(latest) {
   document.getElementById('page-title').textContent = localStorage.getItem("nm_user_name") || 'Lanwatch';
   document.getElementById('page-sub').textContent = CURRENT_AGENT;
@@ -197,13 +190,10 @@ function render(latest) {
     '<div class="stat"><span class="stat-label">'+tgtName+'</span><span class="stat-value">'+tgtTag+'</span></div></div>';
   document.getElementById('last-update').textContent = '最后更新: ' + new Date().toLocaleTimeString('zh-CN', {hour12:false});
 }
-
 function showAgents() { if (TOKEN) loadMe(); else showView('view-login'); }
 function timeAgo(ts) { var s=Math.floor(Date.now()/1000-ts); return s<60?'刚刚':s<3600?Math.floor(s/60)+'分钟前':s<86400?Math.floor(s/3600)+'小时前':Math.floor(s/86400)+'天前'; }
-
 if (TOKEN) { showView('view-agents'); loadMe(); var p=new URLSearchParams(location.search); if(p.get('agent')) selectAgent(p.get('agent')); }
 else { showView('view-login'); }
-
 setInterval(function() {
   if (CURRENT_AGENT && !document.getElementById('view-monitor').classList.contains('hidden')) loadData();
 }, 30000);

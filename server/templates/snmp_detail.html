@@ -1,22 +1,26 @@
 {% extends "base.html" %}
-{% block title %}SNMP 设备详情 - Lanwatch{% endblock %}
-
-{% block navbar_brand %}
-<a class="navbar-brand" href="/" style="font-size:15px">Lanwatch</a>
-{% endblock %}
-
 {% block nav_items %}
 <a class="nav-item" href="/agents.html">📊 总览</a>
-<a class="nav-item" href="/admin.html">⚙️ 管理后台</a>
-<a class="nav-item" href="/download.html">📥 下载中心</a>
+<a class="nav-item" href="/admin_users.html">👤 企业</a>
+<a class="nav-item" href="/admin_snmp.html">🔌 SNMP</a>
+<a class="nav-item" href="/admin_targets.html">🎯 目标</a>
+<a class="nav-item" href="/admin_ping.html">📡 连通</a>
+<a class="nav-item" href="/download.html">📥 下载</a>
 {% endblock %}
 
 {% block mobile_nav_items %}
 <a class="nav-item" href="/agents.html">📊 总览</a>
-<a class="nav-item" href="/admin.html">⚙️ 管理后台</a>
-<a class="nav-item" href="/download.html">📥 下载中心</a>
+<a class="nav-item" href="/admin_users.html">👤 企业</a>
+<a class="nav-item" href="/admin_snmp.html">🔌 SNMP</a>
+<a class="nav-item" href="/admin_targets.html">🎯 目标</a>
+<a class="nav-item" href="/admin_ping.html">📡 连通</a>
+<a class="nav-item" href="/download.html">📥 下载</a>
 {% endblock %}
 
+{% block title %}SNMP 设备详情 - Lanwatch{% endblock %}
+{% block navbar_brand %}
+<a class="navbar-brand" href="/" style="font-size:15px">Lanwatch</a>
+{% endblock %}
 {% block head_extra %}
 <style>
 .info-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 12px; margin-bottom: 24px; }
@@ -34,16 +38,13 @@
 .loading { text-align: center; padding: 40px; color: var(--muted); }
 </style>
 {% endblock %}
-
 {% block content %}
 <div class="container" style="max-width:1100px">
   <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:24px;">
     <h1 style="font-size:20px;font-weight:800" id="pageTitle">SNMP 设备详情</h1>
     <a href="/admin.html" class="btn btn-sm btn-secondary">← 返回管理后台</a>
   </div>
-
   <div id="loading" class="loading">加载中...</div>
-
   <div class="info-grid" id="infoGrid" style="display:none">
     <div class="info-card"><div class="info-label">设备名称</div><div class="info-value" id="devName">-</div></div>
     <div class="info-card"><div class="info-label">IP地址</div><div class="info-value" id="devIp">-</div></div>
@@ -54,31 +55,26 @@
     <div class="info-card"><div class="info-label">最后轮询</div><div class="info-value" id="devLastPoll">-</div></div>
     <div class="info-card"><div class="info-label">Community</div><div class="info-value" id="devCommunity">-</div></div>
   </div>
-
   <div class="chart-card" id="cpuCard" style="display:none">
     <div class="chart-title">📊 CPU 负载趋势</div>
     <div class="chart-wrap"><canvas id="cpuChart"></canvas></div>
   </div>
-
   <div class="chart-card" id="ifCard" style="display:none">
     <div class="chart-title">🌐 接口状态</div>
     <table class="interface-table"><thead><tr><th>接口</th><th>状态</th><th>入流量</th><th>出流量</th><th>入包</th><th>出包</th></tr></thead><tbody id="ifBody"></tbody></table>
   </div>
-
   <div class="chart-card" id="trafficCard" style="display:none">
     <div class="chart-title">📈 接口流量趋势</div>
     <div class="chart-wrap"><canvas id="trafficChart"></canvas></div>
   </div>
 </div>
 {% endblock %}
-
 {% block scripts %}
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <script>
 var SERVER = location.origin;
 var deviceId = parseInt(location.pathname.split('/').pop());
 var cpuChart, trafficChart;
-
 function fmtBytes(b) {
   if (b == null || isNaN(b)) return '-';
   b = parseFloat(b);
@@ -87,21 +83,18 @@ function fmtBytes(b) {
   if (b < 1073741824) return (b/1048576).toFixed(1) + ' MB';
   return (b/1073741824).toFixed(2) + ' GB';
 }
-
 function fmtUptime(ts) {
   if (!ts || ts <= 0) return '-';
   var s = Math.floor(ts / 100), d = Math.floor(s/86400); s %= 86400;
   var h = Math.floor(s/3600); s %= 3600; var m = Math.floor(s/60);
   if (d>0) return d+'天'+h+'时'; if (h>0) return h+'时'+m+'分'; return m+'分'+(s%60)+'秒';
 }
-
 function timeAgo(ts) {
   if (!ts) return '从未';
   var d = Date.now()/1000 - ts;
   if (d<60) return Math.floor(d)+'秒前'; if (d<3600) return Math.floor(d/60)+'分钟前';
   if (d<86400) return Math.floor(d/3600)+'小时前'; return Math.floor(d/86400)+'天前';
 }
-
 function loadDetail() {
   Promise.all([
     fetch(SERVER+'/api/snmp/'+deviceId).then(function(r){return r.json();}),
@@ -118,14 +111,11 @@ function loadDetail() {
     document.getElementById('devCommunity').textContent = dev.community || '-';
     document.getElementById('devLastPoll').textContent = timeAgo(dev.last_poll);
     document.getElementById('devStatus').innerHTML = dev.status==='online'?'<span class="status-online">● 在线</span>':(dev.status==='offline'?'<span class="status-offline">● 离线</span>':(dev.status||'-'));
-
     var metrics = detail.metrics, uptimeRow = metrics.find(function(m){return m.oid==='sysUpTime.0';});
     document.getElementById('devUptime').textContent = uptimeRow ? fmtUptime(uptimeRow.value) : '-';
-
     renderCpuChart(history); renderInterfaces(metrics, history); renderTrafficChart(history);
   }).catch(function(e) { document.getElementById('loading').textContent = '加载失败: ' + e; });
 }
-
 function renderCpuChart(history) {
   var cpuRows = history.filter(function(m){return m.oid&&m.oid.startsWith('hrProcessorLoad.');});
   if (!cpuRows.length) return;
@@ -138,7 +128,6 @@ function renderCpuChart(history) {
     options:{responsive:true, maintainAspectRatio:false, scales:{y:{min:0,max:100,title:{display:true,text:'%'}}, x:{ticks:{maxTicksLimit:8}}}, plugins:{legend:{display:false}}}
   });
 }
-
 function renderInterfaces(metrics, history) {
   var ifRows = metrics.filter(function(m){return m.oid&&m.oid.match(/^(ifInOctets|ifOutOctets|ifInUcastPkts|ifOutUcastPkts|ifOperStatus)\.\d/);});
   if (!ifRows.length) return;
@@ -149,7 +138,6 @@ function renderInterfaces(metrics, history) {
     var v=byIdx[idx]; return '<tr><td>接口 '+idx+'</td><td>'+(v.ifOperStatus===1?'<span class="if-up">↑ UP</span>':'<span class="if-down">↓ DOWN</span>')+'</td><td>'+fmtBytes(v.ifInOctets)+'</td><td>'+fmtBytes(v.ifOutOctets)+'</td><td>'+(v.ifInUcastPkts||0)+'</td><td>'+(v.ifOutUcastPkts||0)+'</td></tr>';
   }).join('');
 }
-
 function renderTrafficChart(history) {
   var inRows = history.filter(function(m){return m.oid&&m.oid.startsWith('ifInOctets.');});
   var outRows = history.filter(function(m){return m.oid&&m.oid.startsWith('ifOutOctets.');});

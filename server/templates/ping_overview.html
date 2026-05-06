@@ -1,18 +1,23 @@
 {% extends "base.html" %}
-{% block title %}连通性监控 - Lanwatch{% endblock %}
-
 {% block nav_items %}
 <a class="nav-item" href="/agents.html">📊 总览</a>
-<a class="nav-item active" href="/ping_overview.html">📡 连通性监控</a>
-<a class="nav-item" href="/admin.html">⚙️ 管理后台</a>
+<a class="nav-item" href="/admin_users.html">👤 企业</a>
+<a class="nav-item" href="/admin_snmp.html">🔌 SNMP</a>
+<a class="nav-item" href="/admin_targets.html">🎯 目标</a>
+<a class="nav-item" href="/admin_ping.html">📡 连通</a>
+<a class="nav-item" href="/download.html">📥 下载</a>
 {% endblock %}
 
 {% block mobile_nav_items %}
 <a class="nav-item" href="/agents.html">📊 总览</a>
-<a class="nav-item" href="/ping_overview.html">📡 连通性监控</a>
-<a class="nav-item" href="/admin.html">⚙️ 管理后台</a>
+<a class="nav-item" href="/admin_users.html">👤 企业</a>
+<a class="nav-item" href="/admin_snmp.html">🔌 SNMP</a>
+<a class="nav-item" href="/admin_targets.html">🎯 目标</a>
+<a class="nav-item" href="/admin_ping.html">📡 连通</a>
+<a class="nav-item" href="/download.html">📥 下载</a>
 {% endblock %}
 
+{% block title %}连通性监控 - Lanwatch{% endblock %}
 {% block head_extra %}
 <style>
 .container { max-width: 900px; margin: 0 auto; padding: 24px 20px; }
@@ -48,14 +53,12 @@
 .error-msg { background: rgba(239,68,68,0.08); border: 1px solid rgba(239,68,68,0.2); border-radius: 10px; padding: 14px 18px; color: var(--red); font-size: 13px; margin-bottom: 20px; }
 </style>
 {% endblock %}
-
 {% block content %}
 <div class="container">
   <div class="page-header">
     <h1>📡 连通性监控</h1>
     <a href="/admin.html" class="btn btn-sm btn-secondary">← 返回</a>
   </div>
-
   <div id="stats" class="stats-grid" style="display:none">
     <div class="stat-card">
       <div class="stat-num" id="stat-total">-</div>
@@ -70,7 +73,6 @@
       <div class="stat-label">离线</div>
     </div>
   </div>
-
   <div id="error-box" class="error-msg" style="display:none"></div>
   <div id="loading" class="loading">加载中...</div>
   <div id="empty" class="empty-state" style="display:none">
@@ -81,11 +83,9 @@
   <div id="list" class="monitor-list" style="display:none"></div>
 </div>
 {% endblock %}
-
 {% block scripts %}
 <script>
 var SERVER = location.origin;
-
 function fmtTime(ts) {
   if (!ts || ts === 0) return '从未';
   var d = new Date(ts * 1000);
@@ -96,7 +96,6 @@ function fmtTime(ts) {
   if (diff < 86400) return Math.floor(diff / 3600) + '小时前';
   return d.toLocaleDateString('zh-CN');
 }
-
 function load() {
   fetch(SERVER + '/api/admin/ping')
     .then(function(r) { return r.json(); })
@@ -151,7 +150,6 @@ function load() {
       err.style.display = 'block';
     });
 }
-
 load();
 </script>
 {% endblock %}
