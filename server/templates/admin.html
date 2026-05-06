@@ -830,7 +830,7 @@ function showAddTarget() {
   allUsers.forEach(function(u) {
     (u.agents||[]).forEach(function(a) {
       var label = u.name + (a.name ? ' / ' + a.name : '');
-      sel.innerHTML += '<option value="' + a.id + '">' + label + '</option>';
+      sel.innerHTML += '<option value="' + a.agent_id + '">' + label + '</option>';
     });
   });
   document.getElementById('modal-target-title').textContent = '添加监控目标';
@@ -855,7 +855,7 @@ function editTarget(id) {
     (u.agents||[]).forEach(function(a) {
       var selected = a.id === t.agent_id ? ' selected' : '';
       var label = u.name + (a.name ? ' / ' + a.name : '');
-      sel.innerHTML += '<option value="' + a.id + '"' + selected + '>' + label + '</option>';
+      sel.innerHTML += '<option value="' + a.agent_id + '"' + selected + '>' + label + '</option>';
     });
   });
   document.getElementById('modal-target-title').textContent = '编辑监控目标';
