@@ -152,7 +152,7 @@ function loadTargets() {
   document.getElementById("target-loading").style.display = "block";
   var pw = "";
   
-  fetch(SERVER + '/api/admin/targets?password=' + encodeURIComponent(pw))
+  fetch(SERVER + '/api/admin/targets')
     .then(function(r){ return r.json(); })
     .then(function(data) {
       document.getElementById("target-loading").style.display = "none";
@@ -166,7 +166,7 @@ function loadTargets() {
 }
 function loadUsersForTarget() {
   var pw = "";
-  fetch(SERVER + '/api/admin/users?password=' + encodeURIComponent(pw))
+  fetch(SERVER + '/api/admin/users')
     .then(function(r){ return r.json(); })
     .then(function(users) { allUsers = users; });
 }
@@ -284,7 +284,7 @@ function submitTarget() {
   };
   var pw = "";
   var method = id ? "PUT" : "POST";
-  var url = SERVER + "/api/admin/targets" + (id ? "/" + id : "") + "?password=" + encodeURIComponent(pw);
+  var url = SERVER + "/api/admin/targets" + (id ? "/" + id : "");
   fetch(url, {method:method, headers:{"Content-Type":"application/json"}, body:JSON.stringify(data)})
     .then(function(r){ return r.json(); })
     .then(function(d) { if (d.success !== false) { closeModal("modal-target"); loadTargets(); } else { alert("保存失败：" + (d.detail||d.error)); } })
@@ -293,7 +293,7 @@ function submitTarget() {
 function deleteTarget(id) {
   if (!confirm("确定删除该监控目标吗？")) return;
   var pw = "";
-  fetch(SERVER + "/api/admin/targets/" + id + "?password=" + encodeURIComponent(pw), {method:"DELETE"})
+  fetch(SERVER + "/api/admin/targets/" + id, {method:"DELETE"})
     .then(function(r){ return r.json(); })
     .then(function(d) { if (d.success !== false) loadTargets(); else alert("删除失败"); });
 }
