@@ -537,15 +537,21 @@ async def admin_ping_history(job_id: str, hours: int = Query(default=24, ge=1, l
 
 @router.get("/admin/targets")
 async def admin_list_targets(agent_id: Optional[str] = None):
-    """列出所有监控目标（含所属企业名称），可选按 agent_id 过滤"""
+    """列出所有监控目标（含所属企业名称、探测状态），可选按 agent_id 过滤"""
     with get_db() as conn:
         cursor = conn.cursor()
         sql = """
             SELECT t.id, t.agent_id, t.name, t.target, t.probe_type,
                    t.port, t.timeout, t.interval, t.enabled, t.created_at,
-                   a.name as agent_name
+                   a.name as agent_name,
+                   pr.status as last_status, pr.created_at as last_check
             FROM targets t
             LEFT JOIN agents a ON t.agent_id = a.agent_id
+            LEFT JOIN (
+                SELECT target, probe_type, status, created_at,
+                       ROW_NUMBER() OVER (PARTITION BY target, probe_type ORDER BY created_at DESC) rn
+                FROM probe_results
+            ) pr ON pr.target = t.target AND pr.probe_type = t.probe_type AND pr.rn = 1
         """
         params = []
         if agent_id:
@@ -567,6 +573,8 @@ async def admin_list_targets(agent_id: Optional[str] = None):
                 "interval": r["interval"],
                 "enabled": bool(r["enabled"]),
                 "created_at": r["created_at"],
+                "last_status": r["last_status"] or "unknown",
+                "last_check": r["last_check"],
             }
             for r in rows
         ]
