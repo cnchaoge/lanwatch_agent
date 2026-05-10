@@ -4,8 +4,8 @@
 <a class="nav-item" href="/agents.html">📊 总览</a>
 <a class="nav-item" href="/admin_users.html">👤 企业用户</a>
 <a class="nav-item" href="/admin_snmp.html">🔌 SNMP 设备</a>
-<a class="nav-item" href="/admin_targets.html">🎯 目标配置</a>
 <a class="nav-item" href="/admin_ping.html">📡 连通检测</a>
+<a class="nav-item" href="/admin_targets.html">🎯 目标配置</a>
 <a class="nav-item" href="/download.html">📥 下载</a>
 {% endblock %}
 
@@ -13,8 +13,8 @@
 <a class="nav-item" href="/agents.html">📊 总览</a>
 <a class="nav-item" href="/admin_users.html">👤 企业用户</a>
 <a class="nav-item" href="/admin_snmp.html">🔌 SNMP 设备</a>
-<a class="nav-item" href="/admin_targets.html">🎯 目标配置</a>
 <a class="nav-item" href="/admin_ping.html">📡 连通检测</a>
+<a class="nav-item" href="/admin_targets.html">🎯 目标配置</a>
 <a class="nav-item" href="/download.html">📥 下载</a>
 {% endblock %}
 
@@ -76,7 +76,7 @@
       <div id="target-stats" class="stats-grid" style="padding:12px 20px;display:none"></div>
       <div id="target-list" class="monitor-list" style="display:none"></div>
       <div id="target-empty" style="text-align:center;padding:32px;color:var(--text-muted);font-size:13px;display:none">暂无监控目标</div>
-      <div id="target-loading" style="text-align:center;padding:32px;color:var(--text-muted);font-size:13px;">加载中...</div>
+      <div id="target-loading"><div class="skeleton skeleton-row"></div><div class="skeleton skeleton-row"></div><div class="skeleton skeleton-row"></div></div>
     </div>
 
   </div>
@@ -84,8 +84,8 @@
     <a href="/agents.html">总览</a>
     <a href="/admin_users.html">企业用户</a>
     <a href="/admin_snmp.html">SNMP 设备</a>
-    <a href="/admin_targets.html">目标配置</a>
     <a href="/admin_ping.html">连通检测</a>
+    <a href="/admin_targets.html">目标配置</a>
     <a href="/download.html">下载中心</a>
   </div>
 </div>
@@ -135,6 +135,7 @@
         <input class="search-input" id="f-target-timeout" value="5" placeholder="5" style="width:100%">
       </div>
       <div class="modal-btns">
+        <button class="btn btn-sm btn-danger" id="btn-delete-target" onclick="deleteCurrentTarget()" style="margin-right:auto;display:none">🗑️ 删除</button>
         <button class="btn btn-sm btn-secondary" onclick="closeModal('modal-target')">取消</button>
         <button class="btn btn-sm btn-primary" onclick="submitTarget()">保存</button>
       </div>
@@ -199,8 +200,7 @@ function renderTargets(targets) {
     var lastCheck = t.last_check ? fmtTime(t.last_check) : '从未';
     var row = document.createElement("div");
     row.className = "monitor-row";
-    row.style.cssText = "display:flex;align-items:center;gap:12px;padding:11px 14px;cursor:pointer;transition:background 0.15s;";
-    row.onclick = function() { editTarget(t.id); };
+    row.style.cssText = "display:flex;align-items:center;gap:12px;padding:11px 14px;";
     row.innerHTML =
       "<div class='monitor-status " + sClass + "'></div>" +
       "<div class='monitor-info'>" +
@@ -208,9 +208,12 @@ function renderTargets(targets) {
         "<div class='monitor-ip'>" + t.target + " · <span class='tag tag-grey' style='font-size:10px'>" + (probeLabels[t.probe_type] || t.probe_type) + "</span> · " + t.interval + "秒间隔</div>" +
         "<div class='monitor-meta'>最后检查：" + lastCheck + "</div>" +
       "</div>" +
-      "<div class='monitor-right'>" +
+      "<div class='monitor-right' style='display:flex;flex-direction:column;align-items:flex-end;gap:6px;'>" +
         "<div style='font-weight:600;color:" + slColor + "'>" + sLabel + "</div>" +
-        "<div style='margin-top:3px'>编辑</div>" +
+        "<div style='display:flex;gap:6px;margin-top:2px;'>" +
+          "<button class='btn btn-sm btn-secondary' onclick='event.stopPropagation();editTarget(" + t.id + ")'>✏️ 编辑</button>" +
+          "<button class='btn btn-sm btn-danger' onclick='event.stopPropagation();deleteTargetConfirm(" + t.id + ", \"" + (t.name || t.target) + "\")'>🗑️ 删除</button>" +
+        "</div>" +
       "</div>";
     list.appendChild(row);
   });
@@ -242,6 +245,7 @@ function showAddTarget() {
     sel.innerHTML += "<option value='" + val + "'>" + u.name + "</option>";
   });
   document.getElementById('modal-target-title').textContent = "添加监控目标";
+  document.getElementById('btn-delete-target').style.display = 'none';
   document.getElementById('modal-target').style.display = 'flex';
 }
 function editTarget(id) {
@@ -265,6 +269,7 @@ function editTarget(id) {
     sel.innerHTML += "<option value='" + val + "'" + selected + ">" + u.name + "</option>";
   });
   document.getElementById('modal-target-title').textContent = "编辑监控目标";
+  document.getElementById('btn-delete-target').style.display = 'inline-flex';
   document.getElementById('modal-target').style.display = 'flex';
 }
 function submitTarget() {
@@ -290,12 +295,24 @@ function submitTarget() {
     .then(function(d) { if (d.success !== false) { closeModal("modal-target"); loadTargets(); } else { alert("保存失败：" + (d.detail||d.error)); } })
     .catch(function(e){ alert("保存失败：" + e); });
 }
-function deleteTarget(id) {
-  if (!confirm("确定删除该监控目标吗？")) return;
-  var pw = "";
+function deleteCurrentTarget() {
+  var id = document.getElementById('f-target-id').value;
+  if (!id) return;
+  if (!confirm("确定删除该监控目标吗？此操作不可恢复。")) return;
   fetch(SERVER + "/api/admin/targets/" + id, {method:"DELETE"})
     .then(function(r){ return r.json(); })
-    .then(function(d) { if (d.success !== false) loadTargets(); else alert("删除失败"); });
+    .then(function(d) { if (d.success !== false) { closeModal("modal-target"); loadTargets(); } else { alert("删除失败：" + (d.detail||d.error)); } })
+    .catch(function(e){ alert("删除失败：" + e); });
+}
+function deleteTargetDirect(id) {
+  fetch(SERVER + "/api/admin/targets/" + id, {method:"DELETE"})
+    .then(function(r){ return r.json(); })
+    .then(function(d) { if (d.success !== false) loadTargets(); else alert("删除失败：" + (d.detail||d.error)); })
+    .catch(function(e){ alert("删除失败：" + e); });
+}
+function deleteTargetConfirm(id, name) {
+  if (!confirm("确定删除监控目标【" + name + "】吗？此操作不可恢复。")) return;
+  deleteTargetDirect(id);
 }
 function toggleTargetPort() {
   var pt = document.getElementById("f-target-probe").value;

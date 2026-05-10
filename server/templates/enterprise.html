@@ -3,8 +3,8 @@
 <a class="nav-item" href="/agents.html">📊 总览</a>
 <a class="nav-item" href="/admin_users.html">👤 企业用户</a>
 <a class="nav-item" href="/admin_snmp.html">🔌 SNMP 设备</a>
-<a class="nav-item" href="/admin_targets.html">🎯 目标配置</a>
 <a class="nav-item" href="/admin_ping.html">📡 连通检测</a>
+<a class="nav-item" href="/admin_targets.html">🎯 目标配置</a>
 <a class="nav-item" href="/download.html">📥 下载</a>
 {% endblock %}
 
@@ -12,8 +12,8 @@
 <a class="nav-item" href="/agents.html">📊 总览</a>
 <a class="nav-item" href="/admin_users.html">👤 企业用户</a>
 <a class="nav-item" href="/admin_snmp.html">🔌 SNMP 设备</a>
-<a class="nav-item" href="/admin_targets.html">🎯 目标配置</a>
 <a class="nav-item" href="/admin_ping.html">📡 连通检测</a>
+<a class="nav-item" href="/admin_targets.html">🎯 目标配置</a>
 <a class="nav-item" href="/download.html">📥 下载</a>
 {% endblock %}
 
@@ -92,7 +92,7 @@ tr:last-child td { border-bottom: none; }
 {% endblock %}
 {% block content %}
 <div class="container" style="max-width:960px;padding-top:20px;">
-  <div id="dashboard"><div class="loading">加载中...</div></div>
+  <div id="dashboard"><div class="skeleton skeleton-row"></div><div class="skeleton skeleton-row"></div><div class="skeleton skeleton-row"></div></div>
 </div>
 {% endblock %}
 {% block scripts %}

@@ -3,8 +3,8 @@
 <a class="nav-item" href="/agents.html">📊 总览</a>
 <a class="nav-item" href="/admin_users.html">👤 企业用户</a>
 <a class="nav-item" href="/admin_snmp.html">🔌 SNMP 设备</a>
-<a class="nav-item" href="/admin_targets.html">🎯 目标配置</a>
 <a class="nav-item" href="/admin_ping.html">📡 连通检测</a>
+<a class="nav-item" href="/admin_targets.html">🎯 目标配置</a>
 <a class="nav-item" href="/download.html">📥 下载</a>
 {% endblock %}
 
@@ -12,8 +12,8 @@
 <a class="nav-item" href="/agents.html">📊 总览</a>
 <a class="nav-item" href="/admin_users.html">👤 企业用户</a>
 <a class="nav-item" href="/admin_snmp.html">🔌 SNMP 设备</a>
-<a class="nav-item" href="/admin_targets.html">🎯 目标配置</a>
 <a class="nav-item" href="/admin_ping.html">📡 连通检测</a>
+<a class="nav-item" href="/admin_targets.html">🎯 目标配置</a>
 <a class="nav-item" href="/download.html">📥 下载</a>
 {% endblock %}
 
@@ -44,7 +44,7 @@
     <h1 style="font-size:20px;font-weight:800" id="pageTitle">SNMP 设备详情</h1>
     <a href="/admin.html" class="btn btn-sm btn-secondary">← 返回管理后台</a>
   </div>
-  <div id="loading" class="loading">加载中...</div>
+  <div id="loading"><div class="skeleton skeleton-row"></div><div class="skeleton skeleton-row"></div><div class="skeleton skeleton-row"></div></div>
   <div class="info-grid" id="infoGrid" style="display:none">
     <div class="info-card"><div class="info-label">设备名称</div><div class="info-value" id="devName">-</div></div>
     <div class="info-card"><div class="info-label">IP地址</div><div class="info-value" id="devIp">-</div></div>

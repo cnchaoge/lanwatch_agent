@@ -284,6 +284,15 @@ tbody tr:hover { background: rgba(255,255,255,0.03); }
   .detail-grid { grid-template-columns: 1fr; }
 }
 @media (max-width: 480px) { .stats-grid { grid-template-columns: 1fr; } }
+
+/* ─── 全局骨架屏 ─── */
+.skeleton { background: linear-gradient(90deg, var(--bg-tertiary) 25%, var(--bg-card) 50%, var(--bg-tertiary) 75%); background-size: 200% 100%; animation: shimmer 1.5s infinite; border-radius: var(--radius); }
+@keyframes shimmer { 0%{background-position:200% 0} 100%{background-position:-200% 0} }
+.skeleton-text { height: 14px; margin-bottom: 8px; }
+.skeleton-row { height: 54px; margin-bottom: 6px; border-radius: var(--radius); }
+.skeleton-text:last-child { margin-bottom: 0; }
+.loading { text-align: center; padding: 32px; color: var(--text-muted); font-size: 13px; }
+
 </style>
 <link rel="stylesheet" href="/static/theme.css">
 {% block head_extra %}{% endblock %}

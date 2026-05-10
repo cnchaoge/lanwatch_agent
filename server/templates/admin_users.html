@@ -4,8 +4,8 @@
 <a class="nav-item" href="/agents.html">📊 总览</a>
 <a class="nav-item" href="/admin_users.html">👤 企业用户</a>
 <a class="nav-item" href="/admin_snmp.html">🔌 SNMP 设备</a>
-<a class="nav-item" href="/admin_targets.html">🎯 目标配置</a>
 <a class="nav-item" href="/admin_ping.html">📡 连通检测</a>
+<a class="nav-item" href="/admin_targets.html">🎯 目标配置</a>
 <a class="nav-item" href="/download.html">📥 下载</a>
 {% endblock %}
 
@@ -13,8 +13,8 @@
 <a class="nav-item" href="/agents.html">📊 总览</a>
 <a class="nav-item" href="/admin_users.html">👤 企业用户</a>
 <a class="nav-item" href="/admin_snmp.html">🔌 SNMP 设备</a>
-<a class="nav-item" href="/admin_targets.html">🎯 目标配置</a>
 <a class="nav-item" href="/admin_ping.html">📡 连通检测</a>
+<a class="nav-item" href="/admin_targets.html">🎯 目标配置</a>
 <a class="nav-item" href="/download.html">📥 下载</a>
 {% endblock %}
 
@@ -78,7 +78,7 @@
       <div id="user-stats" class="stats-grid" style="padding:12px 20px;display:none"></div>
       <div id="main-list" class="monitor-list" style="display:none"></div>
       <div id="user-empty" style="text-align:center;padding:32px;color:var(--text-muted);font-size:13px;display:none">暂无企业</div>
-      <div id="user-loading" style="text-align:center;padding:32px;color:var(--text-muted);font-size:13px;">加载中...</div>
+      <div id="user-loading"><div class="skeleton skeleton-row"></div><div class="skeleton skeleton-row"></div><div class="skeleton skeleton-row"></div></div>
     </div>
 
   </div>
@@ -86,8 +86,8 @@
     <a href="/agents.html">总览</a>
     <a href="/admin_users.html">企业用户</a>
     <a href="/admin_snmp.html">SNMP 设备</a>
-    <a href="/admin_targets.html">目标配置</a>
     <a href="/admin_ping.html">连通检测</a>
+    <a href="/admin_targets.html">目标配置</a>
     <a href="/download.html">下载中心</a>
   </div>
 </div>
@@ -202,7 +202,7 @@ function render(users) {
 
     var mainRow = document.createElement("div");
     mainRow.className = "corp-main";
-    mainRow.onclick = function() { toggleCorp(u.id); };
+    mainRow.onclick = function(e) { if (e.target.closest(".corp-actions")) return; location.href = "/enterprise/" + u.id; };
     mainRow.innerHTML =
       "<span class='corp-toggle' id='toggle-" + u.id + "'>▶</span>" +
       "<div class='corp-info'>" +
@@ -213,7 +213,7 @@ function render(users) {
         "<button class='btn btn-xs btn-secondary' onclick='editUser(\"" + u.id + "\")'>编辑</button>" +
         "<button class='btn btn-xs btn-secondary' onclick='resetToken(\"" + u.id + "\")'>重置Token</button>" +
         "<button class='btn btn-xs btn-danger' onclick='deleteUser(\"" + u.id + "\",\"" + u.name.replace(/"/g,'\\"') + "\")'>删除</button>" +
-        "<button class='btn btn-xs' style='background:var(--accent-blue);color:#fff' onclick='showAddAgent(\"" + u.id + "\")'>+ 设备</button>" +
+        "<button class='btn btn-xs' style='background:var(--accent-blue);color:#fff' onclick='location.href="/enterprise/" + u.id'>查看详情</button>" +
       "</div>";
     card.appendChild(mainRow);
 
