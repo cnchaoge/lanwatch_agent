@@ -42,7 +42,7 @@ exe = EXE(
     debug=False,
     strip=False,
     upx=True,
-    console=True,
+    console=False,
     onefile=True,
     version=os.path.join(PARENT_DIR, "version_info.txt")
 )

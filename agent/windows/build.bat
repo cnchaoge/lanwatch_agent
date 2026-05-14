@@ -30,7 +30,7 @@ pip install pystray pillow pyinstaller httpx pywin32 -q
 pip install -r "%WORK_DIR%\requirements.txt" -q
 
 echo [4/4] Running PyInstaller...
-py -3.12 -m PyInstaller "%WORK_DIR%\setup\LanwatchAgent.spec" --noconfirm --clean
+py -3.12 -m PyInstaller "%WORK_DIR%\setup\build_spec.py" --noconfirm --clean
 
 echo.
 echo ========================================
