@@ -377,6 +377,7 @@ def _show_setup_window():
 
     result = {}
     is_registering = [False]
+    _confirming_exit = [False]  # 防止重复弹窗
 
     def _do_submit():
         global _tray_icon_ref
@@ -424,10 +425,17 @@ def _show_setup_window():
         finally:
             is_registering[0] = False
 
+    def _confirm_exit():
+        if _confirming_exit[0]:
+            return
+        _confirming_exit[0] = True
+        if messagebox.askyesno("退出", "确定要退出吗？"):
+            os._exit(0)
+        _confirming_exit[0] = False
+
     tk.Button(btn_frame, text="取消", font=("微软雅黑", 10), width=9,
               bg="#F3F4F6", fg=muted, relief="flat", pady=6,
-              command=lambda: (messagebox.askyesno("退出", "确定要退出吗？")
-                              and os._exit(0) or None)).pack(side="left", padx=(0, 10))
+              command=_confirm_exit).pack(side="left", padx=(0, 10))
     tk.Button(btn_frame, text="确认", font=("微软雅黑", 10, "bold"), width=10,
               bg=accent, fg="white", relief="flat", pady=6,
               command=_do_submit).pack(side="right")
@@ -436,8 +444,7 @@ def _show_setup_window():
 
     def on_close():
         if not result.get("ok"):
-            if messagebox.askyesno("退出", "确定要退出吗？"):
-                os._exit(0)
+            _confirm_exit()
     win.protocol("WM_DELETE_WINDOW", on_close)
     root.mainloop()
     try:
