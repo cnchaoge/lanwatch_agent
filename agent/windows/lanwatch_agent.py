@@ -447,10 +447,6 @@ def _show_setup_window():
             _confirm_exit()
     win.protocol("WM_DELETE_WINDOW", on_close)
     root.mainloop()
-    try:
-        root.destroy()
-    except Exception:
-        pass
 
 
 # ═══════════════════════════════════════════════════════════════
