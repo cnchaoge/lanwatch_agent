@@ -26,7 +26,7 @@ if not exist "%WORK_DIR%\venv312\Scripts\python.exe" (
 )
 
 echo [3/4] Installing dependencies...
-"%WORK_DIR%\venv312\Scripts\pip.exe" install --upgrade pip -q --disable-pip-version-check
+"%WORK_DIR%\venv312\Scripts\pip.exe" install --upgrade pip --disable-pip-version-check >nul 2>&1
 "%WORK_DIR%\venv312\Scripts\pip.exe" install pystray pillow pyinstaller httpx pywin32 -q --disable-pip-version-check
 "%WORK_DIR%\venv312\Scripts\pip.exe" install -r "%WORK_DIR%\requirements.txt" -q --disable-pip-version-check
 
