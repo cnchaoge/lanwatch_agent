@@ -307,7 +307,7 @@ def _do_update_tray_icon(color: str):
 # 注册向导 v1.3.2 — 仅需企业名称和联系人电话
 # ═══════════════════════════════════════════════════════════════
 
-DEFAULT_SERVER_URL = "http://82.156.229.67"
+DEFAULT_SERVER_URL = "http://82.156.229.67:8000"
 
 def _show_setup_window():
     import tkinter as tk
@@ -388,9 +388,9 @@ def _show_setup_window():
             status_lbl.config(text="请填写企业名称", fg=red)
             return
 
-        # 从配置文件或默认值获取服务器地址
+        # 首次注册强制使用默认服务端地址
         cfg = load_config()
-        server_url = cfg.server_url or DEFAULT_SERVER_URL
+        server_url = DEFAULT_SERVER_URL
 
         if is_registering[0]:
             return
