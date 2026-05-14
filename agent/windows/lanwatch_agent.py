@@ -86,7 +86,6 @@ GITHUB_REPO = "cnchaoge/lanwatch_agent"
 
 # 托盘状态队列（跨线程安全）
 _status_queue = queue.Queue()
-_action_queue = queue.Queue()
 _tray_icon_ref = None
 _status_thread_started = False
 _company_name = ""
@@ -130,12 +129,16 @@ def _show_about():
 
 def _show_msg(msg: str):
     try:
-        import tkinter as tk
-        from tkinter import messagebox
-        root = tk.Tk()
-        root.withdraw()
-        messagebox.showinfo("Lanwatch", msg)
-        root.destroy()
+        if sys.platform == "win32":
+            import ctypes
+            ctypes.windll.user32.MessageBoxW(0, msg, "Lanwatch", 0)
+        else:
+            import tkinter as tk
+            from tkinter import messagebox
+            root = tk.Tk()
+            root.withdraw()
+            messagebox.showinfo("Lanwatch", msg)
+            root.destroy()
     except Exception:
         log.warning("[提示] %s", msg)
 
@@ -153,28 +156,30 @@ def _exit_app():
 
 
 def _on_uninstall():
-    """卸载服务（由后台处理）"""
-    _action_queue.put_nowait(("uninstall", None))
-
-
-# ═══════════════════════════════════════════════════════════════
-# 卸载确认（在 Tk 主线程中处理）
-# ═══════════════════════════════════════════════════════════════
-
-def _do_uninstall_confirm():
+    """卸载服务"""
     try:
-        import tkinter as tk
-        from tkinter import messagebox
-        root = tk.Tk()
-        root.withdraw()
-        if messagebox.askyesno("卸载确认", "确定要卸载 Lanwatch Agent 吗？"):
-            root.destroy()
-            _do_uninstall()
+        if sys.platform == "win32":
+            import ctypes
+            ret = ctypes.windll.user32.MessageBoxW(0, "确定要卸载 Lanwatch Agent 吗？", "卸载确认", 4)  # 4=MB_YESNO
+            if ret == 6:  # 6=IDYES
+                _do_uninstall()
         else:
-            root.destroy()
-    except Exception:
-        pass
+            import tkinter as tk
+            from tkinter import messagebox
+            root = tk.Tk()
+            root.withdraw()
+            if messagebox.askyesno("卸载确认", "确定要卸载 Lanwatch Agent 吗？"):
+                root.destroy()
+                _do_uninstall()
+            else:
+                root.destroy()
+    except Exception as e:
+        log.warning("[卸载] 确认窗口异常: %s", e)
 
+
+# ═══════════════════════════════════════════════════════════════
+# 卸载
+# ═══════════════════════════════════════════════════════════════
 
 def _do_uninstall():
     """执行卸载操作"""
