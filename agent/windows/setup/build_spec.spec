@@ -19,6 +19,7 @@ a = Analysis(
     ],
     hiddenimports=[
         "pystray", "PIL.Image", "PIL.ImageDraw",
+        "urllib.request", "urllib.error", "urllib.parse",
         "win32serviceutil", "win32service", "win32event",
         "win32api", "win32con", "win32process", "win32gui",
         "win32timezone", "pythoncom", "pywintypes",
