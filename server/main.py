@@ -107,6 +107,7 @@ app.include_router(wizard_router, prefix="/api")
 app.include_router(propagation_router, prefix="/api")
 app.include_router(admin_router, prefix="/api")
 app.include_router(targets_router, prefix="/api")   # 必须在 admin_router 之后，避免 /api/admin/targets 被 /{agent_id}/targets 拦截
+app.include_router(probe_router, prefix="/api")    # /report /offline /diag 等 Agent 上报端点
 
 
 @app.get("/api/version")

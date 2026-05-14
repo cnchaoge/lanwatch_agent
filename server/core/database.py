@@ -66,6 +66,11 @@ def init_db():
                     cursor.execute(f"ALTER TABLE snmp_devices ADD COLUMN {col} INTEGER")
                 else:
                     cursor.execute(f"ALTER TABLE snmp_devices ADD COLUMN {col} TEXT DEFAULT ''")
+        # 检查并添加 agents phone 列（迁移兼容）
+        cursor.execute("PRAGMA table_info(agents)")
+        agent_cols = [row[1] for row in cursor.fetchall()]
+        if "phone" not in agent_cols:
+            cursor.execute("ALTER TABLE agents ADD COLUMN phone TEXT DEFAULT ''")
         # 检查并添加 scheduler_jobs name 列（迁移兼容）
         cursor.execute("PRAGMA table_info(scheduler_jobs)")
         sched_cols = [row[1] for row in cursor.fetchall()]

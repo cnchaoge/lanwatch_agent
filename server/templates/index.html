@@ -185,7 +185,8 @@ body {
       <span>LANWatch</span>
     </a>
     <div class="nav-links">
-      <a href="/#features">功能</a>
+      <a href="/#features">能力</a>
+      <a href="/#usecases">场景</a>
       <a href="/#deploy">部署</a>
       <a href="/#faq">FAQ</a>
       <a href="/#contact">联系</a>
@@ -204,27 +205,27 @@ body {
     <span class="badge-new dyn-ver">v1.3.0</span>
   </div>
   <h1><span class="accent">没有网管</span><br>照样能管好网络</h1>
-  <p class="hero-sub">网络断了？LANWatch 不只告诉你断了，还告诉你断在哪一跳。小微企业也能用上专业级网络监控。</p>
+  <p class="hero-sub">断网了？LANWatch 3 分钟内告诉你断在哪一跳、影响哪些设备。小微企业也能用上专业级网络监控。</p>
   <div class="hero-actions">
     <a class="btn btn-primary btn-lg" href="/download">🖥️ 免费下载 Windows 客户端</a>
-    <a class="btn btn-secondary btn-lg" href="/admin">📊 查看管理后台</a>
+    <a class="btn btn-secondary btn-lg" href="/agents">👀 看看效果</a>
   </div>
   <div class="hero-stats">
     <div class="hero-stat">
-      <div class="hero-stat-num">30s</div>
-      <div class="hero-stat-label">完成部署</div>
+      <div class="hero-stat-num">3 分钟</div>
+      <div class="hero-stat-label">内发现故障</div>
     </div>
     <div class="hero-stat">
-      <div class="hero-stat-num">60s</div>
-      <div class="hero-stat-label">探测间隔</div>
-    </div>
-    <div class="hero-stat">
-      <div class="hero-stat-num">43</div>
-      <div class="hero-stat-label">端口扫描覆盖</div>
+      <div class="hero-stat-num">43 种</div>
+      <div class="hero-stat-label">服务识别</div>
     </div>
     <div class="hero-stat">
       <div class="hero-stat-num">微信</div>
       <div class="hero-stat-label">即时报警</div>
+    </div>
+    <div class="hero-stat">
+      <div class="hero-stat-num">零配置</div>
+      <div class="hero-stat-label">接入</div>
     </div>
   </div>
 </section>
@@ -238,6 +239,11 @@ body {
   <p class="section-desc">断点诊断 · 静默拓扑 · 多维度探测 · 微信报警。LANWatch 让没有专职网管的小微企业，也能做到专业级的网络运维。</p>
 
   <div class="feature-grid">
+    <div class="feature-card">
+      <div class="feature-icon">🔗</div>
+      <div class="feature-name">故障传播链</div>
+      <div class="feature-desc">设备 A 断了，自动分析它正在影响哪些设备（B、C、D），帮你在群里汇报时直接说"影响会议室和前台打印机"。</div>
+    </div>
     <div class="feature-card">
       <div class="feature-icon">🔍</div>
       <div class="feature-name">断点诊断</div>
@@ -262,21 +268,6 @@ body {
       <div class="feature-icon">🔌</div>
       <div class="feature-name">端口扫描与服务识别</div>
       <div class="feature-desc">扫描 43 个常见端口，自动识别 HTTP/SSH/SMB/DNS 等服务。30 线程并发，3-5 秒完成，每 5 分钟上报一次。</div>
-    </div>
-    <div class="feature-card">
-      <div class="feature-icon">📱</div>
-      <div class="feature-name">手机端查看</div>
-      <div class="feature-desc">微信扫码直接看，无需安装 App。每个设备独立二维码，管理员和企业主都能随时查看网络状态。</div>
-    </div>
-    <div class="feature-card">
-      <div class="feature-icon">🔄</div>
-      <div class="feature-name">自动升级</div>
-      <div class="feature-desc">后台静默检测 GitHub releases，有新版本弹窗询问是否升级。升级过程自动重启，零手动干预。</div>
-    </div>
-    <div class="feature-card">
-      <div class="feature-icon">🌐</div>
-      <div class="feature-name">SNMP 监控</div>
-      <div class="feature-desc">企业级路由器/交换机支持 SNMP V2c 协议接入，无需安装客户端，协议直连，后台统一管理。</div>
     </div>
   </div>
 </section>
@@ -386,6 +377,40 @@ body {
 </section>
 
 <!-- FAQ -->
+
+<!-- Use Cases -->
+<section class="section" id="usecases">
+  <div class="section-eyebrow">适用场景</div>
+  <h2 class="section-title">这几种情况，LANWatch 正好适合</h2>
+  <p class="section-desc">不是所有企业都需要专业网管，但每个企业都值得拥有稳定的网络。</p>
+
+  <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:16px;">
+    <div class="feature-card">
+      <div class="feature-icon">🏢</div>
+      <div class="feature-name">中小企业办公室</div>
+      <div class="feature-desc">没有专职网管，网络故障靠客户投诉才知道。LANWatch 主动巡检，断网第一时间知道，不用等客户打电话来。</div>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon">🔧</div>
+      <div class="feature-name">弱电工程商</div>
+      <div class="feature-desc">为多个客户做网络托管，手里管着几十个网络。LANWatch 多企业隔离，一个后台看所有客户网络，出问题再出动。</div>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon">🖥️</div>
+      <div class="feature-name">机房运维</div>
+      <div class="feature-desc">多台服务器和网络设备，SNMP 协议直连，实时监控状态。收到报警再出动，不用一直盯着屏幕。</div>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon">🏠</div>
+      <div class="feature-name">连锁门店</div>
+      <div class="feature-desc">各门店网络统一管理，问题先于门店知道。晚上断网也能推送微信报警，不用等到第二天上班才发现。</div>
+    </div>
+  </div>
+</section>
+
+<div class="divider"></div>
+
+<!-- FAQ -->
 <section class="section" id="faq">
   <div class="section-eyebrow">常见问题</div>
   <h2 class="section-title">疑问解答</h2>
@@ -422,12 +447,18 @@ body {
 <section class="section" id="contact">
   <div class="section-eyebrow" style="color:var(--green);">联系我们</div>
   <h2 class="section-title">想先了解一下？</h2>
-  <p class="section-desc" style="margin-bottom:32px;">项目正在 MVP 验证阶段，欢迎小微企业联系试用。也可以直接电话咨询。</p>
+  <p class="section-desc" style="margin-bottom:32px;">项目正在 MVP 验证阶段，欢迎小微企业联系试用。也可以直接电话或微信咨询。</p>
 
-  <div style="display:flex;flex-direction:column;align-items:center;gap:16px;">
-    <div style="font-size:48px;font-weight:800;letter-spacing:-0.02em;" onclick="window.location.href='tel:18531729777'">📞 185-3172-9777</div>
-    <div style="font-size:14px;color:var(--muted);">电话 / 微信同号（早 9:00 - 晚 6:00）</div>
-    <a class="btn btn-primary btn-lg" href="tel:18531729777">📱 立即拨打</a>
+  <div style="display:flex;flex-direction:column;align-items:center;gap:24px;">
+    <div style="display:flex;align-items:center;gap:16px;">
+      <div style="font-size:20px;font-weight:700;" onclick="window.location.href='tel:18531729777'">📞 185-3172-9777</div>
+      <div style="font-size:13px;color:var(--muted);">电话 / 微信同号（早 9:00 - 晚 6:00）</div>
+    </div>
+    <div style="display:flex;flex-direction:column;align-items:center;gap:8px;">
+      <img src="/static/wechat_qr.png" alt="微信二维码" style="width:160px;height:160px;border-radius:12px;border:1px solid var(--border);">
+      <div style="font-size:12px;color:var(--muted);">👆 扫码加我，备注「LANWatch」</div>
+    </div>
+    <a class="btn btn-secondary" href="tel:18531729777">📱 立即拨打</a>
   </div>
 </section>
 

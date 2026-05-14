@@ -29,10 +29,13 @@ async def admin_login(payload: dict):
 
 @router.get("/admin/users")
 async def admin_get_users():
-    """返回所有企业（agent），从 scheduler_jobs 读取（与连通检测数据同源）"""
+    """返回所有企业（agent），从 agents 表读取（兼用 scheduler_jobs 的设备状态）"""
     with get_db() as conn:
         cursor = conn.cursor()
-        # 从 scheduler_jobs 获取所有 ping 任务，按 agent_id 分组
+        # 先从 agents 表拿企业基础信息
+        cursor.execute("SELECT agent_id, name, ip, token, phone, last_seen FROM agents ORDER BY name")
+        agent_rows = {r["agent_id"]: r for r in map(dict, cursor.fetchall())}
+        # scheduler_jobs 里拿 ping 任务状态（设备在线状态）
         cursor.execute(
             """SELECT sj.agent_id, sj.target, sj.name, sj.enabled,
                       pr.status as last_status, pr.rtt_ms, pr.created_at as last_check
@@ -46,19 +49,12 @@ async def admin_get_users():
                ORDER BY sj.agent_id, sj.target"""
         )
         rows = cursor.fetchall()
-        # 按 agent_id 分组
+        # 按 agent_id 分组 ping 任务（设备列表）
         from collections import defaultdict
-        agents_map = defaultdict(lambda: {"id": "", "name": "", "token": "", "ip": "", "agents": []})
+        agents_map = defaultdict(lambda: {"agents": []})
         for r in rows:
             d = dict(r)
             aid = d["agent_id"]
-            # 企业名称：取第一个任务的 name 或 target
-            if not agents_map[aid]["name"] and d.get("name"):
-                agents_map[aid]["name"] = d["name"]
-            if not agents_map[aid]["name"]:
-                agents_map[aid]["name"] = aid
-            agents_map[aid]["id"] = aid
-            # 每个 ping job 作为一个设备
             is_online = d.get("last_status") == "ok"
             last_seen = None
             if d.get("last_check"):
@@ -77,27 +73,45 @@ async def admin_get_users():
                 "enabled": bool(d.get("enabled", 1)),
             })
         result = []
-        for aid, info in agents_map.items():
-            agents = info["agents"]
+        for aid, extra in agents_map.items():
+            agents = extra["agents"]
             online_count = sum(1 for a in agents if a.get("is_online"))
-            result.append({
-                "id": aid,
-                "name": info["name"],
-                "phone": "",
-                "token": "",
-                "agents": agents,
-                "ip": "",
-                "os_type": "",
-                "last_seen": None,
-                "ping": None,
-                "_online_count": online_count,
-            })
+            # 从 agents 表读取企业真实数据
+            if aid in agent_rows:
+                ar = agent_rows[aid]
+                result.append({
+                    "id": aid,  # agents 表的真实 agent_id（用于 /enterprise/{id} 跳转）
+                    "name": ar["name"],
+                    "phone": ar.get("phone") or "",
+                    "token": ar.get("token") or "",
+                    "agents": agents,
+                    "ip": ar.get("ip") or "",
+                    "os_type": "",
+                    "last_seen": ar.get("last_seen"),
+                    "ping": None,
+                    "_online_count": online_count,
+                })
+            else:
+                # 企业只在 scheduler_jobs（老数据），降级显示
+                result.append({
+                    "id": aid,
+                    "name": aid,
+                    "phone": "",
+                    "token": "",
+                    "agents": agents,
+                    "ip": "",
+                    "os_type": "",
+                    "last_seen": None,
+                    "ping": None,
+                    "_online_count": online_count,
+                })
         return result
 
 
 @router.post("/admin/users")
-async def admin_create_user(payload: dict):
+async def admin_create_user(payload: dict, password: str = Query(default="")):
     """手动创建企业，可选 IP 地址自动创建连通性监控"""
+    _verify_admin(password=password)
     name = (payload.get("name") or "").strip()
     if not name:
         raise HTTPException(status_code=400, detail="企业名称不能为空")
@@ -108,8 +122,8 @@ async def admin_create_user(payload: dict):
     with get_db() as conn:
         cursor = conn.cursor()
         cursor.execute(
-            "INSERT INTO agents (agent_id, name, token, ip) VALUES (?, ?, ?, ?)",
-            (agent_id, name, token, ip),
+            "INSERT INTO agents (agent_id, name, token, ip, phone) VALUES (?, ?, ?, ?, ?)",
+            (agent_id, name, token, ip, phone),
         )
 
     # 如果提供了 IP，自动创建连通性监控
@@ -124,17 +138,31 @@ async def admin_create_user(payload: dict):
 
 
 @router.patch("/admin/users/{user_id}")
-async def admin_update_user(user_id: str, payload: dict):
+async def admin_update_user(user_id: str, payload: dict, password: str = Query(default="")):
+    """更新企业信息"""
+    _verify_admin(password=password)
     name = (payload.get("name") or "").strip()
+    phone = (payload.get("phone") or "").strip()
     ip = (payload.get("ip") or "").strip()
     with get_db() as conn:
         cursor = conn.cursor()
-        if name:
-            cursor.execute("UPDATE agents SET name = ? WHERE agent_id = ?", (name, user_id))
-        if ip:
-            cursor.execute("UPDATE agents SET ip = ? WHERE agent_id = ?", (ip, user_id))
-        if cursor.rowcount == 0:
+        # 先检查企业是否存在
+        cursor.execute("SELECT id FROM agents WHERE agent_id = ?", (user_id,))
+        if cursor.fetchone() is None:
             raise HTTPException(status_code=404, detail="企业不存在")
+        fields, values = [], []
+        if name:
+            fields.append("name = ?")
+            values.append(name)
+        if phone:
+            fields.append("phone = ?")
+            values.append(phone)
+        if ip:
+            fields.append("ip = ?")
+            values.append(ip)
+        if fields:
+            values.append(user_id)
+            cursor.execute(f"UPDATE agents SET {', '.join(fields)} WHERE agent_id = ?", values)
 
     # 如果更新了 IP，同步更新 ping 监控
     if ip:
@@ -148,26 +176,34 @@ async def admin_update_user(user_id: str, payload: dict):
 
 @router.post("/admin/users/{user_id}/reset-token")
 async def admin_reset_token(user_id: str):
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT id FROM agents WHERE agent_id = ?", (user_id,))
+        if cursor.fetchone() is None:
+            raise HTTPException(status_code=404, detail="企业不存在")
     token = secrets.token_hex(32)
     with get_db() as conn:
         cursor = conn.cursor()
         cursor.execute("UPDATE agents SET token = ? WHERE agent_id = ?", (token, user_id))
-        if cursor.rowcount == 0:
-            raise HTTPException(status_code=404, detail="企业不存在")
     return {"token": token}
 
 
 @router.delete("/admin/users/{user_id}")
-async def admin_delete_user(user_id: str):
+async def admin_delete_user(user_id: str, password: str = Query(default="")):
+    """删除企业及所有关联数据"""
+    _verify_admin(password=password)
     with get_db() as conn:
         cursor = conn.cursor()
-        cursor.execute("DELETE FROM topology_nodes WHERE agent_id = ?", (user_id,))
-        # topology_links 表无 agent_id 字段，跳过
+        # 删除 scheduler_jobs（ping任务，企业真实数据）
+        cursor.execute("DELETE FROM scheduler_jobs WHERE agent_id = ?", (user_id,))
+        # probe_results 按 agent_id 删除
         cursor.execute("DELETE FROM probe_results WHERE agent_id = ?", (user_id,))
+        # topology_nodes 按 agent_id 删除
+        cursor.execute("DELETE FROM topology_nodes WHERE agent_id = ?", (user_id,))
+        # alert_log 按 agent_id 删除
         cursor.execute("DELETE FROM alert_log WHERE agent_id = ?", (user_id,))
+        # agents 表（可能为空，但也执行）
         cursor.execute("DELETE FROM agents WHERE agent_id = ?", (user_id,))
-        if cursor.rowcount == 0:
-            raise HTTPException(status_code=404, detail="企业不存在")
     return {"success": True}
 
 

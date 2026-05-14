@@ -152,6 +152,8 @@
 var SERVER = location.origin;
 
 var allUsers = [];
+
+function navE(id) { location.href = '/enterprise/' + id; }
 function loadData() {
   document.getElementById("user-loading").style.display = "block";
   var pw = "";
@@ -213,7 +215,7 @@ function render(users) {
         "<button class='btn btn-xs btn-secondary' onclick='editUser(\"" + u.id + "\")'>编辑</button>" +
         "<button class='btn btn-xs btn-secondary' onclick='resetToken(\"" + u.id + "\")'>重置Token</button>" +
         "<button class='btn btn-xs btn-danger' onclick='deleteUser(\"" + u.id + "\",\"" + u.name.replace(/"/g,'\\"') + "\")'>删除</button>" +
-        "<button class='btn btn-xs' style='background:var(--accent-blue);color:#fff' onclick='location.href="/enterprise/" + u.id'>查看详情</button>" +
+        "<button class='btn btn-xs' style='background:var(--accent-blue);color:#fff' onclick='navE(u.id)'>查看详情</button>" +
       "</div>";
     card.appendChild(mainRow);
 
