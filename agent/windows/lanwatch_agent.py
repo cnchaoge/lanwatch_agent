@@ -429,7 +429,7 @@ def _show_setup_window():
         if _confirming_exit[0]:
             return
         _confirming_exit[0] = True
-        if messagebox.askyesno("退出", "确定要退出吗？"):
+        if messagebox.askyesno("退出", "确定要退出吗？", parent=win):
             os._exit(0)
         _confirming_exit[0] = False
 
