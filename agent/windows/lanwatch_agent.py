@@ -130,8 +130,11 @@ def _show_about():
 def _show_msg(msg: str):
     try:
         if sys.platform == "win32":
-            import ctypes
-            ctypes.windll.user32.MessageBoxW(0, msg, "Lanwatch", 0)
+            import ctypes, threading
+            threading.Thread(
+                target=lambda: ctypes.windll.user32.MessageBoxW(0, msg, "Lanwatch", 0),
+                daemon=True
+            ).start()
         else:
             import tkinter as tk
             from tkinter import messagebox
@@ -159,10 +162,12 @@ def _on_uninstall():
     """卸载服务"""
     try:
         if sys.platform == "win32":
-            import ctypes
-            ret = ctypes.windll.user32.MessageBoxW(0, "确定要卸载 Lanwatch Agent 吗？", "卸载确认", 4)  # 4=MB_YESNO
-            if ret == 6:  # 6=IDYES
-                _do_uninstall()
+            import ctypes, threading
+            def _confirm():
+                ret = ctypes.windll.user32.MessageBoxW(0, "确定要卸载 Lanwatch Agent 吗？", "卸载确认", 4)
+                if ret == 6:
+                    _do_uninstall()
+            threading.Thread(target=_confirm, daemon=True).start()
         else:
             import tkinter as tk
             from tkinter import messagebox
