@@ -364,7 +364,7 @@ def _show_setup_window():
     # 连接测试
     test_btn = tk.Button(card, text="测试连接", font=("微软雅黑", 9),
                          bg=card_bg, fg=accent, relief="solid", bd=1,
-                         pady=3, command=_test_connection)
+                         pady=3, command=lambda: _test_connection())
     test_btn.pack(anchor="w", padx=24)
     test_lbl = tk.Label(card, text="", font=("微软雅黑", 9), bg=card_bg)
     test_lbl.pack(anchor="w", padx=24, pady=(2, 0))
@@ -534,14 +534,6 @@ def _show_setup_window():
             if messagebox.askyesno("退出", "确定要退出吗？"):
                 os._exit(0)
     win.protocol("WM_DELETE_WINDOW", on_close)
-    root.mainloop()
-
-    def on_close():
-        if not result.get("ok"):
-            if messagebox.askyesno("提示", "确定要退出吗？"):
-                os._exit(0)
-    win.protocol("WM_DELETE_WINDOW", on_close)
-
     root.mainloop()
 
 

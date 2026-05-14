@@ -63,6 +63,18 @@ class Transport:
             logger.error(f"拓扑上报异常: {e}")
         return False
 
+    def report_offline(self) -> bool:
+        """通知服务端 agent 离线"""
+        url = f"{self.server_url}/api/{self.agent_id}/offline"
+        try:
+            r = self.client.post(url, headers=self._headers())
+            if r.status_code == 200:
+                return True
+            logger.warning(f"离线通知失败: {r.status_code}")
+        except Exception as e:
+            logger.error(f"离线通知异常: {e}")
+        return False
+
     def report_diag(self, report_data: Dict) -> bool:
         """上报诊断报告"""
         url = f"{self.server_url}/api/{self.agent_id}/diag"
