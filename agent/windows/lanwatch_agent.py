@@ -207,6 +207,12 @@ def _do_uninstall():
             log.info("[卸载] 配置文件已删除")
     except Exception as e:
         log.warning("[卸载] 删除配置文件失败: %s", e)
+    try:
+        if sys.platform == "win32":
+            import ctypes
+            ctypes.windll.user32.MessageBoxW(0, "卸载完成", "Lanwatch", 0)
+    except Exception:
+        pass
     os._exit(0)
 
 
