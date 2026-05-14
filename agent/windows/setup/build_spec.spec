@@ -61,7 +61,7 @@ exe = EXE(
     a.datas,
     name="LanwatchAgent",
     debug=False,
-    strip=True,
+    strip=False,
     upx=True,
     console=False,
     version=os.path.join(PARENT_DIR, "version_info.txt")
