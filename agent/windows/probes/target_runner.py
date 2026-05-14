@@ -45,12 +45,12 @@ def _run_ping(target: str, timeout: int = 5) -> Dict:
     import subprocess, re, sys
     try:
         if sys.platform == "win32":
-            out, _ = subprocess.run(
+            result = subprocess.run(
                 f'ping -n 1 -w {timeout*1000} {target}',
                 capture_output=True, text=True, timeout=timeout + 2,
                 shell=True
             )
-            text = out
+            text = result.stdout
             m = re.search(r'[Aa]verage\s*=\s*(\d+)ms', text)
             if m:
                 return {"status": "ok", "rtt_ms": float(m.group(1))}
@@ -58,12 +58,12 @@ def _run_ping(target: str, timeout: int = 5) -> Dict:
                 return {"status": "ok", "rtt_ms": 0.0}
             return {"status": "unreachable", "rtt_ms": None}
         else:
-            out, _ = subprocess.run(
+            result = subprocess.run(
                 f'ping -c 1 -W {timeout} {target}',
                 capture_output=True, text=True, timeout=timeout + 2,
                 shell=False
             )
-            text = out
+            text = result.stdout
             m = re.search(r'time[=<](\d+\.?\d*)', text)
             if m:
                 return {"status": "ok", "rtt_ms": float(m.group(1))}
