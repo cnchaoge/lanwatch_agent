@@ -30,13 +30,12 @@ a = Analysis(
     cipher=block_cipher
 )
 
-pyz = PYZ(a.pure, a.zipped_data, cipher=block_cipher)
+pyz = PYZ(a.pure, cipher=block_cipher)
 
 exe = EXE(
     pyz,
     a.scripts,
     a.binaries,
-    a.zipfiles,
     a.datas,
     name="LanwatchAgent",
     debug=False,
