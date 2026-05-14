@@ -27,13 +27,11 @@ class Transport:
         }
 
     def register(self, payload: Dict[str, Any]) -> Optional[Dict]:
-        """注册设备到服务器"""
+        """注册设备到服务器（无论成功还是错误，都返回 JSON）"""
         url = f"{self.server_url}/api/register"
         try:
             r = self.client.post(url, json=payload)
-            if r.status_code == 200:
-                return r.json()
-            logger.warning(f"注册失败: {r.status_code} {r.text}")
+            return r.json()
         except Exception as e:
             logger.error(f"注册请求异常: {e}")
         return None
