@@ -310,7 +310,7 @@ def _show_setup_window():
 
     win = tk.Toplevel()
     win.title("Lanwatch 网络监控 - 初始化设置")
-    win.geometry("480x380")
+    win.geometry("480x520")
     win.resizable(False, False)
     win.attributes("-topmost", True)
 
