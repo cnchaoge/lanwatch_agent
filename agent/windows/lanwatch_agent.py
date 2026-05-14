@@ -447,6 +447,10 @@ def _show_setup_window():
             _confirm_exit()
     win.protocol("WM_DELETE_WINDOW", on_close)
     root.mainloop()
+    try:
+        root.destroy()
+    except Exception:
+        pass
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -667,6 +671,7 @@ def main():
     if not cfg.agent_id:
         log.info("首次运行，显示注册向导...")
         _show_setup_window()
+        time.sleep(0.3)  # 等待 tkinter 彻底清理，避免干扰 pystray
         cfg.reload()
         if not cfg.agent_id:
             log.warning("注册未完成，程序退出")
