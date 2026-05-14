@@ -447,10 +447,6 @@ def _show_setup_window():
             _confirm_exit()
     win.protocol("WM_DELETE_WINDOW", on_close)
     root.mainloop()
-    try:
-        root.destroy()
-    except Exception:
-        pass
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -646,7 +642,7 @@ def _upload_cached_diag(agent_id: str, token: str):
 # ═══════════════════════════════════════════════════════════════
 
 def main():
-    global _tray_icon_ref
+    global _tray_icon_ref, _company_name
 
     log.info("=" * 50)
     log.info("lanwatch_agent v%s 启动", __version__)
@@ -667,23 +663,27 @@ def main():
 
     cfg = load_config()
 
+    # ── 先启动托盘（在 tkinter 之前，避免冲突） ──
+    if _tray_icon_ref is None:
+        company_name = cfg.get("company_name", "未注册")
+        setup_tray(company_name)
+        update_tray_status(False)
+
     # ── 未注册：引导注册 ──
     if not cfg.agent_id:
         log.info("首次运行，显示注册向导...")
         _show_setup_window()
-        time.sleep(0.3)  # 等待 tkinter 彻底清理，避免干扰 pystray
         cfg.reload()
         if not cfg.agent_id:
             log.warning("注册未完成，程序退出")
             return
+        # 注册成功后更新托盘名称
+        _company_name = cfg.get("company_name", "")
+        _do_update_tray_icon("#ff3b30")
 
     agent_id = cfg.agent_id
     company_name = cfg.get("company_name", "")
     log.info("已配置 Agent ID: %s", agent_id)
-
-    # ── 托盘 ──
-    if _tray_icon_ref is None:
-        setup_tray(company_name)
 
     # ── 启动监控主循环（独立线程） ──
     monitor_thread = threading.Thread(
