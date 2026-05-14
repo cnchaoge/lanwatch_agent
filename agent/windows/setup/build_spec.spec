@@ -47,7 +47,7 @@ a = Analysis(
         "PIL.ImageChops", "PIL.ImageOps", "PIL.ImageTransform",
         "PIL.ImagePalette", "PIL.ImagePath", "PIL.ImageMode",
         # 标准库（不需要）
-        "tkinter.test", "unittest", "email", "http.server",
+        "tkinter.test", "unittest", "http.server",
         "pydoc", "doctest", "difflib",
     ],
 )
