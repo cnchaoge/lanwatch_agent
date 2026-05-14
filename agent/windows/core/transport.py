@@ -1,10 +1,9 @@
 """
 HTTP 上报通道：
 - 携带 Bearer token 认证
-- 自动重试（网络抖动）
-- 日志记录
+- 使用标准库 urllib，无需 httpx
 """
-import httpx, json, logging
+import json, logging, urllib.request, urllib.error, urllib.parse
 from typing import Optional, Dict, Any, List
 
 logger = logging.getLogger("transport")
@@ -18,7 +17,6 @@ class Transport:
         self.agent_id = agent_id
         self.token = token
         self.timeout = timeout
-        self.client = httpx.Client(timeout=timeout)
 
     def _headers(self) -> Dict[str, str]:
         return {
@@ -26,78 +24,59 @@ class Transport:
             "Authorization": f"Bearer {self.token}"
         }
 
-    def register(self, payload: Dict[str, Any]) -> Optional[Dict]:
-        """注册设备到服务器（无论成功还是错误，都返回 JSON）"""
-        url = f"{self.server_url}/api/register"
+    def _request(self, url: str, data: Optional[bytes] = None,
+                 headers: Optional[Dict] = None, method: str = "POST") -> Optional[dict]:
+        """发送 HTTP 请求并返回 JSON（任何响应码都尝试解析）"""
         try:
-            r = self.client.post(url, json=payload)
-            return r.json()
+            req = urllib.request.Request(url, data=data, headers=headers or {}, method=method)
+            with urllib.request.urlopen(req, timeout=self.timeout) as resp:
+                return json.loads(resp.read().decode())
+        except urllib.error.HTTPError as e:
+            body = e.read().decode(errors="replace")
+            logger.warning("HTTP %s: %s", e.code, body[:200])
+            try:
+                return json.loads(body)
+            except Exception:
+                pass
         except Exception as e:
-            logger.error(f"注册请求异常: {e}")
+            logger.error("请求异常: %s", e)
         return None
 
+    def register(self, payload: Dict[str, Any]) -> Optional[Dict]:
+        url = f"{self.server_url}/api/register"
+        return self._request(url, data=json.dumps(payload).encode(),
+                             headers={"Content-Type": "application/json"})
+
     def report(self, reports: List[Dict]) -> bool:
-        """上报探测结果"""
         url = f"{self.server_url}/api/{self.agent_id}/report"
-        try:
-            r = self.client.post(url, json=reports, headers=self._headers())
-            if r.status_code == 200:
-                return True
-            logger.warning(f"上报失败: {r.status_code}")
-        except Exception as e:
-            logger.error(f"上报请求异常: {e}")
-        return False
+        r = self._request(url, data=json.dumps(reports).encode(), headers=self._headers())
+        return r is not None
 
     def report_topology(self, nodes: List[Dict], links: List[Dict]) -> bool:
-        """上报拓扑"""
         url = f"{self.server_url}/api/{self.agent_id}/topology"
-        try:
-            r = self.client.post(url, json=nodes, params={"links": links},
-                                 headers=self._headers())
-            if r.status_code == 200:
-                return True
-            logger.warning(f"拓扑上报失败: {r.status_code}")
-        except Exception as e:
-            logger.error(f"拓扑上报异常: {e}")
-        return False
+        params = urllib.parse.urlencode({"links": json.dumps(links)})
+        r = self._request(f"{url}?{params}", data=json.dumps(nodes).encode(),
+                          headers=self._headers())
+        return r is not None
 
     def report_offline(self) -> bool:
-        """通知服务端 agent 离线"""
         url = f"{self.server_url}/api/{self.agent_id}/offline"
-        try:
-            r = self.client.post(url, headers=self._headers())
-            if r.status_code == 200:
-                return True
-            logger.warning(f"离线通知失败: {r.status_code}")
-        except Exception as e:
-            logger.error(f"离线通知异常: {e}")
-        return False
+        r = self._request(url, headers=self._headers())
+        return r is not None
 
     def report_diag(self, report_data: Dict) -> bool:
-        """上报诊断报告"""
         url = f"{self.server_url}/api/{self.agent_id}/diag"
-        try:
-            r = self.client.post(url, json=report_data, headers=self._headers())
-            if r.status_code == 200:
-                return True
-            logger.warning(f"诊断上报失败: {r.status_code}")
-        except Exception as e:
-            logger.error(f"诊断上报异常: {e}")
-        return False
+        r = self._request(url, data=json.dumps(report_data).encode(),
+                          headers=self._headers())
+        return r is not None
 
     def fetch_targets(self) -> Optional[List[Dict]]:
-        """从服务端拉取监控目标配置"""
-        url = f"{self.server_url}/api/targets"
-        try:
-            r = self.client.get(url, params={"agent_id": self.agent_id, "token": self.token})
-            if r.status_code == 200:
-                data = r.json()
-                if data.get("success"):
-                    return data.get("data", [])
-            logger.warning(f"拉取目标配置失败: {r.status_code} {r.text}")
-        except Exception as e:
-            logger.error(f"拉取目标配置异常: {e}")
+        params = urllib.parse.urlencode({"agent_id": self.agent_id, "token": self.token})
+        url = f"{self.server_url}/api/targets?{params}"
+        r = self._request(url, method="GET")
+        if r and r.get("success"):
+            return r.get("data", [])
         return None
 
     def close(self):
-        self.client.close()
+        pass
