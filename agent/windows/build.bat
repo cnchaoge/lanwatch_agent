@@ -31,7 +31,7 @@ echo [3/4] Installing dependencies...
 "%WORK_DIR%\venv312\Scripts\pip.exe" install -r "%WORK_DIR%\requirements.txt" -q
 
 echo [4/4] Running PyInstaller...
-"%WORK_DIR%\venv312\Scripts\python.exe" -m PyInstaller "%WORK_DIR%\setup\build_spec.py" --noconfirm --clean
+"%WORK_DIR%\venv312\Scripts\python.exe" -m PyInstaller "%WORK_DIR%\setup\build_spec.spec" --noconfirm --clean
 
 echo.
 echo ========================================
