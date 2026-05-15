@@ -301,7 +301,6 @@ def _update_tray_tooltip_win32(title: str):
         hwnd = getattr(icon, "_hwnd", 0)
         uid = getattr(icon, "_id", 0)
         if not hwnd:
-            log.info("[托盘] Win32: hwnd=0 跳过")
             return
 
         # NOTIFYICONDATAW V2 完整结构（Windows 10/11 需要正确 cbSize）
@@ -330,9 +329,7 @@ def _update_tray_tooltip_win32(title: str):
         nid.uID = uid
         nid.uFlags = 0x0004  # NIF_TIP
         nid.szTip = title
-        ok = ctypes.windll.shell32.Shell_NotifyIconW(1, ctypes.byref(nid))
-        log.info("[托盘] Win32: hwnd=%s uid=%s cbSize=%s result=%s",
-                 hwnd, uid, nid.cbSize, "成功" if ok else "失败")
+        ctypes.windll.shell32.Shell_NotifyIconW(1, ctypes.byref(nid))
     except Exception as e:
         log.warning("[托盘] Win32 异常: %s", e)
 
@@ -349,7 +346,6 @@ def _do_update_tray_icon(color: str):
         # pystray title setter（部分 Windows 版本可能不生效，作为补充调用 Win32 API）
         _tray_icon_ref.title = title
         _update_tray_tooltip_win32(title)
-        log.info("[托盘] 状态更新: %s", color)
     except Exception as e:
         log.warning("[托盘] 更新失败: %s", e)
 
