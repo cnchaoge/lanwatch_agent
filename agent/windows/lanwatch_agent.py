@@ -301,9 +301,10 @@ def _update_tray_tooltip_win32(title: str):
         hwnd = getattr(icon, "_hwnd", 0)
         uid = getattr(icon, "_id", 0)
         if not hwnd:
+            log.info("[托盘] Win32: hwnd=0 跳过")
             return
 
-        # 最小 NOTIFYICONDATAW 结构（仅 NIF_TIP 所需字段）
+        # NOTIFYICONDATAW V2 完整结构（Windows 10/11 需要正确 cbSize）
         class NOTIFYICONDATAW(ctypes.Structure):
             _fields_ = [
                 ("cbSize", wintypes.DWORD),
@@ -312,19 +313,28 @@ def _update_tray_tooltip_win32(title: str):
                 ("uFlags", wintypes.UINT),
                 ("uCallbackMessage", wintypes.UINT),
                 ("hIcon", wintypes.HICON),
-                ("szTip", wintypes.WCHAR * 128),
+                ("szTip", ctypes.c_wchar * 128),
+                ("dwState", wintypes.DWORD),
+                ("dwStateMask", wintypes.DWORD),
+                ("szInfo", ctypes.c_wchar * 256),
+                ("uVersion", wintypes.UINT),
+                ("szInfoTitle", ctypes.c_wchar * 64),
+                ("dwInfoFlags", wintypes.DWORD),
+                ("guidItem", ctypes.c_byte * 16),
+                ("hBalloonIcon", wintypes.HICON),
             ]
 
         nid = NOTIFYICONDATAW()
         nid.cbSize = ctypes.sizeof(NOTIFYICONDATAW)
         nid.hWnd = hwnd
         nid.uID = uid
-        nid.uFlags = 0x0004   # NIF_TIP
+        nid.uFlags = 0x0004  # NIF_TIP
         nid.szTip = title
-        ok = ctypes.windll.shell32.Shell_NotifyIconW(1, ctypes.byref(nid))  # NIM_MODIFY
-        log.info("[托盘] Win32 更新标题: %s", "成功" if ok else "失败")
+        ok = ctypes.windll.shell32.Shell_NotifyIconW(1, ctypes.byref(nid))
+        log.info("[托盘] Win32: hwnd=%s uid=%s cbSize=%s result=%s",
+                 hwnd, uid, nid.cbSize, "成功" if ok else "失败")
     except Exception as e:
-        log.debug("[托盘] Win32 更新标题异常: %s", e)
+        log.warning("[托盘] Win32 异常: %s", e)
 
 
 def _do_update_tray_icon(color: str):
