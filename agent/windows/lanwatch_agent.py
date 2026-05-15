@@ -469,8 +469,8 @@ def _show_setup_window():
             cfg.save()
             result["ok"] = True
             status_lbl.config(text=f"✓ 注册成功！企业：{name}", fg=green)
-            win.after(1200, lambda: win.destroy())
-            win.after(1300, lambda: root.quit())
+            root.after(1200, lambda: win.destroy())
+            root.after(1300, lambda: root.quit())
         except Exception as e:
             status_lbl.config(text=f"注册失败：{e}", fg=red)
         finally:
