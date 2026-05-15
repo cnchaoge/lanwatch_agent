@@ -272,19 +272,17 @@ def update_tray_status(is_online: bool):
 
 
 def _poll_status_queue():
-    """在单独线程中轮询状态队列，更新托盘图标/标题"""
-    global _tray_icon_ref, _company_name
+    """在单独线程中轮询状态队列，更新托盘图标颜色"""
+    global _tray_icon_ref
     current_color = None
     while True:
         try:
             op, data = _status_queue.get(timeout=1)
-            if op == "company_name":
-                _company_name = data
-            elif op == "status":
-                new_color = "#34c759" if data else "#ff3b30"
-                if new_color != current_color:
-                    current_color = new_color
-                _do_update_tray_icon(current_color)
+            if op == "status":
+                color = "#34c759" if data else "#ff3b30"
+                if color != current_color:
+                    current_color = color
+                    _do_update_tray_icon(color)
         except queue.Empty:
             continue
         except Exception as e:
@@ -667,8 +665,7 @@ def main():
 
     # ── 先启动托盘（在 tkinter 之前，避免冲突） ──
     if _tray_icon_ref is None:
-        company_name = cfg.get("company_name", "未注册")
-        setup_tray(company_name)
+        setup_tray("初始化...")
         update_tray_status(False)
 
     # ── 未注册：引导注册 ──
@@ -679,10 +676,16 @@ def main():
         if not cfg.agent_id:
             log.warning("注册未完成，程序退出")
             return
-        # 注册成功后通过队列更新托盘名称（确保在队列线程中执行，线程安全）
+        # 注册成功后重建托盘（pystray 直接改 title 可能不生效）
         company_name = cfg.get("company_name", "")
-        _status_queue.put_nowait(("company_name", company_name))
-        _status_queue.put_nowait(("status", False))
+        if _tray_icon_ref:
+            try:
+                _tray_icon_ref.stop()
+            except Exception:
+                pass
+            _tray_icon_ref = None
+        setup_tray(company_name)
+        update_tray_status(False)
 
     agent_id = cfg.agent_id
     company_name = cfg.get("company_name", "")
