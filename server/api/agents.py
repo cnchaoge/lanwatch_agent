@@ -29,7 +29,7 @@ async def register_agent(payload: dict):
         cursor.execute("SELECT agent_id, token FROM agents WHERE name = ?", (company_name,))
         existing = cursor.fetchone()
         if existing:
-            raise HTTPException(status_code=409, detail=f"企业「{company_name}」已注册，请勿重复注册")
+            return {"success": True, "message": "设备已重新注册", "agent_id": existing["agent_id"], "token": existing["token"], "interval": payload.get("interval", config.AGENT_DEFAULT_INTERVAL)}
         # agent_id 查重（存量兼容）
         cursor.execute("SELECT token FROM agents WHERE agent_id = ?", (agent_id,))
         existing_by_id = cursor.fetchone()
