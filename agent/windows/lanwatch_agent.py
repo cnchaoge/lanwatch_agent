@@ -272,17 +272,19 @@ def update_tray_status(is_online: bool):
 
 
 def _poll_status_queue():
-    """在托盘线程中轮询状态队列，更新图标颜色"""
-    global _tray_icon_ref
+    """在单独线程中轮询状态队列，更新托盘图标/标题"""
+    global _tray_icon_ref, _company_name
     current_color = None
     while True:
         try:
             op, data = _status_queue.get(timeout=1)
-            if op == "status":
-                color = "#34c759" if data else "#ff3b30"
-                if color != current_color:
-                    current_color = color
-                    _do_update_tray_icon(color)
+            if op == "company_name":
+                _company_name = data
+            elif op == "status":
+                new_color = "#34c759" if data else "#ff3b30"
+                if new_color != current_color:
+                    current_color = new_color
+                _do_update_tray_icon(current_color)
         except queue.Empty:
             continue
         except Exception as e:
@@ -677,9 +679,10 @@ def main():
         if not cfg.agent_id:
             log.warning("注册未完成，程序退出")
             return
-        # 注册成功后更新托盘名称
-        _company_name = cfg.get("company_name", "")
-        _do_update_tray_icon("#ff3b30")
+        # 注册成功后通过队列更新托盘名称（确保在队列线程中执行，线程安全）
+        company_name = cfg.get("company_name", "")
+        _status_queue.put_nowait(("company_name", company_name))
+        _status_queue.put_nowait(("status", False))
 
     agent_id = cfg.agent_id
     company_name = cfg.get("company_name", "")
