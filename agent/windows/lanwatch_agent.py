@@ -280,24 +280,65 @@ def _poll_status_queue():
             op, data = _status_queue.get(timeout=1)
             if op == "status":
                 color = "#34c759" if data else "#ff3b30"
-                if color != current_color:
-                    current_color = color
-                    _do_update_tray_icon(color)
+                current_color = color
+                _do_update_tray_icon(color)
         except queue.Empty:
             continue
         except Exception as e:
             log.debug("[托盘] 状态轮询异常: %s", e)
 
 
+def _update_tray_tooltip_win32(title: str):
+    """使用 Win32 Shell_NotifyIcon 直接更新工具提示"""
+    global _tray_icon_ref
+    if _tray_icon_ref is None:
+        return
+    try:
+        import ctypes
+        from ctypes import wintypes
+
+        icon = _tray_icon_ref
+        hwnd = getattr(icon, "_hwnd", 0)
+        uid = getattr(icon, "_id", 0)
+        if not hwnd:
+            return
+
+        # 最小 NOTIFYICONDATAW 结构（仅 NIF_TIP 所需字段）
+        class NOTIFYICONDATAW(ctypes.Structure):
+            _fields_ = [
+                ("cbSize", wintypes.DWORD),
+                ("hWnd", wintypes.HWND),
+                ("uID", wintypes.UINT),
+                ("uFlags", wintypes.UINT),
+                ("uCallbackMessage", wintypes.UINT),
+                ("hIcon", wintypes.HICON),
+                ("szTip", wintypes.WCHAR * 128),
+            ]
+
+        nid = NOTIFYICONDATAW()
+        nid.cbSize = ctypes.sizeof(NOTIFYICONDATAW)
+        nid.hWnd = hwnd
+        nid.uID = uid
+        nid.uFlags = 0x0004   # NIF_TIP
+        nid.szTip = title
+        ok = ctypes.windll.shell32.Shell_NotifyIconW(1, ctypes.byref(nid))  # NIM_MODIFY
+        log.info("[托盘] Win32 更新标题: %s", "成功" if ok else "失败")
+    except Exception as e:
+        log.debug("[托盘] Win32 更新标题异常: %s", e)
+
+
 def _do_update_tray_icon(color: str):
-    """在托盘线程中安全更新图标"""
+    """在后台线程中安全更新图标和工具提示"""
     global _tray_icon_ref, _company_name
     try:
         if _tray_icon_ref is None:
             return
         _tray_icon_ref.icon = _create_tray_image(color)
         status_text = "在线" if color == "#34c759" else "离线"
-        _tray_icon_ref.title = f"lanwatch ({_company_name}) - {status_text}"
+        title = f"lanwatch ({_company_name}) - {status_text}"
+        # pystray title setter（部分 Windows 版本可能不生效，作为补充调用 Win32 API）
+        _tray_icon_ref.title = title
+        _update_tray_tooltip_win32(title)
         log.info("[托盘] 状态更新: %s", color)
     except Exception as e:
         log.warning("[托盘] 更新失败: %s", e)
@@ -676,16 +717,9 @@ def main():
         if not cfg.agent_id:
             log.warning("注册未完成，程序退出")
             return
-        # 注册成功后重建托盘（pystray 直接改 title 可能不生效）
-        company_name = cfg.get("company_name", "")
-        if _tray_icon_ref:
-            try:
-                _tray_icon_ref.stop()
-            except Exception:
-                pass
-            _tray_icon_ref = None
-        setup_tray(company_name)
-        update_tray_status(False)
+        # 注册成功后更新企业名称并触发托盘标题刷新
+        _company_name = cfg.get("company_name", "")
+        _status_queue.put_nowait(("status", False))
 
     agent_id = cfg.agent_id
     company_name = cfg.get("company_name", "")
