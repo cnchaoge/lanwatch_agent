@@ -20,6 +20,7 @@ from api.topology_api import router as topology_router
 from api.wizard_api import router as wizard_router
 from api.propagation_api import router as propagation_router
 from api.admin_api import router as admin_router
+from api.chat_api import router as chat_router
 from api.targets import router as targets_router
 from web import register_web
 from modules.scheduler import scheduler
@@ -107,6 +108,7 @@ app.include_router(diagnosis_router, prefix="/api")
 app.include_router(wizard_router, prefix="/api")
 app.include_router(propagation_router, prefix="/api")
 app.include_router(admin_router, prefix="/api")
+app.include_router(chat_router, prefix="/api")   # AI 聊天
 app.include_router(targets_router, prefix="/api")   # 必须在 admin_router 之后，避免 /api/admin/targets 被 /{agent_id}/targets 拦截
 app.include_router(probe_router, prefix="/api")    # /report /offline /diag 等 Agent 上报端点
 
