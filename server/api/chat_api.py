@@ -7,6 +7,24 @@ import os
 import httpx
 from core.config import config
 
+# ── LLM 提供者配置 ──
+# 兼容任何 OpenAI 格式的 API，通过环境变量配置：
+#   LLM_API_KEY      - API 密钥
+#   LLM_API_BASE     - API 地址（默认 OpenAI）
+#   LLM_MODEL        - 模型名
+#
+# MiniMax 示例：
+#   LLM_API_BASE=https://api.minimax.chat/v1
+#   LLM_MODEL=MiniMax-Text-01
+#
+# DeepSeek 示例：
+#   LLM_API_BASE=https://api.deepseek.com/v1
+#   LLM_MODEL=deepseek-chat
+#
+# OpenAI 示例（默认）：
+#   LLM_API_BASE=https://api.openai.com/v1
+#   LLM_MODEL=gpt-4o-mini
+
 logger = logging.getLogger("chat")
 router = APIRouter()
 
@@ -114,21 +132,25 @@ v1.3.0 新增 targets 监控目标表和 enterprise 企业端聚合页面。
 @router.post("/chat")
 async def chat(req: ChatRequest):
     """与 LANWatch AI 助理对话"""
-    api_key = os.environ.get("OPENAI_API_KEY", "")
+    api_key = (config.LLM_API_KEY or os.environ.get("LLM_API_KEY", "") or os.environ.get("OPENAI_API_KEY", ""))
     if not api_key:
-        logger.warning("OPENAI_API_KEY 未配置")
+        logger.warning("LLM_API_KEY 未配置")
         return ChatResponse(success=False, error="AI 助理暂未配置 API Key，请联系管理员设置")
+
+    api_base = (config.LLM_API_BASE or os.environ.get("LLM_API_BASE", "") or "https://api.openai.com/v1")
+    model = (config.LLM_MODEL or os.environ.get("LLM_MODEL", "") or "gpt-4o-mini")
+    url = api_base.rstrip("/") + "/chat/completions"
 
     try:
         async with httpx.AsyncClient(timeout=30) as client:
             resp = await client.post(
-                "https://api.openai.com/v1/chat/completions",
+                url,
                 headers={
                     "Authorization": f"Bearer {api_key}",
                     "Content-Type": "application/json",
                 },
                 json={
-                    "model": "gpt-4o-mini",
+                    "model": model,
                     "messages": [
                         {"role": "system", "content": SYSTEM_PROMPT},
                         *[m.dict() for m in req.messages],

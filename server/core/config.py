@@ -18,6 +18,9 @@ class Config:
     DINGTALK_WEBHOOK = os.environ.get("DINGTALK_WEBHOOK", "")
     FEISHU_WEBHOOK = os.environ.get("FEISHU_WEBHOOK", "")
     OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "")
+    LLM_API_KEY = os.environ.get("LLM_API_KEY", "")
+    LLM_API_BASE = os.environ.get("LLM_API_BASE", "")
+    LLM_MODEL = os.environ.get("LLM_MODEL", "")
 
     # 数据保留天数
     RETENTION_PROBE_DAYS = int(os.environ.get("RETENTION_PROBE_DAYS", "5"))
