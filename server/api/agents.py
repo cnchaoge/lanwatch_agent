@@ -1,6 +1,9 @@
 import secrets
+import logging
 import io
 import json
+
+logger = logging.getLogger("agents")
 from datetime import datetime, timezone
 from fastapi import APIRouter, HTTPException, Header, Query
 from fastapi.responses import Response
@@ -92,8 +95,8 @@ async def get_enterprises():
                 if pr.get("last_check"):
                     try:
                         ping_status["last_seen"] = datetime.fromisoformat(pr["last_check"] + "+00:00").timestamp()
-                    except Exception:
-                        pass
+                    except Exception as e:
+                        logger.warning("解析企业 ping 时间戳失败: %s", e)
 
             # 查询关联的 SNMP 设备
             snmp_devices_list = []
@@ -118,8 +121,8 @@ async def get_enterprises():
                     try:
                         last_dt = datetime.fromisoformat(ts_row["timestamp"])
                         online = (datetime.now(timezone.utc) - last_dt).total_seconds() < 600
-                    except Exception:
-                        pass
+                    except Exception as e:
+                        logger.warning("解析 SNMP 设备时间戳失败: %s", e)
                 # 提取 CPU 和运行时间指标
                 metrics_rows = cursor.execute(
                     "SELECT oid, value FROM snmp_metrics WHERE device_ip=? ORDER BY timestamp DESC LIMIT 200",
@@ -255,7 +258,8 @@ def _classify_ip(ip: str) -> str:
         if parts[0] == 169 and parts[1] == 254:
             return "none"
         return "public"
-    except (ValueError, IndexError):
+    except (ValueError, IndexError) as e:
+        logger.warning("IP 分类异常 [%s]: %s", ip, e)
         return "none"
 
 
@@ -266,5 +270,6 @@ def _is_recent(last_seen: Optional[str], seconds: int = 120) -> bool:
     try:
         last = datetime.fromisoformat(last_seen + "+00:00")
         return datetime.now(timezone.utc) - last < timedelta(seconds=seconds)
-    except Exception:
+    except Exception as e:
+        logger.warning("解析 last_seen 时间失败 [%s]: %s", last_seen, e)
         return False

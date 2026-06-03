@@ -1,6 +1,9 @@
 """拓扑管理 API：触发发现、查询拓扑、节点/链路管理"""
+import logging
 from fastapi import APIRouter, Query, HTTPException
 from typing import Optional, List
+
+logger = logging.getLogger("topology_api")
 from pydantic import BaseModel
 from datetime import datetime, timedelta
 from core.database import get_db

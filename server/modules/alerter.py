@@ -1,8 +1,10 @@
 """告警引擎：内置规则、冷却、多渠道推送"""
 import os
+import logging
 import time
 import json
 import httpx
+logger = logging.getLogger("alerter")
 from typing import Dict, List, Optional, Any
 from core.database import get_db
 from core.config import config
@@ -62,8 +64,8 @@ class AlertEngine:
         try:
             httpx.post(f"https://sctapi.ftqq.com/{sckey}.send",
                        json={"title": title, "desp": content}, timeout=10)
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning("Server酱推送失败: %s", e)
 
     def _dispatch_dingtalk(self, content: str):
         webhook = config.DINGTALK_WEBHOOK
@@ -73,8 +75,8 @@ class AlertEngine:
             httpx.post(webhook,
                        json={"msgtype": "text", "text": {"content": content}},
                        timeout=10)
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning("钉钉推送失败: %s", e)
 
     def _dispatch_feishu(self, content: str):
         webhook = config.FEISHU_WEBHOOK
@@ -84,8 +86,8 @@ class AlertEngine:
             httpx.post(webhook,
                        json={"msg_type": "text", "content": {"text": content}},
                        timeout=10)
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning("飞书推送失败: %s", e)
 
     def dispatch(self, alert_type: str, agent_id: str, message: str, level: str = "warning"):
         """写入告警日志并按需推送（受冷却控制）"""

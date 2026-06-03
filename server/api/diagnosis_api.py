@@ -1,8 +1,11 @@
 """诊断 API：单目标诊断、历史批量诊断、规则查询、快速诊断"""
-import ast
+import ast, logging
+
+logger = logging.getLogger("diagnosis_api")
 from typing import Optional
 from datetime import datetime, timedelta
 from pydantic import BaseModel
+import logging
 from fastapi import APIRouter, Query
 from core.database import get_db
 from modules.diagnosis import diagnosis_engine, DIAGNOSIS_RULES

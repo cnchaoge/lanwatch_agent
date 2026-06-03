@@ -1,6 +1,9 @@
 """SNMP 设备管理 API：注册/删除/查询/采集"""
+import logging
 from fastapi import APIRouter, Query, HTTPException
 from typing import Optional, Dict
+
+logger = logging.getLogger("snmp_api")
 from pydantic import BaseModel
 from modules.snmp_manager import snmp_manager
 from core.auth import verify_admin_password
@@ -168,8 +171,8 @@ async def get_snmp_devices_latest():
                             last_dt = now_utc
                         last_poll = last_dt.timestamp()
                         status = 1 if (now_utc - last_dt).total_seconds() < 600 else 0
-                    except Exception:
-                        pass
+                    except Exception as e:
+                        logger.warning("SNMP 最新轮询时间解析失败 [%s]: %s", dev.get("ip", "?"), e)
 
             # 提取有用字段
             sys_descr = metrics.get("sysDescr", "")

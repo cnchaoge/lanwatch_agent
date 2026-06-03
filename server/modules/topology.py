@@ -204,8 +204,8 @@ class TopologyDiscoverer:
             try:
                 idx = oid_str.rsplit(".", 1)[-1]
                 port_map[idx] = val_str
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning("LLDP 端口索引解析失败: %s", e)
 
         for oid_str, val_str in chassis_rows:
             try:
@@ -214,8 +214,8 @@ class TopologyDiscoverer:
                 neighbor_ip = self._resolve_chassis_id(val_str)
                 if neighbor_ip:
                     neighbors.append((neighbor_ip, port_id))
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning("LLDP 邻居解析失败 [%s]: %s", val_str, e)
 
         return neighbors
 
@@ -226,8 +226,8 @@ class TopologyDiscoverer:
             for _oid_str, val_str in rows:
                 if self._looks_like_ip(val_str):
                     neighbors.append((val_str, "cdp"))
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning("CDP 邻居发现失败 [%s]: %s", ip, e)
         return neighbors
 
     def _discover_arp_neighbors(self, ip: str, community: str) -> List[str]:
@@ -241,10 +241,10 @@ class TopologyDiscoverer:
                         ip_str = ".".join(parts[-4:])
                         if self._looks_like_ip(ip_str) and ip_str != ip:
                             arp_ips.append(ip_str)
-                except Exception:
-                    pass
-        except Exception:
-            pass
+                except Exception as e:
+                    logger.warning("ARP OID 解析失败: %s", e)
+        except Exception as e:
+            logger.warning("ARP 邻居发现失败 [%s]: %s", ip, e)
         return list(set(arp_ips))
 
     # ----------------------------------------------------------- helpers
@@ -283,15 +283,15 @@ class TopologyDiscoverer:
             for _oid_str, val_str in rows:
                 if self._looks_like_mac(val_str):
                     return val_str.upper()
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning("从 ARP 获取 MAC 失败 [%s]: %s", ip, e)
         try:
             rows = snmp_bulkwalk(ip, LLDP_CHASSIS_ID, community, max_rows=20)
             for _oid_str, val_str in rows:
                 if self._looks_like_mac(val_str):
                     return val_str.upper()
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning("从 LLDP 获取 MAC 失败 [%s]: %s", ip, e)
         return None
 
     def _get_interfaces(self, ip: str, community: str) -> Dict[int, Dict]:
@@ -302,10 +302,10 @@ class TopologyDiscoverer:
                 try:
                     idx = int(oid_str.rsplit(".", 1)[-1])
                     interfaces[idx] = {"descr": val_str, "status": "unknown"}
-                except Exception:
-                    pass
-        except Exception:
-            pass
+                except Exception as e:
+                    logger.warning("接口描述 OID 解析失败: %s", e)
+        except Exception as e:
+            logger.warning("获取接口描述失败 [%s]: %s", ip, e)
         try:
             rows = snmp_bulkwalk(ip, IF_OPER_STATUS, community, max_rows=100)
             for oid_str, val_str in rows:
@@ -314,10 +314,10 @@ class TopologyDiscoverer:
                     if idx in interfaces:
                         status_map = {"1": "up", "2": "down", "3": "testing", "4": "unknown"}
                         interfaces[idx]["status"] = status_map.get(val_str, "unknown")
-                except Exception:
-                    pass
-        except Exception:
-            pass
+                except Exception as e:
+                    logger.warning("接口状态 OID 解析失败: %s", e)
+        except Exception as e:
+            logger.warning("获取接口状态失败 [%s]: %s", ip, e)
         return interfaces
 
     def _snmp_get_cached(self, ip: str, oid: str, community: str) -> Tuple[bool, str]:

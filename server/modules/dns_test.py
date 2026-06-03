@@ -1,4 +1,6 @@
 import dns.resolver, socket, time
+import logging
+logger = logging.getLogger("dns_test")
 from typing import Dict, List
 
 DNS_SERVERS = {
@@ -40,6 +42,7 @@ def test_dns(domain: str = "www.baidu.com") -> Dict:
         except dns.exception.Timeout:
             results[name] = {"server": server, "error": "超时", "success": False}
         except Exception as e:
+            logger.warning("DNS 解析异常 [%s/%s]: %s", name, domain, e)
             results[name] = {"server": server, "error": str(e), "success": False}
 
     return {"domain": domain, "results": results}

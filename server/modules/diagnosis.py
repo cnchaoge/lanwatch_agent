@@ -383,7 +383,8 @@ class DiagnosisEngine:
         try:
             matched = eval(rule.trigger_condition, {"result": result})
             return bool(matched)
-        except Exception:
+        except Exception as e:
+            logger.warning("诊断: _detect_network_issue 异常: %s", e)
             return False
 
     @staticmethod
@@ -448,7 +449,8 @@ class DiagnosisEngine:
             try:
                 result = ast.literal_eval(
                     row["raw_output"]) if row["raw_output"] else {}
-            except Exception:
+            except Exception as e:
+                logger.warning("诊断: _detect_dns_issue 解析异常: %s", e)
                 result = {}
             diagnoses.extend(self.diagnose(probe_type, target, result))
 

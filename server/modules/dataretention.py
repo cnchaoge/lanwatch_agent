@@ -90,7 +90,8 @@ def get_retention_info() -> dict:
             with get_db() as conn:
                 cur = conn.execute(f"SELECT COUNT(*) AS cnt FROM {table}")
                 info["row_counts"][table] = cur.fetchone()["cnt"]
-        except Exception:
+        except Exception as e:
+            logger.warning("[清理] 获取 %s 数据量失败: %s", table, e)
             info["row_counts"][table] = -1
     return info
 

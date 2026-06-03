@@ -1,4 +1,6 @@
 import httpx, time
+import logging
+logger = logging.getLogger("http_check")
 from typing import Dict, Optional
 
 
@@ -26,8 +28,8 @@ def check_url(url: str, timeout: float = 5.0, follow_redirects: bool = True) -> 
                 m = re.search(r"<title>([^<]+)</title>", response.text, re.IGNORECASE)
                 if m:
                     title = m.group(1).strip()
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning("HTML 标题提取失败 [%s]: %s", url, e)
         return {
             "url": url, "status_code": response.status_code,
             "response_time_ms": round(rtt, 2), "reachable": True, "error": None,

@@ -1,3 +1,6 @@
+import logging
+logger = logging.getLogger("snmp")
+
 from pysnmp.hlapi import (
     SnmpEngine, CommunityData, UsmUserData,
     UdpTransportTarget, ContextData, ObjectType, ObjectIdentity,
@@ -49,6 +52,7 @@ def snmp_get(target_ip: str, oid: str, community: str = "public",
         )
         error_indication, error_status, error_index, var_binds = next(iterator)
     except Exception as exc:
+        logger.warning("SNMP GET 失败 [%s/%s]: %s", target_ip, oid, exc)
         return False, str(exc)
 
     if error_indication:
@@ -89,10 +93,11 @@ def snmp_bulkwalk(target_ip: str, base_oid: str, community: str = "public",
                     oid_str = oid_obj.prettyPrint()
                 except Exception:
                     oid_str = var_bind[0].prettyPrint()
+                    logger.warning("SNMP bulkwalk OID 解析异常, 回退 prettyPrint")
                 val_str = var_bind[1].prettyPrint()
                 results.append((oid_str, val_str))
                 if not oid_str.startswith(base_oid):
                     break
-    except Exception:
-        pass
+    except Exception as e:
+        logger.warning("SNMP bulkwalk 失败 [%s/%s]: %s", target_ip, base_oid, e)
     return results

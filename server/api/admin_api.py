@@ -1,6 +1,9 @@
 """管理后台 API：企业列表、SNMP 管理等"""
 import secrets
-from datetime import datetime, timedelta
+import logging
+from datetime import datetime, timedelta, timezone
+
+logger = logging.getLogger("admin_api")
 from fastapi import APIRouter, HTTPException, Query
 from typing import Optional
 from pydantic import BaseModel
@@ -60,8 +63,8 @@ async def admin_get_users():
             if d.get("last_check"):
                 try:
                     last_seen = datetime.fromisoformat(d["last_check"] + "+00:00").timestamp()
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.warning("解析 agent 探测时间失败 [%s]: %s", d.get("target", "?"), e)
             agents_map[aid]["agents"].append({
                 "id": d["job_id"] if d.get("job_id") else d["target"],
                 "agent_id": aid,
@@ -72,27 +75,47 @@ async def admin_get_users():
                 "is_online": is_online,
                 "enabled": bool(d.get("enabled", 1)),
             })
+        # 收集已有 scheduler_jobs 的 agent_id
+        seen = set(agents_map.keys())
         result = []
         for aid, extra in agents_map.items():
-            agents = extra["agents"]
-            online_count = sum(1 for a in agents if a.get("is_online"))
-            # 从 agents 表读取企业真实数据
+            # 有 agents 表记录 → 客户端上线，显示为 1 台设备
             if aid in agent_rows:
                 ar = agent_rows[aid]
+                client_online, client_ts = False, None
+                ls = ar.get("last_seen")
+                if ls:
+                    try:
+                        dt = datetime.fromisoformat(ls + "+00:00")
+                        client_ts = dt.timestamp()
+                        client_online = (datetime.now(timezone.utc) - dt).total_seconds() < 120
+                    except Exception as e:
+                        logger.warning("解析 agent 最后上线时间失败 [%s]: %s", aid, e)
                 result.append({
-                    "id": aid,  # agents 表的真实 agent_id（用于 /enterprise/{id} 跳转）
+                    "id": aid,
                     "name": ar["name"],
                     "phone": ar.get("phone") or "",
                     "token": ar.get("token") or "",
-                    "agents": agents,
+                    "agents": [{
+                        "id": aid,
+                        "agent_id": aid,
+                        "name": ar["name"],
+                        "ip": ar.get("ip") or "",
+                        "device_type": "client",
+                        "last_seen": client_ts,
+                        "is_online": client_online,
+                        "enabled": True,
+                    }],
                     "ip": ar.get("ip") or "",
                     "os_type": "",
-                    "last_seen": ar.get("last_seen"),
+                    "last_seen": ls,
                     "ping": None,
-                    "_online_count": online_count,
+                    "_online_count": 1 if client_online else 0,
                 })
             else:
-                # 企业只在 scheduler_jobs（老数据），降级显示
+                # 无 agents 表记录（SNMP/连通性检测），按 scheduler_jobs 列出设备
+                agents = extra["agents"]
+                online_count = sum(1 for a in agents if a.get("is_online"))
                 result.append({
                     "id": aid,
                     "name": aid,
@@ -104,6 +127,39 @@ async def admin_get_users():
                     "last_seen": None,
                     "ping": None,
                     "_online_count": online_count,
+                })
+        # 补充仅有 agents 表记录、没有 scheduler_jobs 的企业
+        for aid, ar in agent_rows.items():
+            if aid not in seen:
+                client_online, client_ts = False, None
+                ls = ar.get("last_seen")
+                if ls:
+                    try:
+                        dt = datetime.fromisoformat(ls + "+00:00")
+                        client_ts = dt.timestamp()
+                        client_online = (datetime.now(timezone.utc) - dt).total_seconds() < 120
+                    except Exception as e:
+                        logger.warning("解析 agent 最后上线时间失败 [%s]: %s", aid, e)
+                result.append({
+                    "id": aid,
+                    "name": ar["name"],
+                    "phone": ar.get("phone") or "",
+                    "token": ar.get("token") or "",
+                    "agents": [{
+                        "id": aid,
+                        "agent_id": aid,
+                        "name": ar["name"],
+                        "ip": ar.get("ip") or "",
+                        "device_type": "client",
+                        "last_seen": client_ts,
+                        "is_online": client_online,
+                        "enabled": True,
+                    }],
+                    "ip": ar.get("ip") or "",
+                    "os_type": "",
+                    "last_seen": ls,
+                    "ping": None,
+                    "_online_count": 1 if client_online else 0,
                 })
         return result
 
@@ -196,6 +252,8 @@ async def admin_delete_user(user_id: str, password: str = Query(default="")):
         cursor = conn.cursor()
         # 删除 scheduler_jobs（ping任务，企业真实数据）
         cursor.execute("DELETE FROM scheduler_jobs WHERE agent_id = ?", (user_id,))
+        cursor.execute("DELETE FROM targets WHERE agent_id = ?", (user_id,))
+        cursor.execute("DELETE FROM snmp_devices WHERE agent_id = ?", (user_id,))
         # probe_results 按 agent_id 删除
         cursor.execute("DELETE FROM probe_results WHERE agent_id = ?", (user_id,))
         # topology_nodes 按 agent_id 删除
@@ -383,8 +441,8 @@ async def admin_get_ping_monitors():
             if d["last_check"]:
                 try:
                     d["last_seen"] = datetime.fromisoformat(d["last_check"] + "+00:00").timestamp()
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.warning("解析 Ping 监控时间戳失败 [%s]: %s", d.get("target", "?"), e)
             d["enabled"] = bool(d.get("enabled", 1))
             d["interval_sec"] = d.get("interval_seconds", 300)
             monitors.append(d)
@@ -509,7 +567,8 @@ async def admin_ping_history(job_id: str, hours: int = Query(default=24, ge=1, l
             ts = r["created_at"]
             try:
                 epoch = datetime.fromisoformat(ts + "+00:00").timestamp()
-            except Exception:
+            except Exception as e:
+                logger.warning("解析 RTT 历史时间戳失败 [%s]: %s", ts, e)
                 continue
             if r["rtt_ms"] is not None:
                 rtt_history.append({"ts": epoch, "rtt_ms": r["rtt_ms"]})
@@ -539,7 +598,8 @@ async def admin_ping_history(job_id: str, hours: int = Query(default=24, ge=1, l
             ts = r["created_at"]
             try:
                 epoch = datetime.fromisoformat(ts + "+00:00").timestamp()
-            except Exception:
+            except Exception as e:
+                logger.warning("解析最近结果时间戳失败 [%s]: %s", ts, e)
                 epoch = 0
             recent_results.append({
                 "ts": epoch,

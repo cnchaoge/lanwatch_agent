@@ -147,15 +147,20 @@ function load() {
       }
       return [];
     }),
+    // 监控目标列表（用于客户端类型企业展示目标状态）
+    fetch(SERVER + '/api/' + agentId + '/targets').then(function(r){return r.ok ? r.json() : [];}).catch(function(){return [];}),
   ]).then(function(results) {
     var agent = results[0] || {};
     var latest = results[1];
     var topo = results[2] || {};
     var alertData = results[3] || {};
     var history = results[4] || [];
+    var targets = results[5] || [];
     var nodes = topo.nodes || [];
-    // 把本机（运行客户端的 Windows 电脑）也加入设备列表
-    if (agent.agent_id) {
+    // 判断是否客户端类型企业（Windows/Linux 客户端）
+    var isClient = agent.has_agent || false;
+    // 把本机（运行客户端的 Windows 电脑）也加入设备列表（仅非客户端类型需要）
+    if (agent.agent_id && !isClient) {
       nodes.unshift({
         ip: agent.ip || '-',
         hostname: agent.name || '本机',
@@ -168,74 +173,138 @@ function load() {
     var isOnline = agent.online ? true : (latest && (Date.now()/1000 - latest.timestamp) < 300);
     var lastSeenTs = agent.last_seen ? new Date(agent.last_seen.replace(" ", "T")).getTime()/1000 : (latest ? latest.timestamp : null);
     var ago = lastSeenTs ? timeAgo(lastSeenTs) : '无数据';
+    // 从历史探测数据计算每个目标的最新状态
+    // history 数组元素包含 probe_type, target, status, rtt_ms, created_at 等直接字段
+    var targetLatest = {};
+    history.forEach(function(h) {
+      var key = h.probe_type + '|' + h.target;
+      if (!targetLatest[key] || h.timestamp > targetLatest[key].timestamp) {
+        targetLatest[key] = h;
+      }
+    });
+    // 聚合统计（用于客户端类型）
+    var pingResults = history.filter(function(h) { return h.probe_type === 'ping'; });
+    var avgRtt = null;
+    if (pingResults.length > 0) {
+      var sum = 0, cnt = 0;
+      pingResults.forEach(function(h) { if (h.rtt_ms != null) { sum += h.rtt_ms; cnt++; } });
+      if (cnt > 0) avgRtt = sum / cnt;
+    }
+    var totalProbes = history.length;
+    var okProbes = history.filter(function(h) { return h.status === 'ok'; }).length;
+    var availability = totalProbes > 0 ? (okProbes / totalProbes * 100) : null;
+    // 构建监控目标列表（匹配 targets 表和最新探测结果）
+    var targetRows = [];
+    targets.forEach(function(t) {
+      var key = t.probe_type + '|' + t.target;
+      var ls = targetLatest[key];
+      targetRows.push({
+        probe_type: t.probe_type,
+        target: t.target,
+        name: (t.name && t.name !== t.probe_type) ? t.name : t.target,
+        status: ls ? ls.status : 'unknown',
+        rtt_ms: ls ? ls.rtt_ms : null,
+        last_check: ls ? ls.timestamp : null,
+      });
+    });
+    var onlineTargets = targetRows.filter(function(t) { return t.status === 'ok'; }).length;
+    var totalTargets = targetRows.length;
     // Hero
     var heroHtml = '<div class="hero">' +
       '<div class="hero-top"><span class="hero-name">' + (agent.name || '未知企业') + '</span>' +
       '<span class="hero-status ' + (isOnline?'hero-online':'hero-offline') + '">' + (isOnline?'● 在线':'● 离线') + '</span></div>' +
       '<div class="hero-meta"><span>Agent: ' + agentId.slice(0,16) + '...</span><span>最后上报: ' + ago + '</span></div></div>';
     // Stats
-    var pRtt = latest ? latest.ping_rtt_ms : null;
-    var pLoss = latest ? latest.ping_loss_pct : null;
-    var dns = latest ? latest.dns_ms : null;
-    var statsHtml = '<div class="stats-row">' +
-      '<div class="stat-card"><div class="stat-label">在线设备</div><div class="stat-value green">' + nodes.filter(function(n){return n.last_seen && (Date.now()-new Date(n.last_seen).getTime())<3600000}).length + '</div><div style="font-size:12px;color:var(--muted);margin-top:2px">共 ' + nodes.length + ' 台</div></div>' +
-      '<div class="stat-card"><div class="stat-label">24h 告警</div><div class="stat-value ' + (alerts.filter(function(a){return a.level==='critical'}).length>0?'red':'orange') + '">' + alerts.length + '</div><div style="font-size:12px;color:var(--muted);margin-top:2px">严重 ' + alerts.filter(function(a){return a.level==='critical'}).length + '</div></div>' +
-      '<div class="stat-card"><div class="stat-label">网关延迟</div><div class="stat-value blue">' + (pRtt!=null ? pRtt.toFixed(0) : '-') + '</div><div style="font-size:12px;color:var(--muted);margin-top:2px">' + (pLoss!=null ? '丢包 ' + pLoss.toFixed(1) + '%' : 'ms') + '</div></div>' +
-      '<div class="stat-card"><div class="stat-label">DNS 延迟</div><div class="stat-value blue">' + (dns!=null ? dns.toFixed(0) : '-') + '</div><div style="font-size:12px;color:var(--muted);margin-top:2px">ms</div></div>' +
-      '</div>';
-    // Topology
-    var topoHtml = '<div class="section"><div class="section-header"><div class="section-title">🗺️ 网络拓扑 (' + nodes.length + ' 台设备)</div></div><div class="card topo-wrapper" id="topo-wrapper">';
-    if (nodes.length === 0) {
-      topoHtml += '<div class="empty-state">暂无拓扑数据</div>';
+    var hasCritical = alerts.filter(function(a){return a.level==='critical'}).length > 0;
+    var statsHtml;
+    if (isClient) {
+      // 客户端类型：展示监控目标数、平均延迟、可用率
+      statsHtml = '<div class="stats-row">' +
+        '<div class="stat-card"><div class="stat-label">监控目标</div><div class="stat-value green">' + onlineTargets + '</div><div style="font-size:12px;color:var(--muted);margin-top:2px">共 ' + totalTargets + ' 个目标</div></div>' +
+        '<div class="stat-card"><div class="stat-label">24h 告警</div><div class="stat-value ' + (hasCritical?'red':'orange') + '">' + alerts.length + '</div><div style="font-size:12px;color:var(--muted);margin-top:2px">严重 ' + alerts.filter(function(a){return a.level==='critical'}).length + '</div></div>' +
+        '<div class="stat-card"><div class="stat-label">平均延迟</div><div class="stat-value blue">' + (avgRtt!=null ? avgRtt.toFixed(0) : '-') + '</div><div style="font-size:12px;color:var(--muted);margin-top:2px">ms</div></div>' +
+        '<div class="stat-card"><div class="stat-label">可用率</div><div class="stat-value ' + (availability!=null?(availability>=99?'green':(availability>=95?'orange':'red')):'') + '">' + (availability!=null ? availability.toFixed(1) + '%' : '-') + '</div><div style="font-size:12px;color:var(--muted);margin-top:2px">最近 ' + history.length + ' 条探测</div></div>' +
+        '</div>';
     } else {
-      topoHtml += '<svg class="topo-links" id="enterprise-topo-links"></svg>';
-      // Star topology: gateway centered top, other devices below, lines from gw to each
-      var gw = null, others = [];
-      for (var i=0;i<nodes.length;i++) {
-        var t = (nodes[i].device_type||'').toLowerCase();
-        if (t.indexOf('路由')>=0 || t.indexOf('网关')>=0 || t.indexOf('router')>=0 || t.indexOf('gateway')>=0) {
-          if (!gw) gw = nodes[i];
-          else others.push(nodes[i]);
-        } else {
-          others.push(nodes[i]);
-        }
-      }
-      if (!gw && nodes.length>0) { gw = nodes[0]; others = nodes.slice(1); }
-      var W = 880, gap = 140, perRow = Math.min(others.length||1,6), positions = {};
-      // Gateway centered in first row
-      if (gw) {
-        positions[gw.ip] = {x: W/2-55, y: 28};
-        var gwOn = gw.last_seen && (Date.now()-new Date(gw.last_seen).getTime())<3600000;
-        topoHtml += '<div class="topo-node" style="left:'+(W/2-55)+'px;top:28px;border-color:var(--accent-blue);z-index:11">'+
-          '<div class="node-name"><span class="online-dot '+(gwOn?'on':'off')+'"></span>'+(gw.hostname||'网关')+'</div>'+
-          '<div class="node-ip">'+gw.ip+'</div></div>';
-      }
-      // Other devices in rows below, centered
-      var rowWidth = Math.min(others.length,perRow)*gap;
-      var startX = (W-rowWidth)/2;
-      others.forEach(function(node,idx){
-        var col=idx%perRow, row=Math.floor(idx/perRow);
-        var ox=startX+col*gap, oy=140+row*110;
-        positions[node.ip]={x:ox,y:oy};
-        var on=node.last_seen && (Date.now()-new Date(node.last_seen).getTime())<3600000;
-        topoHtml += '<div class="topo-node" style="left:'+ox+'px;top:'+oy+'px">'+
-          '<div class="node-name"><span class="online-dot '+(on?'on':'off')+'"></span>'+(node.hostname||node.device_type||'设备')+'</div>'+
-          '<div class="node-ip">'+node.ip+'</div></div>';
-      });
-      // Calculate container height based on last device position
-      var maxY = 80;
-      for (var k in positions) { if (positions[k].y + 44 > maxY) maxY = positions[k].y + 44; }
-      topoHtml += '<div style="height:' + maxY + 'px"></div></div>';
-      // Draw lines from gateway to each device
-      topoHtml += '<script>setTimeout(function(){var s=document.getElementById("enterprise-topo-links");if(!s)return;var pos='+JSON.stringify(positions)+';var gwIp='+JSON.stringify(gw?gw.ip:'')+';if(!gwIp||!pos[gwIp])return;var gx=pos[gwIp].x+55,gy=pos[gwIp].y+22;for(var k in pos){if(k===gwIp)continue;var p=pos[k];if(p){var l=document.createElementNS("http://www.w3.org/2000/svg","line");l.setAttribute("x1",gx);l.setAttribute("y1",gy);l.setAttribute("x2",p.x+55);l.setAttribute("y2",p.y+22);s.appendChild(l);}}},200);<\/script>';
+      // 传统类型（SNMP/连通性检测）：展示拓扑设备、网关和 DNS 延迟
+      statsHtml = '<div class="stats-row">' +
+        '<div class="stat-card"><div class="stat-label">在线设备</div><div class="stat-value green">' + nodes.filter(function(n){return n.last_seen && (Date.now()-new Date(n.last_seen).getTime())<3600000}).length + '</div><div style="font-size:12px;color:var(--muted);margin-top:2px">共 ' + nodes.length + ' 台</div></div>' +
+        '<div class="stat-card"><div class="stat-label">24h 告警</div><div class="stat-value ' + (hasCritical?'red':'orange') + '">' + alerts.length + '</div><div style="font-size:12px;color:var(--muted);margin-top:2px">严重 ' + alerts.filter(function(a){return a.level==='critical'}).length + '</div></div>' +
+        '<div class="stat-card"><div class="stat-label">网关延迟</div><div class="stat-value blue">' + (latest&&latest.ping_rtt_ms!=null ? latest.ping_rtt_ms.toFixed(0) : '-') + '</div><div style="font-size:12px;color:var(--muted);margin-top:2px">' + (latest&&latest.ping_loss_pct!=null ? '丢包 ' + latest.ping_loss_pct.toFixed(1) + '%' : 'ms') + '</div></div>' +
+        '<div class="stat-card"><div class="stat-label">DNS 延迟</div><div class="stat-value blue">' + (latest&&latest.dns_ms!=null ? latest.dns_ms.toFixed(0) : '-') + '</div><div style="font-size:12px;color:var(--muted);margin-top:2px">ms</div></div>' +
+        '</div>';
     }
-    // Device table
-    var deviceRows = nodes.length === 0 ? '<tr><td colspan="5"><div class="empty-state">暂无设备</div></td></tr>' :
-      nodes.map(function(n) {
-        var online = n.last_seen && (Date.now() - new Date(n.last_seen).getTime()) < 3600000;
-        return '<tr><td><span class="online-dot ' + (online?'on':'off') + '"></span></td><td style="font-weight:600">' + (n.hostname||'-') + '</td><td style="font-family:monospace">' + n.ip + '</td><td><span class="type-badge">' + (n.device_type||'unknown') + '</span></td><td>' + (n.vendor||'-') + '</td></tr>';
+    var topoHtml = '';
+    if (!isClient) {
+      // Topology
+      topoHtml = '<div class="section"><div class="section-header"><div class="section-title">🗺️ 网络拓扑 (' + nodes.length + ' 台设备)</div></div><div class="card topo-wrapper" id="topo-wrapper">';
+      if (nodes.length === 0) {
+        topoHtml += '<div class="empty-state">暂无拓扑数据</div>';
+      } else {
+        topoHtml += '<svg class="topo-links" id="enterprise-topo-links"></svg>';
+        // Star topology: gateway centered top, other devices below, lines from gw to each
+        var gw = null, others = [];
+        for (var i=0;i<nodes.length;i++) {
+          var t = (nodes[i].device_type||'').toLowerCase();
+          if (t.indexOf('路由')>=0 || t.indexOf('网关')>=0 || t.indexOf('router')>=0 || t.indexOf('gateway')>=0) {
+            if (!gw) gw = nodes[i];
+            else others.push(nodes[i]);
+          } else {
+            others.push(nodes[i]);
+          }
+        }
+        if (!gw && nodes.length>0) { gw = nodes[0]; others = nodes.slice(1); }
+        var W = 880, gap = 140, perRow = Math.min(others.length||1,6), positions = {};
+        // Gateway centered in first row
+        if (gw) {
+          positions[gw.ip] = {x: W/2-55, y: 28};
+          var gwOn = gw.last_seen && (Date.now()-new Date(gw.last_seen).getTime())<3600000;
+          topoHtml += '<div class="topo-node" style="left:'+(W/2-55)+'px;top:28px;border-color:var(--accent-blue);z-index:11">'+
+            '<div class="node-name"><span class="online-dot '+(gwOn?'on':'off')+'"></span>'+(gw.hostname||'网关')+'</div>'+
+            '<div class="node-ip">'+gw.ip+'</div></div>';
+        }
+        // Other devices in rows below, centered
+        var rowWidth = Math.min(others.length,perRow)*gap;
+        var startX = (W-rowWidth)/2;
+        others.forEach(function(node,idx){
+          var col=idx%perRow, row=Math.floor(idx/perRow);
+          var ox=startX+col*gap, oy=140+row*110;
+          positions[node.ip]={x:ox,y:oy};
+          var on=node.last_seen && (Date.now()-new Date(node.last_seen).getTime())<3600000;
+          topoHtml += '<div class="topo-node" style="left:'+ox+'px;top:'+oy+'px">'+
+            '<div class="node-name"><span class="online-dot '+(on?'on':'off')+'"></span>'+(node.hostname||node.device_type||'设备')+'</div>'+
+            '<div class="node-ip">'+node.ip+'</div></div>';
+        });
+        // Calculate container height based on last device position
+        var maxY = 80;
+        for (var k in positions) { if (positions[k].y + 44 > maxY) maxY = positions[k].y + 44; }
+        topoHtml += '<div style="height:' + maxY + 'px"></div></div>';
+        // Draw lines from gateway to each device
+        topoHtml += '<script>setTimeout(function(){var s=document.getElementById("enterprise-topo-links");if(!s)return;var pos='+JSON.stringify(positions)+';var gwIp='+JSON.stringify(gw?gw.ip:'')+';if(!gwIp||!pos[gwIp])return;var gx=pos[gwIp].x+55,gy=pos[gwIp].y+22;for(var k in pos){if(k===gwIp)continue;var p=pos[k];if(p){var l=document.createElementNS("http://www.w3.org/2000/svg","line");l.setAttribute("x1",gx);l.setAttribute("y1",gy);l.setAttribute("x2",p.x+55);l.setAttribute("y2",p.y+22);s.appendChild(l);}}},200);<\/script>';
+      }
+    }
+    // Device / Target table
+    var deviceHtml;
+    if (isClient && totalTargets > 0) {
+      // 客户端类型：展示监控目标列表
+      var targetRowsHtml = targetRows.map(function(t) {
+        return '<tr><td><span class="online-dot ' + (t.status==='ok'?'on':'off') + '"></span></td>' +
+          '<td><span class="type-badge">' + t.probe_type + '</span></td>' +
+          '<td style="font-weight:600">' + (t.name||t.target) + '</td>' +
+          '<td style="font-family:monospace">' + (t.rtt_ms != null ? t.rtt_ms.toFixed(1) + ' ms' : '-') + '</td>' +
+          '<td>' + (t.last_check ? timeAgo(t.last_check) : '无数据') + '</td></tr>';
       }).join('');
-    var deviceHtml = '<div class="section"><div class="section-header"><div class="section-title">🖥️ 设备列表</div></div><div class="card"><table><thead><tr><th>状态</th><th>主机名</th><th>IP</th><th>类型</th><th>厂商</th></tr></thead><tbody>' + deviceRows + '</tbody></table></div></div>';
+      deviceHtml = '<div class="section"><div class="section-header"><div class="section-title">🎯 监控目标 (' + totalTargets + ')</div></div><div class="card"><table><thead><tr><th>状态</th><th>类型</th><th>目标</th><th>延迟</th><th>最后检测</th></tr></thead><tbody>' +
+        targetRowsHtml + '</tbody></table></div></div>';
+    } else {
+      // 传统类型：展示拓扑设备列表
+      var deviceRows = nodes.length === 0 ? '<tr><td colspan="5"><div class="empty-state">暂无设备</div></td></tr>' :
+        nodes.map(function(n) {
+          var online = n.last_seen && (Date.now() - new Date(n.last_seen).getTime()) < 3600000;
+          return '<tr><td><span class="online-dot ' + (online?'on':'off') + '"></span></td><td style="font-weight:600">' + (n.hostname||'-') + '</td><td style="font-family:monospace">' + n.ip + '</td><td><span class="type-badge">' + (n.device_type||'unknown') + '</span></td><td>' + (n.vendor||'-') + '</td></tr>';
+        }).join('');
+      deviceHtml = '<div class="section"><div class="section-header"><div class="section-title">🖥️ 设备列表</div></div><div class="card"><table><thead><tr><th>状态</th><th>主机名</th><th>IP</th><th>类型</th><th>厂商</th></tr></thead><tbody>' + deviceRows + '</tbody></table></div></div>';
+    }
     // Alerts
     var alertHtml = '<div class="section"><div class="section-header"><div class="section-title">🔔 最近告警</div></div><div class="card">';
     if (alerts.length === 0) {
@@ -256,15 +325,31 @@ function load() {
     el.innerHTML = heroHtml + statsHtml + topoHtml + deviceHtml + alertHtml + trendHtml + diagHtml;
     // Render trend chart
     if (history.length > 0 && !chart) {
-      var labels = history.slice().reverse().map(function(h){return new Date(h.timestamp*1000).toLocaleTimeString('zh-CN',{hour:'2-digit',minute:'2-digit'});});
-      chart = new Chart(document.getElementById('trend-chart').getContext('2d'), {
-        type: 'line',
-        data: { labels: labels, datasets: [
-          {label:'网关延迟',data:history.slice().reverse().map(function(h){return h.ping_rtt_ms}),borderColor:'#3fb950',backgroundColor:'rgba(63,185,80,0.1)',tension:0.3,fill:true},
-          {label:'DNS延迟',data:history.slice().reverse().map(function(h){return h.dns_ms}),borderColor:'#58a6ff',backgroundColor:'rgba(88,166,255,0.05)',tension:0.3,fill:false},
-        ]},
-        options: {responsive:true,maintainAspectRatio:true,plugins:{legend:{position:'top',labels:{font:{size:11}}}},scales:{x:{ticks:{maxTicksLimit:8,font:{size:10}}},y:{beginAtZero:true,ticks:{font:{size:10}}}}}
-      });
+      if (isClient) {
+        // 客户端类型：按时间顺序展示 ping 探测 RTT
+        var pingHistory = history.filter(function(h){return h.probe_type==='ping' && h.rtt_ms!=null}).sort(function(a,b){return a.timestamp - b.timestamp;});
+        if (pingHistory.length > 0) {
+          var labels = pingHistory.map(function(h){return new Date(h.timestamp*1000).toLocaleTimeString('zh-CN',{hour:'2-digit',minute:'2-digit'});});
+          chart = new Chart(document.getElementById('trend-chart').getContext('2d'), {
+            type: 'line',
+            data: { labels: labels, datasets: [
+              {label:'Ping RTT', data: pingHistory.map(function(h){return h.rtt_ms;}), borderColor:'#3fb950', backgroundColor:'rgba(63,185,80,0.1)', tension:0.3, fill:true},
+            ]},
+            options: {responsive:true,maintainAspectRatio:true,plugins:{legend:{position:'top',labels:{font:{size:11}}}},scales:{x:{ticks:{maxTicksLimit:8,font:{size:10}}},y:{beginAtZero:true,ticks:{font:{size:10}}}}}
+          });
+        }
+      } else {
+        // 传统类型：展示网关延迟和 DNS 延迟
+        var labels = history.slice().reverse().map(function(h){return new Date(h.timestamp*1000).toLocaleTimeString('zh-CN',{hour:'2-digit',minute:'2-digit'});});
+        chart = new Chart(document.getElementById('trend-chart').getContext('2d'), {
+          type: 'line',
+          data: { labels: labels, datasets: [
+            {label:'网关延迟',data:history.slice().reverse().map(function(h){return h.ping_rtt_ms}),borderColor:'#3fb950',backgroundColor:'rgba(63,185,80,0.1)',tension:0.3,fill:true},
+            {label:'DNS延迟',data:history.slice().reverse().map(function(h){return h.dns_ms}),borderColor:'#58a6ff',backgroundColor:'rgba(88,166,255,0.05)',tension:0.3,fill:false},
+          ]},
+          options: {responsive:true,maintainAspectRatio:true,plugins:{legend:{position:'top',labels:{font:{size:11}}}},scales:{x:{ticks:{maxTicksLimit:8,font:{size:10}}},y:{beginAtZero:true,ticks:{font:{size:10}}}}}
+        });
+      }
     }
   })['catch'](function(e){el.innerHTML='<div class="empty-state">加载失败: '+e.message+'</div>';});
 }

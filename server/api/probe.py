@@ -1,5 +1,8 @@
+import logging
 from fastapi import APIRouter, HTTPException, Header, Body, Request
 from typing import Optional, List, Dict, Any
+
+logger = logging.getLogger("probe")
 from datetime import datetime
 import json
 from core.database import get_db
@@ -27,8 +30,8 @@ def _write_agent_metrics(cursor, agent_id: str, data: dict):
                     "INSERT INTO agent_metrics (agent_id, metric_key, metric_value, created_at) VALUES (?, ?, ?, ?)",
                     (agent_id, key, float(val), now)
                 )
-            except (TypeError, ValueError):
-                pass
+            except (TypeError, ValueError) as e:
+                logger.warning("指标值转换失败 [%s/%s]: %s", agent_id, key, e)
 
 
 def _is_private_ip(ip: str) -> bool:
@@ -188,8 +191,8 @@ async def get_latest_metrics(agent_id: str):
             try:
                 metrics = json.loads(result["raw_output"])
                 result.update(metrics)
-            except (json.JSONDecodeError, TypeError):
-                pass
+            except (json.JSONDecodeError, TypeError) as e:
+                logger.warning("JSON 回退解析失败 [%s]: %s", agent_id, e)
         # 确保有 timestamp 字段
         if result.get("created_at"):
             from datetime import datetime

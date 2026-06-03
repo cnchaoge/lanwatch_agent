@@ -35,3 +35,65 @@ def test_http_check_invalid_url():
     result = check_url("http://this-domain-definitely-does-not-exist-12345.com", timeout=3)
     assert result["reachable"] is False
     assert result["error"] is not None
+
+
+# ── module-level tests ─────────────────────────────────────────
+
+class TestPortScanUtils:
+    """端口扫描模块纯函数测试"""
+
+    def test_check_port_localhost_80(self):
+        from modules.portscan import check_port
+        result = check_port("127.0.0.1", 80, timeout=2)
+        assert result["port"] == 80
+        assert result["status"] in ("open", "closed", "filtered")
+
+    def test_check_port_invalid_host(self):
+        from modules.portscan import check_port
+        result = check_port("192.0.2.1", 80, timeout=2)
+        assert result["port"] == 80
+
+
+class TestDnsUtils:
+    """DNS 测试模块基本验证"""
+
+    def test_dns_servers_defined(self):
+        from modules.dns_test import DNS_SERVERS
+        assert len(DNS_SERVERS) >= 3
+        assert "114.114.114.114" in DNS_SERVERS
+        assert "8.8.8.8" in DNS_SERVERS
+
+    def test_resolve_custom_invalid_server(self):
+        from modules.dns_test import resolve_custom
+        result = resolve_custom("example.com", dns_server="192.0.2.1")
+        assert result["success"] is False
+        assert result["domain"] == "example.com"
+
+
+class TestHttpCheckUtils:
+    """HTTP 检查模块基本验证"""
+
+    def test_check_url_invalid(self):
+        from modules.http_check import check_url
+        result = check_url("http://192.0.2.1:1/", timeout=2)
+        assert result["reachable"] is False
+        assert result["error"] is not None
+
+    def test_check_url_empty_url(self):
+        from modules.http_check import check_url
+        result = check_url("", timeout=2)
+        assert result["reachable"] is False
+
+
+class TestTracerouteUtils:
+    """Traceroute 模块基本验证"""
+
+    def test_traceroute_localhost(self):
+        from modules.traceroute import traceroute
+        # local traceroute should at least return a result
+        result = traceroute("127.0.0.1", max_hops=5, timeout=2)
+        assert isinstance(result, list)
+        # On Linux/macOS, traceroute to localhost usually shows 1 hop
+        if result:
+            assert result[0]["ttl"] == 1
+            assert result[0]["ip"] in ("127.0.0.1", "")

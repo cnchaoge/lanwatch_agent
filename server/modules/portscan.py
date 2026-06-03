@@ -1,4 +1,5 @@
-import socket, time, concurrent.futures
+import socket, time
+import logging, concurrent.futures
 from typing import List, Dict
 
 COMMON_PORTS = {

@@ -85,7 +85,7 @@ class SNMPManager:
             interval_seconds=max(interval * 5, 300),
         )
 
-        logger.info(f"注册 SNMP 设备: {agent_id} -> {ip}:{port} v{snmp_version}")
+        logger.info("注册 SNMP 设备: %s -> %s:%s v%s", agent_id, ip, port, snmp_version)
         return {
             "success": True,
             "agent_id": agent_id,
@@ -104,7 +104,7 @@ class SNMPManager:
             if cursor.rowcount > 0:
                 scheduler.remove_probe_job(agent_id, "ping", ip)
                 scheduler.remove_probe_job(agent_id, "snmp", ip)
-                logger.info(f"取消注册 SNMP 设备: {agent_id} -> {ip}")
+                logger.info("取消注册 SNMP 设备: %s -> %s", agent_id, ip)
                 return {"success": True, "message": f"设备 {ip} 已移除"}
             return {"success": False, "message": "设备不存在"}
 
@@ -175,8 +175,8 @@ class SNMPManager:
                     if_up += 1
                 elif val_str == "2":
                     if_down += 1
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning("SNMP 采集 %s 的 OID %s 异常: %s", device_ip, oid, e)
         results["ifUpCount"] = str(if_up)
         results["ifDownCount"] = str(if_down)
 
@@ -195,8 +195,8 @@ class SNMPManager:
                 continue
             try:
                 cpu_vals.append(int(val_str))
-            except (ValueError, TypeError):
-                pass
+            except (ValueError, TypeError) as e:
+                logger.warning("SNMP 值类型异常 [%s]: %s", device_ip, e)
         if cpu_vals:
             results["hrProcessorLoad"] = str(round(sum(cpu_vals) / len(cpu_vals)))
         # 尝试 Cisco CPU（单 OID）
@@ -254,7 +254,7 @@ class SNMPManager:
             try:
                 self.collect_snmp_metrics(device["agent_id"], device["ip"])
             except Exception as e:
-                logger.error(f"采集 {device['ip']} 失败: {e}")
+                logger.error("采集 %s 失败: %s", device.get("ip", "?"), e)
 
     def ensure_snmp_jobs(self):
         """确保所有已注册的 SNMP 设备都有对应的探测任务（启动时调用）"""

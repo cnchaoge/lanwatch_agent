@@ -2,8 +2,11 @@
 主动探测 API：供 Web UI 或管理端主动触发探测任务。
 这些接口不需要 Bearer token（由管理员操作）。
 """
+import logging
 from fastapi import APIRouter, Query
 from typing import Optional, List
+
+logger = logging.getLogger("probes")
 from modules.ping import ping_host
 from modules.traceroute import traceroute
 from modules.portscan import scan_common_ports, scan_ports

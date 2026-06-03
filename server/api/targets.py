@@ -7,8 +7,13 @@ PUT  /api/targets/{id}         - 更新目标
 DELETE /api/targets/{id}       - 删除目标
 GET  /api/{agent_id}/targets   - 查看指定 Agent 的所有目标（admin用）
 """
+import logging
 from fastapi import APIRouter, HTTPException, Query
+from typing import Optional
+
+logger = logging.getLogger("targets")
 from pydantic import BaseModel
+logger = logging.getLogger("targets")
 from typing import Optional, List
 from core.database import get_db
 from core.config import config

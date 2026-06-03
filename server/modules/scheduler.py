@@ -6,6 +6,8 @@ from apscheduler.triggers.interval import IntervalTrigger
 from apscheduler.jobstores.memory import MemoryJobStore
 from core.database import get_db
 from core.config import config
+import logging
+logger = logging.getLogger("scheduler")
 
 
 class ProbeScheduler:
@@ -66,7 +68,7 @@ class ProbeScheduler:
         try:
             self.scheduler.remove_job(job_id)
         except Exception:
-            pass
+            logger.warning("删除定时任务失败: %s (可能已被移除)", job_id)
 
     def get_jobs(self) -> List[Dict[str, Any]]:
         jobs: List[Dict[str, Any]] = []
@@ -82,7 +84,8 @@ class ProbeScheduler:
                         if aps and aps.next_run_time
                         else None
                     )
-                except Exception:
+                except Exception as e:
+                    logger.warning("获取任务下次运行时间失败: %s", e)
                     info["next_run_time"] = None
                 jobs.append(info)
         return jobs
@@ -144,6 +147,7 @@ class ProbeScheduler:
                 from modules.snmp_manager import snmp_manager
                 result = snmp_manager.collect_snmp_metrics(agent_id, target)
         except Exception as exc:
+            logger.error("定时探测执行失败 [%s/%s/%s]: %s", agent_id, probe_type, target, exc)
             result = {"status": "error", "error": str(exc)}
 
         rtt = result.get("avg_rtt") if probe_type == "ping" else None

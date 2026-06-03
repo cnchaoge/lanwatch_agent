@@ -64,6 +64,6 @@ def _traceroute_windows(target: str, max_hops: int, timeout: float) -> List[dict
                     if rm:
                         rtt = float(rm.group(1))
                 results.append({"ttl": ttl, "ip": ip, "rtt_ms": rtt})
-    except Exception:
-        pass
+    except Exception as e:
+        logger.warning("Traceroute 总异常 [%s]: %s", target, e)
     return results

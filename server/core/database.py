@@ -1,5 +1,8 @@
 import sqlite3, os
+import logging
 from contextlib import contextmanager
+
+logger = logging.getLogger("database")
 from core.config import config
 
 

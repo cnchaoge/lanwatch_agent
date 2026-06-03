@@ -1,6 +1,9 @@
 """探测历史 API：查询结果历史、趋势数据、设备状态汇总"""
+import logging
 from fastapi import APIRouter, Query
 from typing import Optional
+
+logger = logging.getLogger("history_api")
 from datetime import datetime, timedelta
 from core.database import get_db
 
@@ -128,8 +131,8 @@ async def get_device_status_summary():
                 try:
                     dt = datetime.fromisoformat(dev["last_seen"] + "+00:00")
                     dev["last_seen_ts"] = dt.timestamp()
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.warning("解析设备上线时间戳失败 [%s]: %s", dev.get("device_ip", "?"), e)
 
         return {
             "count": len(device_status),
