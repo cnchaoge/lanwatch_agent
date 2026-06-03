@@ -147,11 +147,19 @@
 <script>
 var SERVER = location.origin;
 
+function ensureAdminPw() {
+  var pw = localStorage.getItem('lw-admin-pw');
+  if (pw) return pw;
+  pw = prompt('请输入管理密码：');
+  if (pw) localStorage.setItem('lw-admin-pw', pw);
+  return pw || '';
+}
+
 var allTargets = [];
 var allUsers = [];
 function loadTargets() {
   document.getElementById("target-loading").style.display = "block";
-  var pw = localStorage.getItem("lw-admin-pw") || "";
+  var pw = ensureAdminPw();
   
   fetch(SERVER + '/api/admin/targets')
     .then(function(r){ return r.json(); })
@@ -166,7 +174,7 @@ function loadTargets() {
     });
 }
 function loadUsersForTarget() {
-  var pw = localStorage.getItem("lw-admin-pw") || "";
+  var pw = ensureAdminPw();
   fetch(SERVER + '/api/admin/users')
     .then(function(r){ return r.json(); })
     .then(function(users) { allUsers = users; });
@@ -287,7 +295,7 @@ function submitTarget() {
     interval: parseInt(document.getElementById('f-target-interval').value) || 60,
     timeout: parseInt(document.getElementById('f-target-timeout').value) || 5,
   };
-  var pw = localStorage.getItem("lw-admin-pw") || "";
+  var pw = ensureAdminPw();
   var method = id ? "PUT" : "POST";
   var url = SERVER + "/api/admin/targets" + (id ? "/" + id : "");
   fetch(url, {method:method, headers:{"Content-Type":"application/json"}, body:JSON.stringify(data)})
