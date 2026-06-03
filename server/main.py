@@ -86,6 +86,7 @@ async def http_exception_handler(request: Request, exc: StarletteHTTPException):
 
 @app.exception_handler(Exception)
 async def generic_exception_handler(request: Request, exc: Exception):
+    logger.exception("未捕获的异常: %s %s", request.method, request.url.path)
     return JSONResponse(
         status_code=500,
         content={"success": False, "error": "服务器内部错误"},
