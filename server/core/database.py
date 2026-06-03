@@ -98,6 +98,15 @@ def init_db():
                 )
             """)
             conn.commit()
+
+        # 检查并添加 chat_logs 表（v1.3.1：AI 数字分身聊天记录）
+        cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='chat_logs'")
+        if not cursor.fetchone():
+            cursor.execute("CREATE TABLE chat_logs (id INTEGER PRIMARY KEY AUTOINCREMENT, session_id TEXT NOT NULL, role TEXT NOT NULL, content TEXT NOT NULL, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)")
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_chat_logs_session ON chat_logs(session_id)")
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_chat_logs_time ON chat_logs(created_at)")
+            conn.commit()
+
         # 检查并添加 agents user_id 列（迁移兼容，预留多用户）
         cursor.execute("PRAGMA table_info(agents)")
         agent_cols = [row[1] for row in cursor.fetchall()]

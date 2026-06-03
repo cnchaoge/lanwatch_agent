@@ -634,6 +634,8 @@ toggle.addEventListener('click', function() {
 </div>
 
 <script>
+var chatSessionId = localStorage.getItem('lw_chat_session') || 'session_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+localStorage.setItem('lw_chat_session', chatSessionId);
 var chatOpen = false;
 function toggleChat() {
   chatOpen = !chatOpen;
@@ -680,7 +682,7 @@ function sendMessage() {
   fetch('/api/chat', {
     method: 'POST',
     headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({messages: [{role: 'user', content: text}]})
+    body: JSON.stringify({messages: [{role: 'user', content: text}], session_id: chatSessionId})
   })
   .then(function(r) { return r.json(); })
   .then(function(data) {
