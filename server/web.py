@@ -33,7 +33,7 @@ def register_web(app: FastAPI):
     async def serve_index(request: Request):
         return templates.TemplateResponse(request, "index.html")
 
-    named_pages = ["admin", "agents", "ping_overview", "download", "monitor", "setup", "mobile"]
+    named_pages = ["admin", "agents", "ping_overview", "download", "monitor", "setup", "mobile", "admin_chat"]
     for name in named_pages:
         def _add_redirect(page=name):
             @app.get(f"/{page}", response_class=RedirectResponse)

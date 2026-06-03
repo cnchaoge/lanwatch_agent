@@ -1,0 +1,171 @@
+{% extends "base.html" %}
+{% block title %}咨询记录 - Lanwatch{% endblock %}
+{% block nav_items %}
+<a class="nav-item" href="/agents.html">📊 总览</a>
+<a class="nav-item" href="/admin_users.html">👤 企业用户</a>
+<a class="nav-item" href="/admin_snmp.html">🔌 SNMP 设备</a>
+<a class="nav-item" href="/admin_ping.html">📡 连通检测</a>
+<a class="nav-item" href="/admin_targets.html">🎯 目标配置</a>
+<a class="nav-item active" href="/admin_chat.html">💬 咨询记录</a>
+<a class="nav-item" href="/download.html">📥 下载</a>
+{% endblock %}
+{% block mobile_nav_items %}
+<a class="nav-item" href="/agents.html">📊 总览</a>
+<a class="nav-item" href="/admin_users.html">👤 企业用户</a>
+<a class="nav-item" href="/admin_snmp.html">🔌 SNMP 设备</a>
+<a class="nav-item" href="/admin_ping.html">📡 连通检测</a>
+<a class="nav-item" href="/admin_targets.html">🎯 目标配置</a>
+<a class="nav-item active" href="/admin_chat.html">💬 咨询记录</a>
+<a class="nav-item" href="/download.html">📥 下载</a>
+{% endblock %}
+{% block head_extra %}
+<style>
+.chat-session {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  margin-bottom: 12px;
+  overflow: hidden;
+}
+.chat-session-header {
+  padding: 14px 18px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  cursor: pointer;
+  transition: background 0.15s;
+  border-bottom: 1px solid transparent;
+}
+.chat-session-header:hover { background: var(--bg-tertiary); }
+.chat-session.open .chat-session-header { border-bottom-color: var(--border); }
+.chat-session-preview {
+  display: flex; align-items: center; gap: 12px; flex: 1; min-width: 0;
+}
+.chat-session-time { font-size: 12px; color: var(--text-muted); white-space: nowrap; }
+.chat-session-count {
+  font-size: 12px; color: var(--text-muted);
+  background: var(--bg-tertiary); padding: 2px 8px; border-radius: 10px;
+}
+.chat-session-text {
+  font-size: 14px; color: var(--text-primary); font-weight: 500;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.chat-session-arrow { font-size: 12px; color: var(--text-muted); transition: transform 0.2s; }
+.chat-session.open .chat-session-arrow { transform: rotate(180deg); }
+
+.chat-session-body { display: none; padding: 12px 18px; flex-direction: column; gap: 8px; }
+.chat-session.open .chat-session-body { display: flex; }
+
+.chat-row { display: flex; margin-bottom: 4px; }
+.chat-row.user { justify-content: flex-end; }
+.chat-row.assistant { justify-content: flex-start; }
+.chat-bubble {
+  max-width: 80%; padding: 8px 14px; border-radius: 14px;
+  font-size: 14px; line-height: 1.6; word-wrap: break-word;
+}
+.chat-row.user .chat-bubble {
+  background: var(--accent-blue); color: #fff;
+  border-bottom-right-radius: 4px;
+}
+.chat-row.assistant .chat-bubble {
+  background: var(--bg-tertiary); color: var(--text-primary);
+  border-bottom-left-radius: 4px;
+}
+.chat-time { font-size: 11px; color: var(--text-muted); margin-top: 2px; text-align: right; }
+.chat-row.user .chat-time { text-align: right; }
+.chat-row.assistant .chat-time { text-align: left; }
+
+.chat-empty { text-align: center; padding: 60px 20px; color: var(--text-secondary); }
+.chat-empty .icon { font-size: 48px; margin-bottom: 12px; }
+.chat-empty .title { font-size: 18px; font-weight: 600; margin-bottom: 8px; color: var(--text-primary); }
+
+@media (max-width: 640px) {
+  .chat-session-text { max-width: 160px; }
+  .chat-bubble { max-width: 90%; font-size: 13px; }
+}
+</style>
+{% endblock %}
+{% block content %}
+<div class="container">
+  <div class="page-header">
+    <h1 class="page-title">💬 咨询记录</h1>
+    <p class="page-subtitle">用户从营销页面发起的对话</p>
+  </div>
+  <div id="chatList"></div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+async function loadChats() {
+  const el = document.getElementById('chatList');
+  el.innerHTML = '<div class="loading">加载中...</div>';
+
+  try {
+    const resp = await fetch('/api/chat/logs');
+    const data = await resp.json();
+    if (!data.success) { el.innerHTML = '<div class="chat-empty"><div class="icon">❌</div><div class="title">加载失败</div><p>' + (data.error || '') + '</p></div>'; return; }
+
+    if (data.sessions.length === 0) {
+      el.innerHTML = '<div class="chat-empty"><div class="icon">💬</div><div class="title">暂无咨询记录</div><p>用户通过营销页面聊天咨询后，记录会出现在这里</p></div>';
+      return;
+    }
+
+    var html = '';
+    data.sessions.forEach(function(s) {
+      var firstMsg = s.messages[0] || {};
+      var preview = (firstMsg.role === 'user' ? '🙋 ' : '🤖 ') + (firstMsg.content || '').slice(0, 60);
+      var time = s.first_msg ? new Date(s.first_msg.replace(' ', 'T') + '+08:00').toLocaleString() : '-';
+      html += '<div class="chat-session" data-session="' + s.session_id + '">' +
+        '<div class="chat-session-header" onclick="toggleSession(this)">' +
+          '<div class="chat-session-preview">' +
+            '<span class="chat-session-text">' + escapeHtml(preview) + '</span>' +
+            '<span class="chat-session-count">' + s.messages.length + ' 条</span>' +
+          '</div>' +
+          '<div style="display:flex;align-items:center;gap:10px;">' +
+            '<span class="chat-session-time">' + time + '</span>' +
+            '<span class="chat-session-arrow">▾</span>' +
+          '</div>' +
+        '</div>' +
+        '<div class="chat-session-body">';
+      s.messages.forEach(function(m) {
+        var ts = m.created_at ? new Date(m.created_at.replace(' ', 'T') + '+08:00').toLocaleString() : '';
+        html += '<div class="chat-row ' + m.role + '">' +
+          '<div><div class="chat-bubble">' + escapeHtml(m.content) + '</div>' +
+          '<div class="chat-time">' + ts + '</div></div>' +
+        '</div>';
+      });
+      html += '<div style="margin-top:8px;text-align:right;">' +
+        '<button class="btn btn-danger btn-sm" onclick="deleteSession(\'' + s.session_id + '\')">🗑️ 删除</button>' +
+      '</div></div></div>';
+    });
+    el.innerHTML = html;
+  } catch(e) {
+    el.innerHTML = '<div class="chat-empty"><div class="icon">❌</div><div class="title">网络错误</div><p>' + e.message + '</p></div>';
+  }
+}
+
+function toggleSession(header) {
+  header.parentElement.classList.toggle('open');
+}
+
+function escapeHtml(s) {
+  if (!s) return '';
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+async function deleteSession(sessionId) {
+  if (!confirm('确定要删除这个会话吗？')) return;
+  try {
+    await api('/api/chat/logs/' + sessionId, {method: 'DELETE'});
+    toast('已删除');
+    loadChats();
+  } catch(e) {
+    toast('删除失败: ' + e.message, 'error');
+  }
+}
+
+// Auto-refresh every 30 seconds
+loadChats();
+setInterval(loadChats, 30000);
+</script>
+{% endblock %}
