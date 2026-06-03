@@ -156,7 +156,7 @@ var allUsers = [];
 function navE(id) { location.href = '/enterprise/' + id; }
 function loadData() {
   document.getElementById("user-loading").style.display = "block";
-  var pw = "";
+  var pw = localStorage.getItem("lw-admin-pw") || "";
   
   fetch(SERVER + '/api/admin/users?password=' + encodeURIComponent(pw))
     .then(function(r){ return r.json(); })
@@ -272,7 +272,7 @@ function editUser(id) {
 function submitUser() {
   var id = document.getElementById('f-user-id').value;
   var data = { name: document.getElementById('f-name').value.trim(), phone: document.getElementById('f-phone').value.trim(), ip: document.getElementById('f-ip').value.trim() };
-  var pw = "";
+  var pw = localStorage.getItem("lw-admin-pw") || "";
   var method = id ? 'PATCH' : 'POST';
   var url = id ? SERVER + '/api/admin/users/' + id + '?password=' + encodeURIComponent(pw) : SERVER + '/api/admin/users?password=' + encodeURIComponent(pw);
   fetch(url, {method:method, headers:{'Content-Type':'application/json'}, body:JSON.stringify(data)})
@@ -282,14 +282,14 @@ function submitUser() {
 }
 function deleteUser(id, name) {
   if (!confirm('确定删除企业「' + name + '」及其所有设备？')) return;
-  var pw = "";
+  var pw = localStorage.getItem("lw-admin-pw") || "";
   fetch(SERVER + '/api/admin/users/' + id + '?password=' + encodeURIComponent(pw), {method:'DELETE'})
     .then(function(r){ return r.json(); })
     .then(function(){ loadData(); });
 }
 function resetToken(id) {
   if (!confirm('确定重置该企业的Token？')) return;
-  var pw = "";
+  var pw = localStorage.getItem("lw-admin-pw") || "";
   fetch(SERVER + '/api/admin/users/' + id + '/reset-token?password=' + encodeURIComponent(pw), {method:'POST'})
     .then(function(r){ return r.json(); })
     .then(function(d) { if (d.token) { alert('Token已重置！\n新Token：' + d.token); loadData(); } })
@@ -323,7 +323,7 @@ function submitAgent() {
   var id = document.getElementById('f-agent-id').value;
   var userId = document.getElementById('f-agent-user-id').value;
   var data = { name: document.getElementById('f-agent-name').value.trim(), location: document.getElementById('f-agent-location').value.trim(), remark: document.getElementById('f-agent-remark').value.trim() };
-  var pw = "";
+  var pw = localStorage.getItem("lw-admin-pw") || "";
   var method = id ? 'PATCH' : 'POST';
   var url = id ? SERVER + '/api/admin/agents/' + id + '?password=' + encodeURIComponent(pw) : SERVER + '/api/admin/agents?password=' + encodeURIComponent(pw) + '&user_id=' + encodeURIComponent(userId);
   fetch(url, {method:method, headers:{'Content-Type':'application/json'}, body:JSON.stringify(data)})
@@ -333,7 +333,7 @@ function submitAgent() {
 }
 function deleteAgent(id) {
   if (!confirm('确定删除该设备？')) return;
-  var pw = "";
+  var pw = localStorage.getItem("lw-admin-pw") || "";
   fetch(SERVER + '/api/admin/agents/' + id + '?password=' + encodeURIComponent(pw), {method:'DELETE'})
     .then(function(r){ return r.json(); })
     .then(function(){ loadData(); });
