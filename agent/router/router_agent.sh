@@ -2,7 +2,7 @@
 # lanwatch_router_agent - OpenWrt / 路由器 Shell 客户端
 
 VERSION="0.6.4-shell"
-DEFAULT_SERVER_URL="http://82.156.229.67:8000"
+DEFAULT_SERVER_URL=""  # 留空，启动时强制要求填写
 DEFAULT_INTERVAL=60
 DEFAULT_TOPOLOGY_INTERVAL=300
 DEFAULT_DIAG_FAIL_COUNT=3

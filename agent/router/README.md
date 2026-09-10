@@ -75,7 +75,7 @@ uci commit lanwatch
 ```sh
 config lanwatch 'main'
     option enabled '1'
-    option server 'http://82.156.229.67:8000'
+    option server 'http://your-server-ip:8000'
     option company_name '我的企业'
     option phone ''
     option interval '60'

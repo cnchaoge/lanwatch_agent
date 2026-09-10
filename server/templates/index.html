@@ -422,7 +422,7 @@ body {
     </div>
     <div class="faq-item">
       <div class="faq-q">监控数据存在哪？</div>
-      <div class="faq-a">云端服务器（82.156.229.67），企业间数据完全隔离，每个 Token 只看自己企业的数据。</div>
+      <div class="faq-a">云端服务器（{% if config.SERVER_PUBLIC_URL %}{{ config.SERVER_PUBLIC_URL }}{% else %}企业独立部署，按需配置{% endif %}），企业间数据完全隔离，每个 Token 只看自己企业的数据。</div>
     </div>
     <div class="faq-item">
       <div class="faq-q">网络断了怎么通知？</div>
@@ -450,15 +450,23 @@ body {
   <p class="section-desc" style="margin-bottom:32px;">项目正在 MVP 验证阶段，欢迎小微企业联系试用。也可以直接电话或微信咨询。</p>
 
   <div style="display:flex;flex-direction:column;align-items:center;gap:24px;">
+    {% if config.CONTACT_PHONE %}
     <div style="display:flex;align-items:center;gap:16px;">
-      <div style="font-size:20px;font-weight:700;" onclick="window.location.href='tel:18531729777'">📞 185-3172-9777</div>
-      <div style="font-size:13px;color:var(--muted);">电话 / 微信同号（早 9:00 - 晚 6:00）</div>
+      <div style="font-size:20px;font-weight:700;" onclick="window.location.href='tel:{{ config.CONTACT_PHONE|replace('-', '') }}'">📞 {{ config.CONTACT_PHONE }}</div>
+      <div style="font-size:13px;color:var(--muted);">电话 / 微信同号（{{ config.CONTACT_HOURS }}）</div>
     </div>
+    {% endif %}
+    {% if config.WECHAT_QR_URL %}
     <div style="display:flex;flex-direction:column;align-items:center;gap:8px;">
-      <img src="/static/wechat_qr.png" alt="微信二维码" style="width:160px;height:160px;border-radius:12px;border:1px solid var(--border);">
+      <img src="{{ config.WECHAT_QR_URL }}" alt="微信二维码" style="width:160px;height:160px;border-radius:12px;border:1px solid var(--border);">
       <div style="font-size:12px;color:var(--muted);">👆 扫码加我，备注「LANWatch」</div>
     </div>
-    <a class="btn btn-secondary" href="tel:18531729777">📱 立即拨打</a>
+    {% endif %}
+    {% if config.CONTACT_PHONE %}
+    <a class="btn btn-secondary" href="tel:{{ config.CONTACT_PHONE|replace('-', '') }}">📱 立即拨打</a>
+    {% else %}
+    <a class="btn btn-secondary" href="{{ config.OFFICIAL_WEBSITE }}" target="_blank" rel="noopener">🌐 访问 GitHub 项目</a>
+    {% endif %}
   </div>
 </section>
 

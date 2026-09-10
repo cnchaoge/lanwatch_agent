@@ -33,7 +33,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 # ═══════════════════════════════════════════════════════════════
 # 配置
 # ═══════════════════════════════════════════════════════════════
-SERVER_URL = "http://82.156.229.67:8000"
+SERVER_URL = ""  # 留空，启动时强制要求用户填写服务端地址
 REPORT_INTERVAL = 60
 TOPOLOGY_INTERVAL = 300       # 5 分钟扫一次拓扑
 
@@ -613,10 +613,10 @@ def _show_about_window():
         tk.Label(win, text="企业网络监控", font=("Arial", 16, "bold")).pack(pady=16)
         tk.Label(win, text=f"版本：v{__version__}", font=("Arial", 11)).pack(pady=4)
         tk.Label(win, text="下载地址：", font=("Arial", 10), fg="#666").pack(pady=(12, 2))
-        link = tk.Label(win, text="http://www.lanwatch.net/download",
+        link = tk.Label(win, text="https://github.com/cnchaoge/lanwatch_agent/releases",
                         font=("Arial", 10), fg="#1a73e8", cursor="hand2")
         link.pack()
-        link.bind("<Button-1>", lambda _: webbrowser.open("http://www.lanwatch.net/download"))
+        link.bind("<Button-1>", lambda _: webbrowser.open("https://github.com/cnchaoge/lanwatch_agent/releases"))
 
         def on_close():
             global _about_window_ref

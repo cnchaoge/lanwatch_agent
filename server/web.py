@@ -4,6 +4,7 @@ from fastapi import FastAPI, Request
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from fastapi.responses import HTMLResponse, RedirectResponse, FileResponse
+from core.config import config
 
 
 def register_web(app: FastAPI):
@@ -17,6 +18,8 @@ def register_web(app: FastAPI):
     client_dir.mkdir(exist_ok=True)
 
     templates = Jinja2Templates(directory=str(templates_dir))
+    # 把 config 注入模板全局上下文，模板中可用 {{ config.CONTACT_PHONE }} 等
+    templates.env.globals["config"] = config
 
     if static_dir.exists():
         app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
