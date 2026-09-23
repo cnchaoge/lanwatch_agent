@@ -203,7 +203,20 @@ async def get_enterprises():
 
 @router.post("/{agent_id}/diag")
 async def report_diag(agent_id: str, payload: dict):
-    """存储客户端断线诊断报告"""
+    """存储客户端断线诊断报告。
+
+    .. deprecated::
+        2026-09-23 由 server/api/diag.py 的同名端点接管（含 Bearer token 鉴权）。
+        本函数保留仅作向后兼容，路由优先级已被 diag_router 覆盖（main.py 中
+        diag_router 先于 agents_router 注册），实际不会被命中。
+        新代码请勿再依赖本端点；上游调用方应使用带 Authorization: Bearer 的鉴权版本。
+    """
+    import warnings
+    warnings.warn(
+        "POST /api/{agent_id}/diag 的无鉴权版本已废弃，请迁移到 server/api/diag.py 的 Bearer 鉴权版本",
+        DeprecationWarning,
+        stacklevel=2,
+    )
     with get_db() as conn:
         cursor = conn.cursor()
         # 验证 agent 存在
@@ -213,7 +226,7 @@ async def report_diag(agent_id: str, payload: dict):
         cursor.execute(
             "INSERT INTO diag_reports (agent_id, report_json) VALUES (?, ?)",
             (agent_id, json.dumps(payload)))
-    return {"success": True}
+    return {"success": True, "_deprecated": "此端点将于下个主版本移除，请使用 Bearer 鉴权版本（server/api/diag.py）"}
 
 
 @router.delete("/agents/{agent_id}")

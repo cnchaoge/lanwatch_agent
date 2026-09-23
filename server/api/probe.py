@@ -163,14 +163,15 @@ async def report_uninstall(agent_id: str, authorization: Optional[str] = Header(
 
 @router.post("/{agent_id}/diag")
 async def receive_diag(agent_id: str, report_data: Dict[str, Any] = Body(...), authorization: Optional[str] = Header(None)):
-    verified_id = verify_agent_token(authorization)
-    if verified_id != agent_id:
-        raise HTTPException(status_code=403, detail="token 与 agent_id 不匹配")
-    import json
-    with get_db() as conn:
-        cursor = conn.cursor()
-        cursor.execute("INSERT INTO diag_reports (agent_id, report_json) VALUES (?, ?)", (agent_id, json.dumps(report_data, ensure_ascii=False)))
-    return {"success": True}
+    """DEPRECATED SHIM: 2026-09-23 已迁移到 server/api/diag.py（带 Bearer 鉴权 + agents.py 同名无鉴权版本屏蔽）。
+
+    此处保留仅作代码演进痕迹，路由实际由 diag_router 接管（main.py 中 diag_router 先于 agents_router 注册）。
+    任何调用都会因路由优先级落空，请勿在此处加新逻辑。
+    """
+    raise HTTPException(
+        status_code=410,
+        detail="本端点已废弃，请调用 server/api/diag.py 的鉴权版本（main.py 中已切换路由优先级）",
+    )
 
 
 @router.get("/{agent_id}/latest")
