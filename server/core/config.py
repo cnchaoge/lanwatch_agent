@@ -18,6 +18,13 @@ class Config:
     DINGTALK_WEBHOOK = os.environ.get("DINGTALK_WEBHOOK", "")
     FEISHU_WEBHOOK = os.environ.get("FEISHU_WEBHOOK", "")
     OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "")
+
+    # ── lanwatch-diagnostic 视图鉴权 ─────────────────────────────────
+    # 用于保护 GET /api/diag_reports/{agent_id}（前端/CLI 历史报告查看）
+    # 留空 = fail-closed，端点拒绝所有请求（强制要求显式启用）
+    # 生成：python -c "import secrets; print(secrets.token_urlsafe(32))"
+    DIAGNOSTIC_VIEW_TOKEN = os.environ.get("DIAGNOSTIC_VIEW_TOKEN", "")
+
     LLM_API_KEY = os.environ.get("LLM_API_KEY", "")
     LLM_API_BASE = os.environ.get("LLM_API_BASE", "")
     LLM_MODEL = os.environ.get("LLM_MODEL", "")
