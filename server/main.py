@@ -96,6 +96,12 @@ async def generic_exception_handler(request: Request, exc: Exception):
 
 # ── 路由注册 ────────────────────────────────────────────────────────
 
+# ⚠️ 静态路径必须在所有动态路径捕获之前注册（route 匹配按注册顺序），否则会被 probe.py 的 GET /{agent_id} 抢先匹配返 404
+@app.get("/api/version")
+async def api_version():
+    from version import get_version_info
+    return get_version_info()
+
 app.include_router(diag_router, prefix="/api")     # ⚠️ 必须在 agents_router 之前：POST /{agent_id}/diag 的鉴权版本在此注册，覆盖 agents.py 同名无鉴权路由（@deprecated）
 app.include_router(alert_router, prefix="/api")     # 必须在 agents_router 之前，避免 /api/alerts 被 /{agent_id} 捕获
 app.include_router(agents_router, prefix="/api")   # 静态 /agents 必须在 /{agent_id} 之前
@@ -112,11 +118,6 @@ app.include_router(chat_router, prefix="/api")   # AI 聊天
 app.include_router(targets_router, prefix="/api")   # 必须在 admin_router 之后，避免 /api/admin/targets 被 /{agent_id}/targets 拦截
 app.include_router(probe_router, prefix="/api")    # /report /offline /diag 等 Agent 上报端点
 
-
-@app.get("/api/version")
-async def api_version():
-    from version import get_version_info
-    return get_version_info()
 
 register_web(app)
 

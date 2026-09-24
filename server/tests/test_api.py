@@ -24,7 +24,7 @@ def test_root():
 
 
 def test_register():
-    r = client.post("/register", json={
+    r = client.post("/api/register", json={
         "agent_id": "test-agent-001",
         "name": "测试Agent",
         "ip": "192.168.1.100",
@@ -33,24 +33,24 @@ def test_register():
     assert r.status_code == 200
     data = r.json()
     assert data["success"] is True
-    assert "agent_token" in data
+    assert "token" in data  # server/api/agents.py:register_agent 返回 {"token": ...}（不是 agent_token）
 
 
 def test_register_idempotent():
     """幂等测试：同一 agent_id 重复注册返回已有 token"""
     payload = {"agent_id": "test-agent-002", "name": "测试2", "os_type": "windows"}
-    r1 = client.post("/register", json=payload)
-    token1 = r1.json()["agent_token"]
+    r1 = client.post("/api/register", json=payload)
+    token1 = r1.json()["token"]
 
-    r2 = client.post("/register", json=payload)
-    token2 = r2.json()["agent_token"]
+    r2 = client.post("/api/register", json=payload)
+    token2 = r2.json()["token"]
 
     assert r2.status_code == 200
     assert token1 == token2  # token 不变
 
 
 def test_get_agents():
-    r = client.get("/agents")
+    r = client.get("/api/agents")
     assert r.status_code == 200
     assert isinstance(r.json(), list)
 
@@ -99,13 +99,13 @@ def test_probe_traceroute():
 
 def test_protected_endpoint_without_token():
     """report 接口无 token 应返回 401"""
-    r = client.post("/test-agent-001/report", json=[])
+    r = client.post("/api/test-agent-001/report", json=[])
     assert r.status_code == 401
 
 
 def test_protected_endpoint_invalid_token():
     """report 接口无效 token 应返回 401"""
-    r = client.post("/test-agent-001/report",
+    r = client.post("/api/test-agent-001/report",
                      json=[],
                      headers={"Authorization": "Bearer invalid_token_123"})
     assert r.status_code == 401

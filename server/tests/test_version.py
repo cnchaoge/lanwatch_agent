@@ -27,7 +27,7 @@ def test_version_endpoint():
     assert r.status_code == 200
     data = r.json()
     assert "version" in data
-    assert data["version"] == "1.0.0"
+    assert data["version"] == "1.3.0"  # server/version.py:version = "1.3.0"（同步跟代码）
     assert "author" in data
     assert "license" in data
 
