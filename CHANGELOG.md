@@ -4,6 +4,30 @@
 
 ---
 
+## v1.3.0 上门成交加速器 & 部署文档
+
+**发布日期：** 2026-10-04
+
+### 新增
+- **diagnostic 模块首发**：4 类检查（私接小路由 / 病毒恶意软件 / 网络环路 / 组网结构）配套参考实现与算法说明文档
+- `lan_scanner.py`：纯标准库 LAN 扫描器（5 类主检测，scapy-free），零依赖即可使用
+- `active_diag.py`：登录路由器 HTTP 后台抓 ARP/DHCP/流量数据（1663 行，锐捷 EG105G-V2 实测）
+- `passive_diag.py`：被动观察 MVP（不发包，隐私友好场景）
+- **完整部署运维文档 `docs/DEPLOY.md`**（925 行）：腾讯云 Lighthouse + Docker + Nginx + Let's Encrypt 全流程
+- **MIT LICENSE 文件**：补齐仓库协议声明
+
+### 安全
+- **隐私脱敏**：替换硬编码手机号 / 服务器 IP / 域名 / 微信二维码为环境变量
+- Agent 默认 `SERVER_URL` 改为空，强制注册时由用户填写，避免误提交个人部署地址
+- 新增 `diagnostic/.gitignore` 排除 `local_runs/` 与 `*.html`，防止客户网络数据（IP/MAC/hostname）误提交
+
+### 文档
+- diagnostic 模块 SPEC v0.2（516 行）锁定 13 个核心决策
+- 4 类检查算法说明文档（`docs/checks/` × 4）
+- 销售定位明确：diagnostic 是「上门成交加速器」，不是技术诊断器
+
+---
+
 ## v1.0.0 正式版
 
 **发布日期：** 2026-04-29

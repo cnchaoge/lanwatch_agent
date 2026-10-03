@@ -57,6 +57,7 @@
 | 📱 手机端 | 扫码查看，手机也能管网络 |
 | 🤖 托管模式 | 系统托盘运行 + 开机自启，真正免维护 |
 | 🔐 多企业隔离 | 每个企业独立账号，数据互不可见 |
+| 🩺 上门诊断 | 4 类检查工具（私接路由/病毒/环路/拓扑），5 分钟出报告，销售上门利器 |
 
 ---
 
@@ -76,6 +77,26 @@
 ### 第三步（可选）：配置报警
 
 在管理后台设置 Server酱/钉钉/飞书 Webhook，网络异常时会自动推送微信消息到你的手机。
+
+### 进阶（可选）：上门诊断工具 🩺
+
+工程师带 U 盘到客户现场，5 分钟生成诊断报告——让客户亲眼看到网络问题：
+
+```bash
+git clone https://github.com/cnchaoge/lanwatch_agent.git
+cd lanwatch_agent/diagnostic
+
+# 主工具：纯标准库 LAN 扫描，零依赖
+python lan_scanner.py
+
+# 主动检测：需路由器 admin 凭证（通过环境变量提供，不进日志）
+ROUTER_ADMIN_USER=admin ROUTER_ADMIN_PASS=xxx python active_diag.py
+
+# 被动观察：只读模式，不发包，隐私友好
+python passive_diag.py
+```
+
+报告自动输出到 `local_runs/`，可直接打开 HTML 给客户看。详见 [`diagnostic/SPEC.md`](diagnostic/SPEC.md) 与 [`docs/DEPLOY.md`](docs/DEPLOY.md)。
 
 ---
 
