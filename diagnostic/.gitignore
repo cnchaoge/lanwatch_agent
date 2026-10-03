@@ -1,0 +1,24 @@
+# Lanwatch Diagnostic 本地报告（隐私保护）
+# 这些是现场跑出来的真实客户网络数据，不应进入 git
+local_runs/
+*.html
+!templates/*.html
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+*.egg-info/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+.DS_Store
+
+# 测试输出
+.pytest_cache/
+.coverage
+htmlcov/
