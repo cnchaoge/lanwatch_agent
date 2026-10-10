@@ -36,7 +36,7 @@ def register_web(app: FastAPI):
     async def serve_index(request: Request):
         return templates.TemplateResponse(request, "index.html")
 
-    named_pages = ["admin", "agents", "ping_overview", "download", "monitor", "setup", "mobile", "admin_chat"]
+    named_pages = ["admin", "agents", "ping_overview", "download", "monitor", "setup", "mobile"]
     for name in named_pages:
         def _add_redirect(page=name):
             @app.get(f"/{page}", response_class=RedirectResponse)
@@ -69,7 +69,3 @@ def register_web(app: FastAPI):
     @app.get("/ping_detail/{monitor_id}", response_class=HTMLResponse)
     async def ping_detail(request: Request, monitor_id: str):
         return templates.TemplateResponse(request, "ping_detail.html")
-
-    @app.get("/snmp_detail/{device_id}", response_class=HTMLResponse)
-    async def snmp_detail(request: Request, device_id: str):
-        return templates.TemplateResponse(request, "snmp_detail.html")
