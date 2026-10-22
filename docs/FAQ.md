@@ -14,18 +14,6 @@ pip install -r requirements.txt
 2. 测试告警渠道：`POST /api/alerts/test?channel=serverchan`
 3. 检查告警冷却期（同一告警 5 分钟内不重复推送）
 
-## Q: SNMP 设备添加失败
-
-1. 确认目标设备支持 SNMP 并配置了 community（默认 public）
-2. 确认网络可达：`ping <目标IP>`
-3. 手动测试：`snmpwalk -v 2c -c public <目标IP> 1.3.6.1.2.1.1.1.0`
-
-## Q: 拓扑发现没有结果
-
-1. 种子 IP 必须是 SNMP 设备
-2. 目标设备需开启 LLDP 或 CDP
-3. 检查 SNMP community 是否正确
-
 ## Q: 钉钉/飞书 Webhook 如何获取？
 
 - 钉钉：群设置 → 智能群助手 → 添加机器人 → 选择「自定义」→ 复制 Webhook URL

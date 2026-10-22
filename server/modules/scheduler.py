@@ -53,7 +53,7 @@ class ProbeScheduler:
 
     def add_probe_job(self, agent_id: str, probe_type: str,
                        target: str, interval_seconds: int = 300):
-        """按 agent+type+target 生成 job_id 并注册（方便 SNMP 管理器调用）"""
+        """按 agent+type+target 生成 job_id 并注册"""
         job_id = f"{agent_id}:{probe_type}:{target}"
         self.add_job(job_id, agent_id, probe_type, target, interval_seconds)
 
@@ -143,9 +143,7 @@ class ProbeScheduler:
             elif probe_type == "http":
                 from modules.http_check import check_url
                 result = check_url(target)
-            elif probe_type == "snmp":
-                from modules.snmp_manager import snmp_manager
-                result = snmp_manager.collect_snmp_metrics(agent_id, target)
+
         except Exception as exc:
             logger.error("定时探测执行失败 [%s/%s/%s]: %s", agent_id, probe_type, target, exc)
             result = {"status": "error", "error": str(exc)}
@@ -157,8 +155,6 @@ class ProbeScheduler:
             status = "ok" if result.get("reachable") else "error"
         elif probe_type == "traceroute":
             status = "ok" if result.get("hop_count", 0) > 0 else "error"
-        elif probe_type == "snmp":
-            status = "ok" if result.get("success") else "error"
         elif probe_type == "dns":
             status = "ok" if result.get("dns_ms") is not None else "error"
         elif probe_type == "portscan":

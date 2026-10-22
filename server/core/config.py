@@ -32,7 +32,6 @@ class Config:
 
     # 数据保留天数
     RETENTION_PROBE_DAYS = int(os.environ.get("RETENTION_PROBE_DAYS", "5"))
-    RETENTION_SNMP_DAYS = int(os.environ.get("RETENTION_SNMP_DAYS", "5"))
     RETENTION_ALERT_DAYS = int(os.environ.get("RETENTION_ALERT_DAYS", "30"))
     RETENTION_DIAG_DAYS = int(os.environ.get("RETENTION_DIAG_DAYS", "30"))
 

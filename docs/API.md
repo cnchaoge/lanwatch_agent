@@ -39,16 +39,6 @@ GET  /api/scheduler/rules
 POST /api/scheduler/reload
 ```
 
-## SNMP 设备
-
-```
-POST /api/snmp/devices
-DELETE /api/snmp/devices/{agent_id}/{ip}
-GET  /api/snmp/devices/{agent_id}
-POST /api/snmp/collect/{agent_id}/{ip}
-POST /api/snmp/collect_all
-```
-
 ## 拓扑管理
 
 ```
@@ -80,7 +70,6 @@ POST /api/alerts/test
 GET  /api/history/probe_results
 GET  /api/history/trends/ping?target=&hours=
 GET  /api/history/device_status
-GET  /api/history/snmp_metrics?device_ip=&hours=
 ```
 
 ## 诊断

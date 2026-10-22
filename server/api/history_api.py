@@ -138,37 +138,3 @@ async def get_device_status_summary():
             "count": len(device_status),
             "devices": list(device_status.values()),
         }
-
-
-@router.get("/history/snmp_metrics")
-async def get_snmp_metrics_history(
-    device_ip: str = Query(...),
-    oid: Optional[str] = None,
-    hours: int = Query(default=24, ge=1, le=720),
-    limit: int = Query(default=500, ge=1, le=2000),
-):
-    """查询 SNMP 指标历史"""
-    cutoff = (datetime.now() - timedelta(hours=hours)).strftime("%Y-%m-%d %H:%M:%S")
-
-    with get_db() as conn:
-        cursor = conn.cursor()
-        sql = "SELECT * FROM snmp_metrics WHERE device_ip = ? AND timestamp >= ?"
-        params: list = [device_ip, cutoff]
-
-        if oid:
-            sql += " AND oid = ?"
-            params.append(oid)
-
-        sql += " ORDER BY timestamp ASC LIMIT ?"
-        params.append(limit)
-
-        cursor.execute(sql, params)
-        rows = cursor.fetchall()
-
-        return {
-            "device_ip": device_ip,
-            "oid": oid,
-            "hours": hours,
-            "count": len(rows),
-            "metrics": [dict(row) for row in rows],
-        }

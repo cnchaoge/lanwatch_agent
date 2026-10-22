@@ -2,7 +2,6 @@
 {% block nav_items %}
 <a class="nav-item" href="/agents.html">📊 总览</a>
 <a class="nav-item" href="/admin_users.html">👤 企业用户</a>
-<a class="nav-item" href="/admin_snmp.html">🔌 SNMP 设备</a>
 <a class="nav-item" href="/admin_ping.html">📡 连通检测</a>
 <a class="nav-item" href="/admin_targets.html">🎯 目标配置</a>
 <a class="nav-item" href="/download.html">📥 下载</a>
@@ -11,7 +10,6 @@
 {% block mobile_nav_items %}
 <a class="nav-item" href="/agents.html">📊 总览</a>
 <a class="nav-item" href="/admin_users.html">👤 企业用户</a>
-<a class="nav-item" href="/admin_snmp.html">🔌 SNMP 设备</a>
 <a class="nav-item" href="/admin_ping.html">📡 连通检测</a>
 <a class="nav-item" href="/admin_targets.html">🎯 目标配置</a>
 <a class="nav-item" href="/download.html">📥 下载</a>
@@ -49,15 +47,9 @@
 .platform-link { margin-top: 6px; }
 .section { margin-top: 40px; }
 .section-title { font-size: 18px; font-weight: 700; margin-bottom: 16px; display: flex; align-items: center; gap: 8px; }
-.snmp-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
-.snmp-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 22px; }
-.snmp-card h4 { font-size: 15px; font-weight: 700; margin-bottom: 12px; }
-.snmp-card p, .snmp-card .step { font-size: 13px; color: var(--muted); line-height: 1.8; }
 .param-row { display: flex; gap: 10px; font-size: 13px; line-height: 1.9; margin-bottom: 4px; }
 .param-name { color: var(--muted); min-width: 90px; flex-shrink: 0; }
 .param-val { font-family: "Menlo", monospace; background: var(--bg-tertiary); padding: 0 8px; border-radius: 6px; font-size: 12px; color: var(--text-primary); }
-.snmp-warn { background: rgba(210,153,34,0.08); border: 1px solid rgba(210,153,34,0.18); border-radius: 8px; padding: 10px 14px; font-size: 12px; color: var(--accent-yellow); margin-top: 12px; line-height: 1.7; }
-@media (max-width: 640px) { .snmp-grid { grid-template-columns: 1fr; } }
 </style>
 {% endblock %}
 {% block content %}
@@ -98,57 +90,6 @@
       <div class="platform-desc">微信内直接访问，无需安装 App，扫码即用</div>
       <div class="platform-version">访问地址：/mobile?id=设备ID</div>
       <a class="btn btn-secondary platform-link" href="/mobile?id=demo" style="display:block;text-align:center">手机扫码演示</a>
-    </div>
-  </div>
-  <div class="section">
-    <div class="section-title">🌐 企业路由器 / 交换机 — SNMP 监控配置</div>
-    <p style="font-size:13px;color:var(--text-secondary);margin-bottom:18px;line-height:1.7;">
-      如果您的设备无法安装 Agent 客户端（如企业级路由器、硬件防火墙、核心交换机），可通过 SNMP 协议接入平台监控。
-    </p>
-    <div class="snmp-grid">
-      <div class="snmp-card">
-        <h4>📋 SNMP V2c 配置参数</h4>
-        <div class="param-row"><span class="param-name">SNMP 版本</span><span class="param-val">V2c</span></div>
-        <div class="param-row"><span class="param-name">Community</span><span class="param-val">public</span></div>
-        <div class="param-row"><span class="param-name">目的主机</span><span class="param-val">192.168.1.1</span></div>
-        <div class="snmp-warn">
-          ⚠️ 确保 Community 为 <code style="font-family:monospace;">public</code>
-        </div>
-      </div>
-      <div class="snmp-card">
-        <h4>📖 V2c 配置步骤</h4>
-        <p class="step">1. 登录路由器管理后台（通常为 192.168.1.1）</p>
-        <p class="step">2. 找到「SNMP」或「网络管理」配置项</p>
-        <p class="step">3. 启用 SNMP V2c，Community 填写 public</p>
-        <p class="step">4. 配置 Trap/目的主机</p>
-        <p class="step">5. 保存设置，重启 SNMP 服务</p>
-        <p style="margin-top:10px;font-size:13px;">📌 配置完成后，在管理后台添加设备即可开始监控。</p>
-      </div>
-    </div>
-    <div class="snmp-grid" style="margin-top:20px;">
-      <div class="snmp-card">
-        <h4>📋 SNMP V3 配置参数</h4>
-        <div class="param-row"><span class="param-name">SNMP 版本</span><span class="param-val">V3</span></div>
-        <div class="param-row"><span class="param-name">安全级别</span><span class="param-val">authPriv</span></div>
-        <div class="param-row"><span class="param-name">用户名</span><span class="param-val">自定义</span></div>
-        <div class="param-row"><span class="param-name">认证协议</span><span class="param-val">MD5 / SHA</span></div>
-        <div class="param-row"><span class="param-name">加密协议</span><span class="param-val">DES / AES</span></div>
-        <div class="param-row"><span class="param-name">目的主机</span><span class="param-val">192.168.1.1</span></div>
-        <div class="snmp-warn">
-          ⚠️ 配置的用户名、认证密码、加密密码需与平台管理后台填写一致
-        </div>
-      </div>
-      <div class="snmp-card">
-        <h4>📖 V3 配置步骤</h4>
-        <p class="step">1. 登录路由器管理后台（通常为 192.168.1.1）</p>
-        <p class="step">2. 找到「SNMP」或「网络管理」配置项</p>
-        <p class="step">3. 启用 SNMP V3，选择 authPriv 安全级别</p>
-        <p class="step">4. 配置用户名、认证协议 (MD5/SHA) 及密码</p>
-        <p class="step">5. 配置加密协议 (DES/AES) 及密码</p>
-        <p class="step">6. 配置 Trap/目的主机</p>
-        <p class="step">7. 保存设置，重启 SNMP 服务</p>
-        <p style="margin-top:10px;font-size:13px;">📌 配置完成后，在管理后台添加设备，选择 V3 并填入对应信息。</p>
-      </div>
     </div>
   </div>
 </div>

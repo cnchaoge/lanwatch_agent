@@ -98,57 +98,6 @@ async def get_enterprises():
                     except Exception as e:
                         logger.warning("解析企业 ping 时间戳失败: %s", e)
 
-            # 查询关联的 SNMP 设备
-            snmp_devices_list = []
-            dev_rows = cursor.execute(
-                "SELECT ip, port, description, snmp_version, created_at FROM snmp_devices WHERE agent_id=? ORDER BY created_at DESC",
-                (aid,)
-            ).fetchall()
-            if not dev_rows and r["ip"]:
-                dev_rows = cursor.execute(
-                    "SELECT ip, port, description, snmp_version, created_at FROM snmp_devices WHERE agent_id='admin' AND ip=? ORDER BY created_at DESC",
-                    (r["ip"],)
-                ).fetchall()
-            for dev in dev_rows:
-                dd = dict(dev)
-                # 最新指标时间
-                ts_row = cursor.execute(
-                    "SELECT timestamp FROM snmp_metrics WHERE device_ip=? ORDER BY timestamp DESC LIMIT 1",
-                    (dd["ip"],)
-                ).fetchone()
-                online = False
-                if ts_row and ts_row["timestamp"]:
-                    try:
-                        last_dt = datetime.fromisoformat(ts_row["timestamp"])
-                        online = (datetime.now(timezone.utc) - last_dt).total_seconds() < 600
-                    except Exception as e:
-                        logger.warning("解析 SNMP 设备时间戳失败: %s", e)
-                # 提取 CPU 和运行时间指标
-                metrics_rows = cursor.execute(
-                    "SELECT oid, value FROM snmp_metrics WHERE device_ip=? ORDER BY timestamp DESC LIMIT 200",
-                    (dd["ip"],)
-                ).fetchall()
-                cpu = None
-                uptime = None
-                seen = set()
-                for m in metrics_rows:
-                    oid = m["oid"]
-                    if oid in seen:
-                        continue
-                    seen.add(oid)
-                    val = m["value"]
-                    if oid.startswith("1.3.6.1.2.1.25.3.3.1.2") or oid == "1.3.6.1.4.1.9.2.1.57.0":
-                        cpu = val
-                    elif oid == "1.3.6.1.2.1.1.3.0":
-                        uptime = val
-                snmp_devices_list.append({
-                    "ip": dd["ip"],
-                    "name": dd.get("description") or f"SNMP-{dd['ip']}",
-                    "online": online,
-                    "cpu": cpu,
-                    "uptime": uptime,
-                    "version": dd.get("snmp_version", "2c"),
-                })
 
             # 上线方式：仅 Windows 客户端、被动 Ping、Linux 客户端
             methods = []
@@ -192,7 +141,6 @@ async def get_enterprises():
                 "device_count": device_count,
                 "alert_24h": alert_count,
                 "ping": ping_status,
-                "snmp_devices": snmp_devices_list,
                 "methods": methods,
                 "has_agent": has_agent,
                 "has_ping": has_ping,

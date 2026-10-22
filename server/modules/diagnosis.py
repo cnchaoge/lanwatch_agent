@@ -62,7 +62,7 @@ DIAGNOSIS_RULES: List[DiagnosisRule] = [
             "4. 检查目标设备网线是否脱落",
             "5. 检查上游交换机/路由器端口状态",
             "6. 查看告警历史确认是否有设备突然离线",
-            "7. 如有 SNMP 监控，查看该设备最后在线时间",
+            "7. 查看该设备最后在线时间",
             "8. traceroute 到目标 IP 定位中断点",
         ],
         recommended_actions=[

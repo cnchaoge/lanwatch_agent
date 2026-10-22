@@ -14,11 +14,6 @@ RETENTION_RULES = {
         "days": config.RETENTION_PROBE_DAYS,
         "label": "探测结果",
     },
-    "snmp_metrics": {
-        "column": "timestamp",
-        "days": config.RETENTION_SNMP_DAYS,
-        "label": "SNMP 指标",
-    },
     "alert_log": {
         "column": "created_at",
         "days": config.RETENTION_ALERT_DAYS,

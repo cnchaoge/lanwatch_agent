@@ -29,7 +29,6 @@ def test_init_db():
         tables = [r[0] for r in cursor.fetchall()]
         assert "agents" in tables
         assert "probe_results" in tables
-        assert "snmp_devices" in tables
         assert "topology_nodes" in tables
         assert "diag_reports" in tables
 

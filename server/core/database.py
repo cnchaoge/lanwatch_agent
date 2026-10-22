@@ -29,8 +29,6 @@ def init_db():
         cursor = conn.cursor()
         sql = """
         CREATE TABLE IF NOT EXISTS agents (id INTEGER PRIMARY KEY AUTOINCREMENT, agent_id TEXT UNIQUE NOT NULL, name TEXT DEFAULT '', ip TEXT DEFAULT '', os_type TEXT DEFAULT '', token TEXT DEFAULT '', secret_key TEXT, interval INTEGER DEFAULT 60, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, last_seen TIMESTAMP);
-        CREATE TABLE IF NOT EXISTS snmp_devices (id INTEGER PRIMARY KEY AUTOINCREMENT, agent_id TEXT NOT NULL, ip TEXT NOT NULL, port INTEGER DEFAULT 161, community TEXT DEFAULT 'public', snmp_version TEXT DEFAULT '2c', description TEXT, device_name TEXT DEFAULT '', device_type TEXT DEFAULT 'router', status TEXT DEFAULT 'unknown', last_poll INTEGER, snmpv3_username TEXT DEFAULT '', snmpv3_auth_protocol TEXT DEFAULT 'MD5', snmpv3_auth_key TEXT DEFAULT '', snmpv3_priv_protocol TEXT DEFAULT 'DES', snmpv3_priv_key TEXT DEFAULT '', created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, UNIQUE(agent_id, ip));
-        CREATE TABLE IF NOT EXISTS snmp_metrics (id INTEGER PRIMARY KEY AUTOINCREMENT, device_ip TEXT NOT NULL, oid TEXT NOT NULL, value TEXT, raw_hex TEXT, raw_len INTEGER, timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP);
         CREATE TABLE IF NOT EXISTS probe_results (id INTEGER PRIMARY KEY AUTOINCREMENT, agent_id TEXT NOT NULL, probe_type TEXT NOT NULL, target TEXT NOT NULL, status TEXT, rtt_ms REAL, raw_output TEXT, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP);
         CREATE TABLE IF NOT EXISTS topology_nodes (id INTEGER PRIMARY KEY AUTOINCREMENT, agent_id TEXT, ip TEXT UNIQUE NOT NULL, mac TEXT, hostname TEXT, device_type TEXT, vendor TEXT, raw_data TEXT, last_seen TIMESTAMP DEFAULT CURRENT_TIMESTAMP);
         CREATE TABLE IF NOT EXISTS topology_links (id INTEGER PRIMARY KEY AUTOINCREMENT, node_a_ip TEXT NOT NULL, node_a_port TEXT, node_b_ip TEXT NOT NULL, node_b_port TEXT, link_type TEXT, last_confirmed TIMESTAMP DEFAULT CURRENT_TIMESTAMP);
@@ -40,7 +38,6 @@ def init_db():
         CREATE TABLE IF NOT EXISTS agent_metrics (id INTEGER PRIMARY KEY AUTOINCREMENT, agent_id TEXT NOT NULL, metric_key TEXT NOT NULL, metric_value REAL, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP);
         CREATE INDEX IF NOT EXISTS idx_probe_results_agent_type ON probe_results(agent_id, probe_type);
         CREATE INDEX IF NOT EXISTS idx_probe_results_created ON probe_results(created_at);
-        CREATE INDEX IF NOT EXISTS idx_snmp_metrics_device_time ON snmp_metrics(device_ip, timestamp);
         CREATE INDEX IF NOT EXISTS idx_alert_log_agent_time ON alert_log(agent_id, created_at);
         CREATE INDEX IF NOT EXISTS idx_topology_nodes_ip ON topology_nodes(ip);
         CREATE INDEX IF NOT EXISTS idx_diag_reports_agent_time ON diag_reports(agent_id, created_at);
@@ -55,20 +52,6 @@ def init_db():
         if "token" not in cols:
             cursor.execute("ALTER TABLE agents ADD COLUMN token TEXT DEFAULT ''")
             conn.commit()
-        # 检查并添加 SNMP v3 列（迁移兼容）
-        cursor.execute("PRAGMA table_info(snmp_devices)")
-        snmp_cols = [row[1] for row in cursor.fetchall()]
-        for col in ["snmpv3_username", "snmpv3_auth_protocol", "snmpv3_auth_key", "snmpv3_priv_protocol", "snmpv3_priv_key"]:
-            if col not in snmp_cols:
-                cursor.execute(f"ALTER TABLE snmp_devices ADD COLUMN {col} TEXT DEFAULT ''")
-        # 迁移兼容：检查新增列
-        for col in ["device_name", "device_type", "status", "last_poll"]:
-            if col not in snmp_cols:
-                default = "''" if col != "last_poll" else "NULL"
-                if col == 'last_poll':
-                    cursor.execute(f"ALTER TABLE snmp_devices ADD COLUMN {col} INTEGER")
-                else:
-                    cursor.execute(f"ALTER TABLE snmp_devices ADD COLUMN {col} TEXT DEFAULT ''")
         # 检查并添加 agents phone 列（迁移兼容）
         cursor.execute("PRAGMA table_info(agents)")
         agent_cols = [row[1] for row in cursor.fetchall()]

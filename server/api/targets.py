@@ -27,7 +27,7 @@ class TargetCreate(BaseModel):
     agent_id: str
     name: str = ""
     target: str
-    probe_type: str  # ping / http / port / dns / snmp
+    probe_type: str  # ping / http / port / dns
     port: int = 80
     timeout: int = 5
     interval: int = 60

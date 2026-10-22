@@ -1,46 +1,16 @@
 """拓扑管理 API：触发发现、查询拓扑、节点/链路管理"""
 import logging
 from fastapi import APIRouter, Query, HTTPException
-from typing import Optional, List
+from typing import Optional
 
 logger = logging.getLogger("topology_api")
 from pydantic import BaseModel
 from datetime import datetime, timedelta
 from core.database import get_db
 from core.auth import verify_admin_password
-from modules.topology import topology_manager, TopologyDiscoverer
+from modules.topology import topology_manager
 
 router = APIRouter()
-
-
-class TopologyDiscoverRequest(BaseModel):
-    agent_id: str
-    seed_ips: List[str]
-    community: str = "public"
-    max_hops: int = 3
-    max_devices: int = 50
-
-
-@router.post("/topology/discover")
-async def discover_topology(
-    payload: TopologyDiscoverRequest,
-    password: Optional[str] = Query(None),
-):
-    """触发拓扑发现"""
-    if payload.max_hops > 5:
-        raise HTTPException(status_code=400, detail="max_hops 不能超过 5")
-
-    result = topology_manager.discover_and_save(
-        agent_id=payload.agent_id,
-        seed_ips=payload.seed_ips,
-        community=payload.community,
-    )
-    return {
-        "success": True,
-        "discovered_count": result["discovered_count"],
-        "link_count": result["link_count"],
-        "message": f"发现 {result['discovered_count']} 个节点, {result['link_count']} 条链路",
-    }
 
 
 @router.get("/topology")

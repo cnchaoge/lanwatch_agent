@@ -1,14 +1,14 @@
 # Lanwatch - 企业网络监控平台
 
-Lanwatch 企业网络监控平台，一款面向中小企业的轻量级网络监控工具，支持探针上报、SNMP 轮询、拓扑发现、告警推送和引导式故障排查。
+Lanwatch 企业网络监控平台，一款面向中小企业的轻量级网络监控工具，支持探针上报、拓扑管理、告警推送和引导式故障排查。
 
 ## 功能特性
 
 ### 核心监控
 
-- **多协议探测**：ICMP Ping / Traceroute / TCP 端口扫描 / DNS 解析 / HTTP 健康检查 / SNMP 采集
+- **多协议探测**：ICMP Ping / Traceroute / TCP 端口扫描 / DNS 解析 / HTTP 健康检查
 - **定时调度**：基于 APScheduler 的灵活定时探测，支持按设备配置不同间隔
-- **拓扑发现**：通过 LLDP / CDP / ARP 自动发现网络拓扑，推断设备类型和厂商
+- **拓扑管理**：节点与链路持久化，支持节点详情、下游影响与按类型筛选
 
 ### 告警与诊断
 
@@ -181,7 +181,7 @@ GET  /api/propagation/correlate
 ## 技术栈
 
 - 后端：FastAPI + APScheduler + SQLite
-- 探测协议：ICMP / TCP / SNMP (pysnmp)
+- 探测协议：ICMP / TCP / DNS / HTTP
 - 前端：原生 HTML/CSS/JS + Chart.js
 - 部署：Docker / docker-compose / Windows Service
 

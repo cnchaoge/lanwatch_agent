@@ -82,9 +82,3 @@ def test_propagation_correlate():
     data = r.json()
     assert "cluster_count" in data
 
-
-def test_snmp_devices_list():
-    r = client.get("/api/snmp/devices/nonexistent-agent")
-    assert r.status_code == 200
-    data = r.json()
-    assert data["count"] == 0

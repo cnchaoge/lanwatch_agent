@@ -143,6 +143,6 @@ opkg install curl ip-full traceroute
 
 - **Windows 客户端**：终端视角
 - **OpenWrt 客户端**：出口 / 核心视角
-- **SNMP**：企业设备视角
+- **探针上报**：已纳管设备的运行状态视角
 
 这样三层互补，LANWatch 才真正像一个完整的企业网络值守平台。

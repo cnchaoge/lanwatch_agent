@@ -329,7 +329,6 @@ FEISHU_WEBHOOK=               # 飞书机器人
 
 ```bash
 RETENTION_PROBE_DAYS=5         # 探测日志保留天数
-RETENTION_SNMP_DAYS=5
 RETENTION_ALERT_DAYS=30
 RETENTION_DIAG_DAYS=30
 ```
@@ -379,7 +378,7 @@ RUN if [ -f /etc/apt/sources.list.d/debian.sources ]; then \
 WORKDIR /app
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    snmp net-tools iputils-ping traceroute \
+    net-tools iputils-ping traceroute \
     && rm -rf /var/lib/apt/lists/*
 
 # pip 阿里云镜像加速

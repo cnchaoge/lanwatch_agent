@@ -2,9 +2,8 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-# 安装系统依赖（SNMP 需要）
+# 安装系统依赖
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    snmp \
     net-tools \
     iputils-ping \
     traceroute \

@@ -1,4 +1,4 @@
-"""管理后台 API：企业列表、SNMP 管理等"""
+"""管理后台 API：企业列表、设备与监控目标管理"""
 import secrets
 import logging
 from datetime import datetime, timedelta, timezone
@@ -113,7 +113,7 @@ async def admin_get_users():
                     "_online_count": 1 if client_online else 0,
                 })
             else:
-                # 无 agents 表记录（SNMP/连通性检测），按 scheduler_jobs 列出设备
+                # 无 agents 表记录（连通性检测），按 scheduler_jobs 列出设备
                 agents = extra["agents"]
                 online_count = sum(1 for a in agents if a.get("is_online"))
                 result.append({
@@ -253,7 +253,6 @@ async def admin_delete_user(user_id: str, password: str = Query(default="")):
         # 删除 scheduler_jobs（ping任务，企业真实数据）
         cursor.execute("DELETE FROM scheduler_jobs WHERE agent_id = ?", (user_id,))
         cursor.execute("DELETE FROM targets WHERE agent_id = ?", (user_id,))
-        cursor.execute("DELETE FROM snmp_devices WHERE agent_id = ?", (user_id,))
         # probe_results 按 agent_id 删除
         cursor.execute("DELETE FROM probe_results WHERE agent_id = ?", (user_id,))
         # topology_nodes 按 agent_id 删除
@@ -294,117 +293,6 @@ async def admin_delete_agent(agent_id: str):
             raise HTTPException(status_code=404, detail="设备不存在")
     return {"success": True}
 
-
-# ── SNMP 设备管理 ────────────────────────────────────────────────────
-
-
-@router.get("/admin/snmp")
-async def admin_get_snmp():
-    with get_db() as conn:
-        cursor = conn.cursor()
-        cursor.execute(
-            "SELECT id, agent_id, ip, community, device_name, device_type, snmp_version, status, last_poll, snmpv3_username, snmpv3_auth_protocol, snmpv3_priv_protocol FROM snmp_devices ORDER BY device_name"
-        )
-        rows = cursor.fetchall()
-        return [
-            {
-                "id": r["id"],
-                "agent_id": r["agent_id"],
-                "ip": r["ip"],
-                "community": r["community"],
-                "device_name": r["device_name"] or "",
-                "device_type": r["device_type"] or "unknown",
-                "snmp_version": r["snmp_version"] or "2c",
-                "status": r["status"] or "unknown",
-                "last_poll": r["last_poll"],
-                "snmpv3_username": r["snmpv3_username"] or "",
-                "snmpv3_auth_protocol": r["snmpv3_auth_protocol"] or "MD5",
-                "snmpv3_priv_protocol": r["snmpv3_priv_protocol"] or "DES",
-            }
-            for r in rows
-        ]
-
-
-@router.post("/admin/snmp")
-async def admin_create_snmp(payload: dict):
-    ip = (payload.get("ip") or "").strip()
-    if not ip:
-        raise HTTPException(status_code=400, detail="IP 地址不能为空")
-    agent_id = payload.get("agent_id", "admin")
-    snmp_version = payload.get("snmp_version", "2c")
-    with get_db() as conn:
-        cursor = conn.cursor()
-        cursor.execute(
-            """INSERT INTO snmp_devices (agent_id, ip, community, device_name, device_type, snmp_version,
-               snmpv3_username, snmpv3_auth_protocol, snmpv3_auth_key,
-               snmpv3_priv_protocol, snmpv3_priv_key)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-            (agent_id, ip, payload.get("community", "public"),
-             payload.get("device_name", ""), payload.get("device_type", "router"),
-             snmp_version,
-             payload.get("snmpv3_username", ""),
-             payload.get("snmpv3_auth_protocol", "MD5"),
-             payload.get("snmpv3_auth_key", ""),
-             payload.get("snmpv3_priv_protocol", "DES"),
-             payload.get("snmpv3_priv_key", "")),
-        )
-    # 创建调度任务让设备能被定时轮询
-    from modules.scheduler import scheduler
-    from core.config import config
-    scheduler.add_probe_job(agent_id=agent_id, probe_type="ping", target=ip, interval_seconds=config.AGENT_DEFAULT_INTERVAL)
-    scheduler.add_probe_job(agent_id=agent_id, probe_type="snmp", target=ip, interval_seconds=max(config.AGENT_DEFAULT_INTERVAL * 5, 300))
-    return {"success": True}
-
-
-@router.patch("/admin/snmp/{device_id}")
-async def admin_update_snmp(device_id: int, payload: dict):
-    snmp_version = payload.get("snmp_version", "2c")
-    with get_db() as conn:
-        cursor = conn.cursor()
-        cursor.execute(
-            """UPDATE snmp_devices SET ip=?, community=?, device_name=?, device_type=?,
-               snmp_version=?, snmpv3_username=?, snmpv3_auth_protocol=?,
-               snmpv3_auth_key=?, snmpv3_priv_protocol=?, snmpv3_priv_key=? WHERE id=?""",
-            (
-                payload.get("ip", ""),
-                payload.get("community", "public"),
-                payload.get("device_name", ""),
-                payload.get("device_type", "router"),
-                snmp_version,
-                payload.get("snmpv3_username", ""),
-                payload.get("snmpv3_auth_protocol", "MD5"),
-                payload.get("snmpv3_auth_key", ""),
-                payload.get("snmpv3_priv_protocol", "DES"),
-                payload.get("snmpv3_priv_key", ""),
-                device_id,
-            ),
-        )
-        if cursor.rowcount == 0:
-            raise HTTPException(status_code=404, detail="SNMP 设备不存在")
-    return {"success": True}
-
-
-@router.delete("/admin/snmp/{device_id}")
-async def admin_delete_snmp(device_id: int):
-    with get_db() as conn:
-        cursor = conn.cursor()
-        cursor.execute("DELETE FROM snmp_devices WHERE id = ?", (device_id,))
-        if cursor.rowcount == 0:
-            raise HTTPException(status_code=404, detail="SNMP 设备不存在")
-    return {"success": True}
-
-
-@router.post("/admin/snmp/{device_id}/poll")
-async def admin_poll_snmp(device_id: int):
-    with get_db() as conn:
-        cursor = conn.cursor()
-        cursor.execute("SELECT ip, agent_id FROM snmp_devices WHERE id = ?", (device_id,))
-        dev = cursor.fetchone()
-        if not dev:
-            raise HTTPException(status_code=404, detail="SNMP 设备不存在")
-    from modules.snmp_manager import snmp_manager
-    result = snmp_manager.collect_snmp_metrics(dev["agent_id"], dev["ip"])
-    return {"status": "ok", "message": "轮询完成", "data": result}
 
 
 # ── 掉线检测（Ping 监控目标）CRUD ──────────────────────────────────────

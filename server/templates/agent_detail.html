@@ -127,10 +127,10 @@ function timeAgo(ts) {
   return Math.floor(s/3600) + '小时前';
 }
 function probeLabel(t) {
-  return {ping:'🏓 ping', http:'🌐 http', port:'🔌 port', dns:'📡 dns', snmp:'📊 snmp'}[t] || t;
+  return {ping:'🏓 ping', http:'🌐 http', port:'🔌 port', dns:'📡 dns'}[t] || t;
 }
 function probeClass(t) {
-  return {ping:'probe-ping', http:'probe-http', port:'probe-port', dns:'probe-dns', snmp:'probe-dns'}[t] || 'probe-ping';
+  return {ping:'probe-ping', http:'probe-http', port:'probe-port', dns:'probe-dns'}[t] || 'probe-ping';
 }
 
 var chartInstance = null;

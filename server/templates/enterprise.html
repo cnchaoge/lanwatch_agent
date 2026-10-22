@@ -2,7 +2,6 @@
 {% block nav_items %}
 <a class="nav-item" href="/agents.html">📊 总览</a>
 <a class="nav-item" href="/admin_users.html">👤 企业用户</a>
-<a class="nav-item" href="/admin_snmp.html">🔌 SNMP 设备</a>
 <a class="nav-item" href="/admin_ping.html">📡 连通检测</a>
 <a class="nav-item" href="/admin_targets.html">🎯 目标配置</a>
 <a class="nav-item" href="/download.html">📥 下载</a>
@@ -11,7 +10,6 @@
 {% block mobile_nav_items %}
 <a class="nav-item" href="/agents.html">📊 总览</a>
 <a class="nav-item" href="/admin_users.html">👤 企业用户</a>
-<a class="nav-item" href="/admin_snmp.html">🔌 SNMP 设备</a>
 <a class="nav-item" href="/admin_ping.html">📡 连通检测</a>
 <a class="nav-item" href="/admin_targets.html">🎯 目标配置</a>
 <a class="nav-item" href="/download.html">📥 下载</a>
@@ -226,7 +224,7 @@ function load() {
         '<div class="stat-card"><div class="stat-label">可用率</div><div class="stat-value ' + (availability!=null?(availability>=99?'green':(availability>=95?'orange':'red')):'') + '">' + (availability!=null ? availability.toFixed(1) + '%' : '-') + '</div><div style="font-size:12px;color:var(--muted);margin-top:2px">最近 ' + history.length + ' 条探测</div></div>' +
         '</div>';
     } else {
-      // 传统类型（SNMP/连通性检测）：展示拓扑设备、网关和 DNS 延迟
+      // 传统类型（连通性检测）：展示拓扑设备、网关和 DNS 延迟
       statsHtml = '<div class="stats-row">' +
         '<div class="stat-card"><div class="stat-label">在线设备</div><div class="stat-value green">' + nodes.filter(function(n){return n.last_seen && (Date.now()-new Date(n.last_seen).getTime())<3600000}).length + '</div><div style="font-size:12px;color:var(--muted);margin-top:2px">共 ' + nodes.length + ' 台</div></div>' +
         '<div class="stat-card"><div class="stat-label">24h 告警</div><div class="stat-value ' + (hasCritical?'red':'orange') + '">' + alerts.length + '</div><div style="font-size:12px;color:var(--muted);margin-top:2px">严重 ' + alerts.filter(function(a){return a.level==='critical'}).length + '</div></div>' +

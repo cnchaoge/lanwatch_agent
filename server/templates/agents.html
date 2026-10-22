@@ -2,7 +2,6 @@
 {% block nav_items %}
 <a class="nav-item" href="/agents.html">📊 总览</a>
 <a class="nav-item" href="/admin_users.html">👤 企业用户</a>
-<a class="nav-item" href="/admin_snmp.html">🔌 SNMP 设备</a>
 <a class="nav-item" href="/admin_ping.html">📡 连通检测</a>
 <a class="nav-item" href="/admin_targets.html">🎯 目标配置</a>
 <a class="nav-item" href="/download.html">📥 下载</a>
@@ -11,7 +10,6 @@
 {% block mobile_nav_items %}
 <a class="nav-item" href="/agents.html">📊 总览</a>
 <a class="nav-item" href="/admin_users.html">👤 企业用户</a>
-<a class="nav-item" href="/admin_snmp.html">🔌 SNMP 设备</a>
 <a class="nav-item" href="/admin_ping.html">📡 连通检测</a>
 <a class="nav-item" href="/admin_targets.html">🎯 目标配置</a>
 <a class="nav-item" href="/download.html">📥 下载</a>
@@ -66,7 +64,6 @@
 .type-win { background: rgba(88,166,255,0.15); color: var(--accent-blue); border-color: rgba(88,166,255,0.3); }
 .type-linux { background: rgba(63,185,80,0.15); color: var(--accent-green); border-color: rgba(63,185,80,0.3); }
 .type-mac { background: rgba(163,113,247,0.15); color: var(--accent-purple); border-color: rgba(163,113,247,0.3); }
-.type-snmp { background: rgba(210,153,34,0.15); color: var(--accent-yellow); border-color: rgba(210,153,34,0.3); }
 .ip-addr { font-family: monospace; font-size: 11px; color: var(--muted); }
 /* 空/加载 */
 .state-box { text-align: center; padding: 36px 20px; color: var(--muted); font-size: 13px; display: flex; flex-direction: column; align-items: center; gap: 8px; }
@@ -96,10 +93,6 @@
       <div class="label">企业客户端</div>
     </div>
     <div class="stat-card">
-      <div class="num" id="stat-snmp">-</div>
-      <div class="label">SNMP 设备</div>
-    </div>
-    <div class="stat-card">
       <div class="num" id="stat-probe">-</div>
       <div class="label">连通检测</div>
     </div>
@@ -120,19 +113,6 @@
       <a class="more" id="agent-more" href="/admin_users.html" style="display:none">查看全部 →</a>
     </div>
     <div class="section-card-body" id="agent-list">
-      <div class="skeleton skeleton-row"></div>
-      <div class="skeleton skeleton-row"></div>
-      <div class="skeleton skeleton-row"></div>
-    </div>
-  </div>
-
-  <!-- SNMP 设备 -->
-  <div class="section-card">
-    <div class="section-card-head">
-      <div class="title">📦 SNMP 设备 <span class="sub" id="snmp-count"></span></div>
-      <a class="more" id="snmp-more" href="/admin_snmp.html" style="display:none">查看全部 →</a>
-    </div>
-    <div class="section-card-body" id="snmp-list">
       <div class="skeleton skeleton-row"></div>
       <div class="skeleton skeleton-row"></div>
       <div class="skeleton skeleton-row"></div>
@@ -184,29 +164,6 @@ function renderUserRow(u) {
   '</div>';
 }
 
-// --- 渲染：SNMP设备行 ---
-function renderSnmpRow(dev) {
-  var online = dev.status == 1;
-  var dot = online ? 's-green' : 's-red';
-  var sCls = online ? 'val-green' : 'val-red';
-  var statusLabel = online ? '在线' : '离线';
-  var lastPoll = dev.last_poll ? timeAgo(dev.last_poll) : '-';
-  var name = dev.name || dev.ip || '未命名';
-  var ip = dev.ip || '-';
-  var ver = dev.snmp_version || '-';
-  var typeLabel = {'1':'路由器','2':'交换机','3':'服务器'}[String(dev.type)] || 'SNMP';
-  return '<div class="dev-row">' +
-    '<div class="dev-info">' +
-      '<div class="dev-name"><span class="status-dot ' + dot + '"></span>' + name + '</div>' +
-      '<div class="dev-meta"><span class="type-tag type-snmp">' + typeLabel + '</span> <span class="ip-addr">' + ip + '</span></div>' +
-    '</div>' +
-    '<div class="dev-metrics">' +
-      '<div class="metric"><div class="metric-val ' + sCls + '">' + statusLabel + '</div><div class="metric-label">状态</div></div>' +
-      '<div class="metric"><div class="metric-val val-grey">v' + ver + '</div><div class="metric-label">版本</div></div>' +
-      '<div class="metric"><div class="metric-val val-grey">' + lastPoll + '</div><div class="metric-label">最后轮询</div></div>' +
-    '</div>' +
-  '</div>';
-}
 
 // --- 渲染：连通性监控行 ---
 function renderProbeRow2(m) {
@@ -240,17 +197,15 @@ function skeletonState() {
 
 // --- 主加载 ---
 function loadAll() {
-  ['agent-list','snmp-list','probe-list'].forEach(function(id){
+  ['agent-list','probe-list'].forEach(function(id){
     document.getElementById(id).innerHTML = skeletonState();
   });
   Promise.all([
     fetch(SERVER + '/api/admin/users').then(function(r){ if(!r.ok) throw new Error('users ' + r.status); return r.json(); }),
-    fetch(SERVER + '/api/snmp/latest').then(function(r){ if(!r.ok) throw new Error('snmp ' + r.status); return r.json(); }),
     fetch(SERVER + '/api/admin/ping').then(function(r){ if(!r.ok) throw new Error('ping ' + r.status); return r.json(); })
   ]).then(function(results) {
     var users = results[0] || [];
-    var snmpDevices = results[1] || [];
-    var pingData = results[2] || [];
+    var pingData = results[1] || [];
 
     // 统计
     var onlineUsers = users.filter(function(u){
@@ -258,12 +213,10 @@ function loadAll() {
       return agents.some(function(a){ return a.last_seen && (Date.now()/1000 - a.last_seen) < 300; });
     }).length;
     document.getElementById('stat-users').textContent = users.length;
-    document.getElementById('stat-snmp').textContent = snmpDevices.length;
     document.getElementById('stat-probe').textContent = pingData.length;
-    var snmpOnline = snmpDevices.filter(function(d){ return d.status == 1; }).length;
     var probeOnline = pingData.filter(function(m){ return m.status === 'online'; }).length;
-    var totalOnline = onlineUsers + snmpOnline + probeOnline;
-    var totalOffline = (users.length - onlineUsers) + (snmpDevices.length - snmpOnline) + (pingData.length - probeOnline);
+    var totalOnline = onlineUsers + probeOnline;
+    var totalOffline = (users.length - onlineUsers) + (pingData.length - probeOnline);
     document.getElementById('stat-online').textContent = totalOnline;
     document.getElementById('stat-offline').textContent = totalOffline;
 
@@ -282,23 +235,6 @@ function loadAll() {
       var html = '';
       users.slice(0, 3).forEach(function(u){ html += renderUserRow(u); });
       document.getElementById('agent-list').innerHTML = html;
-    }
-
-    // SNMP
-    document.getElementById('snmp-count').textContent = snmpDevices.length ? '(' + snmpDevices.length + ')' : '';
-    var snmpMore = document.getElementById('snmp-more');
-    if (snmpDevices.length > 3) {
-      snmpMore.style.display = '';
-      snmpMore.textContent = '查看更多 →';
-    } else {
-      snmpMore.style.display = 'none';
-    }
-    if (!snmpDevices.length) {
-      document.getElementById('snmp-list').innerHTML = emptyState('暂无 SNMP 设备', '🔌');
-    } else {
-      var html = '';
-      snmpDevices.slice(0, 3).forEach(function(d){ html += renderSnmpRow(d); });
-      document.getElementById('snmp-list').innerHTML = html;
     }
 
     // 连通性监控
@@ -321,7 +257,6 @@ function loadAll() {
     console.error('loadAll error:', e);
     var msg = e && e.message ? e.message : (e && e.status ? e.status + ' ' + e.statusText : '未知错误');
     document.getElementById('agent-list').innerHTML = emptyState('加载失败：' + msg, '⚠️');
-    document.getElementById('snmp-list').innerHTML = emptyState('加载失败', '⚠️');
     document.getElementById('probe-list').innerHTML = emptyState('加载失败', '⚠️');
   });
 }

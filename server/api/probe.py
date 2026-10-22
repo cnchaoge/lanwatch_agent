@@ -290,17 +290,3 @@ async def get_device_status(agent_id: str):
         return {"agent": dict(agent), "recent_probes": probes}
 
 
-@router.get("/snmp_devices/{agent_id}")
-async def get_snmp_devices(agent_id: str):
-    with get_db() as conn:
-        cursor = conn.cursor()
-        cursor.execute("SELECT * FROM snmp_devices WHERE agent_id = ?", (agent_id,))
-        return [dict(r) for r in cursor.fetchall()]
-
-
-@router.get("/snmp_metrics/{device_ip}")
-async def get_snmp_metrics(device_ip: str, limit: int = 100):
-    with get_db() as conn:
-        cursor = conn.cursor()
-        cursor.execute("SELECT * FROM snmp_metrics WHERE device_ip = ? ORDER BY timestamp DESC LIMIT ?", (device_ip, limit))
-        return [dict(r) for r in cursor.fetchall()]
