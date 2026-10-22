@@ -3,12 +3,21 @@
 """
 lanwatch_agent - 企业网络监控客户端 v1.3.0
 
-架构（v1.3.0）：
+架构（v1.3.x）：
 - 启动时从服务端拉取监控目标配置（targets）
 - 按配置执行探测（ping / http / port / dns）
 - 结果上报服务端，托盘状态实时反映网络健康状况
 - 自动升级检查 + 拓扑扫描（可选）
-- 完全丢弃 network_monitor.py，轻装上阵
+
+并行：network_monitor.NetworkMonitor
+- 独立后台线程，每 10 秒跑一次连通性检测链
+      本机 → 网关 → DNS → 公网，逐级定位断在第几跳
+- 连续失败 3 次判定断线，连续成功 2 次判定恢复（防抖动）
+- 断线瞬间自动跑 tracert + nslookup，生成故障结论
+- 事件落本地 SQLite network_events 表：
+      start_time / end_time / duration_seconds / hop_count
+      diag_conclusion / root_cause_hint
+- 恢复时再诊断一次，判定根因（链路抖动 / DNS 瞬断 / 上游中断）
 """
 import sys
 import os
@@ -500,10 +509,37 @@ def _show_setup_window():
 # 监控主循环 v1.3.0
 # ═══════════════════════════════════════════════════════════════
 
+def _flush_events(server_url: str, agent_id: str, agent_token: str):
+    """把本地待传的断线事件补传到服务端。
+
+    断网期间事件攒在本地 synced=0，恢复后每轮自动补传；
+    服务端按 (agent_id, local_id) 去重，重复补传不会产生重复记录。
+    """
+    if not server_url or not agent_id or not agent_token:
+        return
+    try:
+        import network_monitor as nm
+        pending = nm.get_unsynced_events(limit=50)
+        if not pending:
+            return
+        from core.transport import Transport
+        transport = Transport(server_url, agent_id, agent_token)
+        ok = transport.report_events(pending)
+        transport.close()
+        if ok:
+            n = nm.mark_synced([e["local_id"] for e in pending if e.get("local_id")])
+            log.info("[事件上报] 补传 %d 条已入库", n)
+        else:
+            log.warning("[事件上报] 补传失败，%d 条留待下轮", len(pending))
+    except Exception as e:
+        log.warning("[事件上报] 异常：%s", e)
+
+
 def run_monitoring(agent_id: str, company_name: str):
     """
-    监控主循环：
-    - TargetRunner 拉取 targets → 探测 → 上报
+    监控主循环（两条并行链路）：
+    - TargetRunner：拉取 targets → 探测 → 上报
+    - NetworkMonitor：连通性检测链 → 断线/恢复状态机 → 本地事件库
     - 定期刷新配置、检查升级、扫描拓扑
     """
     global _tray_icon_ref
@@ -516,10 +552,24 @@ def run_monitoring(agent_id: str, company_name: str):
     topo_next_in = TOPOLOGY_INTERVAL
     upgrade_next_in = UPDATE_CHECK_INTERVAL
 
+    # ── 拉起网络故障事件引擎（独立线程，失败不影响探测主链路）──
+    netmon = None
+    try:
+        from network_monitor import NetworkMonitor
+        netmon = NetworkMonitor()
+        netmon.start()
+        log.info("[事件引擎] 已启动：每 %d 秒检测，失败 %d 次判断线，恢复 %d 次判恢复",
+                 10, 3, 2)
+    except Exception as e:
+        log.error("[事件引擎] 启动失败，探测主链路继续：%s", e, exc_info=True)
+
     while True:
         try:
             cfg.reload()
             agent_token = cfg.agent_token or os.environ.get("LANWATCH_TOKEN", "")
+
+            # 补传本地待传的断线事件（断网期间攒着，恢复后自动补齐）
+            _flush_events(server_url, agent_id, agent_token)
 
             runner = TargetRunner(
                 server_url=server_url,
@@ -569,6 +619,13 @@ def run_monitoring(agent_id: str, company_name: str):
             threading.Thread(target=_check_upgrade, daemon=True, name="upgrade").start()
 
         sleep(PROBE_INTERVAL)
+
+    # 停止事件引擎（若断线中，会强制补记一次恢复）
+    if netmon is not None:
+        try:
+            netmon.stop()
+        except Exception as e:
+            log.warning("[事件引擎] 停止异常：%s", e)
 
     if _tray_icon_ref:
         try:

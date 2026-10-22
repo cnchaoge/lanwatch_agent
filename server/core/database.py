@@ -33,6 +33,7 @@ def init_db():
         CREATE TABLE IF NOT EXISTS topology_nodes (id INTEGER PRIMARY KEY AUTOINCREMENT, agent_id TEXT, ip TEXT UNIQUE NOT NULL, mac TEXT, hostname TEXT, device_type TEXT, vendor TEXT, raw_data TEXT, last_seen TIMESTAMP DEFAULT CURRENT_TIMESTAMP);
         CREATE TABLE IF NOT EXISTS topology_links (id INTEGER PRIMARY KEY AUTOINCREMENT, node_a_ip TEXT NOT NULL, node_a_port TEXT, node_b_ip TEXT NOT NULL, node_b_port TEXT, link_type TEXT, last_confirmed TIMESTAMP DEFAULT CURRENT_TIMESTAMP);
         CREATE TABLE IF NOT EXISTS diag_reports (id INTEGER PRIMARY KEY AUTOINCREMENT, agent_id TEXT NOT NULL, report_json TEXT NOT NULL, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP);
+        CREATE TABLE IF NOT EXISTS network_events (id INTEGER PRIMARY KEY AUTOINCREMENT, agent_id TEXT NOT NULL, local_id INTEGER, event_type TEXT NOT NULL, start_time TEXT, end_time TEXT, duration_seconds INTEGER, gateway TEXT, error_message TEXT, hop_count INTEGER, diag_conclusion TEXT, root_cause_hint TEXT, synced_at TIMESTAMP, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, UNIQUE(agent_id, local_id));
         CREATE TABLE IF NOT EXISTS alert_log (id INTEGER PRIMARY KEY AUTOINCREMENT, agent_id TEXT NOT NULL, alert_type TEXT NOT NULL, message TEXT, level TEXT DEFAULT 'warning', created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP);
         CREATE TABLE IF NOT EXISTS scheduler_jobs (id INTEGER PRIMARY KEY AUTOINCREMENT, job_id TEXT UNIQUE NOT NULL, agent_id TEXT NOT NULL, probe_type TEXT NOT NULL, target TEXT NOT NULL, interval_seconds INTEGER DEFAULT 300, enabled INTEGER DEFAULT 1, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP);
         CREATE TABLE IF NOT EXISTS agent_metrics (id INTEGER PRIMARY KEY AUTOINCREMENT, agent_id TEXT NOT NULL, metric_key TEXT NOT NULL, metric_value REAL, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP);
@@ -41,6 +42,7 @@ def init_db():
         CREATE INDEX IF NOT EXISTS idx_alert_log_agent_time ON alert_log(agent_id, created_at);
         CREATE INDEX IF NOT EXISTS idx_topology_nodes_ip ON topology_nodes(ip);
         CREATE INDEX IF NOT EXISTS idx_diag_reports_agent_time ON diag_reports(agent_id, created_at);
+        CREATE INDEX IF NOT EXISTS idx_network_events_agent_time ON network_events(agent_id, start_time);
         CREATE INDEX IF NOT EXISTS idx_agent_metrics_key_time ON agent_metrics(agent_id, metric_key, created_at);
         CREATE UNIQUE INDEX IF NOT EXISTS idx_agents_name ON agents(name) WHERE name != '';
         """

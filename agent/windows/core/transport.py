@@ -70,6 +70,15 @@ class Transport:
                           headers=self._headers())
         return r is not None
 
+    def report_events(self, events: List[Dict]) -> bool:
+        """批量上报网络断线事件。服务端按 (agent_id, local_id) UPSERT，可安全重传"""
+        if not events:
+            return True
+        url = f"{self.server_url}/api/{self.agent_id}/events"
+        r = self._request(url, data=json.dumps({"events": events}).encode(),
+                          headers=self._headers())
+        return bool(r and r.get("success"))
+
     def fetch_targets(self) -> Optional[List[Dict]]:
         params = urllib.parse.urlencode({"agent_id": self.agent_id, "token": self.token})
         url = f"{self.server_url}/api/targets?{params}"

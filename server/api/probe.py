@@ -3,7 +3,7 @@ from fastapi import APIRouter, HTTPException, Header, Body, Request
 from typing import Optional, List, Dict, Any
 
 logger = logging.getLogger("probe")
-from datetime import datetime
+from datetime import datetime, timedelta
 import json
 from core.database import get_db
 from core.auth import verify_agent_token
@@ -171,6 +171,92 @@ async def receive_diag(agent_id: str, report_data: Dict[str, Any] = Body(...), a
         cursor = conn.cursor()
         cursor.execute("INSERT INTO diag_reports (agent_id, report_json) VALUES (?, ?)", (agent_id, json.dumps(report_data, ensure_ascii=False)))
     return {"success": True}
+
+
+@router.post("/{agent_id}/events")
+async def upload_events(agent_id: str, body: Any = Body(...), authorization: Optional[str] = Header(None)):
+    """客户端上报网络断线事件（批量、幂等，可断网后补传）"""
+    verified_id = verify_agent_token(authorization)
+    if verified_id != agent_id:
+        raise HTTPException(status_code=403, detail="token 与 agent_id 不匹配")
+
+    if isinstance(body, list):
+        items = body
+    elif isinstance(body, dict):
+        items = body.get("events", [])
+    else:
+        items = []
+
+    accepted = 0
+    with get_db() as conn:
+        cursor = conn.cursor()
+        for ev in items:
+            if not isinstance(ev, dict):
+                continue
+            local_id = ev.get("local_id")
+            if local_id is None:
+                continue
+            # UPSERT：重复补传不产生重复行；
+            # 断线中先传过、恢复后再传时，用新值补齐空字段
+            cursor.execute(
+                """INSERT INTO network_events
+                   (agent_id, local_id, event_type, start_time, end_time,
+                    duration_seconds, gateway, error_message, hop_count,
+                    diag_conclusion, root_cause_hint, synced_at)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+                   ON CONFLICT(agent_id, local_id) DO UPDATE SET
+                       event_type       = excluded.event_type,
+                       end_time         = COALESCE(excluded.end_time, network_events.end_time),
+                       duration_seconds = COALESCE(excluded.duration_seconds, network_events.duration_seconds),
+                       gateway          = COALESCE(excluded.gateway, network_events.gateway),
+                       error_message    = COALESCE(excluded.error_message, network_events.error_message),
+                       hop_count        = COALESCE(excluded.hop_count, network_events.hop_count),
+                       diag_conclusion  = COALESCE(excluded.diag_conclusion, network_events.diag_conclusion),
+                       root_cause_hint  = COALESCE(excluded.root_cause_hint, network_events.root_cause_hint),
+                       synced_at        = CURRENT_TIMESTAMP""",
+                (
+                    agent_id,
+                    local_id,
+                    (ev.get("event_type") or "offline"),
+                    ev.get("start_time"),
+                    ev.get("end_time"),
+                    ev.get("duration_seconds"),
+                    ev.get("gateway"),
+                    ev.get("error_message"),
+                    ev.get("hop_count"),
+                    ev.get("diag_conclusion"),
+                    ev.get("root_cause_hint"),
+                ),
+            )
+            accepted += 1
+    return {"success": True, "accepted": accepted, "received": len(items)}
+
+
+@router.get("/{agent_id}/events")
+async def get_events(agent_id: str, limit: int = 50, hours: int = 720,
+                      authorization: Optional[str] = Header(None)):
+    """查询某 Agent 的网络断线事件（未恢复的 end_time 为 NULL）"""
+    verified_id = verify_agent_token(authorization)
+    if verified_id != agent_id:
+        raise HTTPException(status_code=403, detail="token 与 agent_id 不匹配")
+    cutoff = (datetime.now() - timedelta(hours=hours)).isoformat()
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            """SELECT * FROM network_events
+               WHERE agent_id = ? AND COALESCE(start_time, '') >= ?
+               ORDER BY COALESCE(start_time, '') DESC LIMIT ?""",
+            (agent_id, cutoff, limit),
+        )
+        rows = [dict(r) for r in cursor.fetchall()]
+
+    ongoing = [r for r in rows if not r.get("end_time")]
+    return {
+        "success": True,
+        "count": len(rows),
+        "ongoing": len(ongoing),
+        "events": rows,
+    }
 
 
 @router.get("/{agent_id}/latest")
