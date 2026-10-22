@@ -14,6 +14,11 @@ class Config:
     TRACEROUTE_MAX_HOPS = 30
     TRACEROUTE_TIMEOUT = 3
     ALERT_COOLDOWN_SECONDS = 300
+    # ── 看门狗（v1.3.x）：Agent 失联 / 断线事件告警 ──
+    WATCHDOG_INTERVAL_SECONDS = int(os.environ.get("WATCHDOG_INTERVAL_SECONDS", "60"))
+    AGENT_SILENCE_SECONDS = int(os.environ.get("AGENT_SILENCE_SECONDS", "600"))
+    OFFLINE_ALERT_AFTER_SECONDS = int(os.environ.get("OFFLINE_ALERT_AFTER_SECONDS", "180"))
+    OFFLINE_REMIND_SECONDS = int(os.environ.get("OFFLINE_REMIND_SECONDS", "3600"))
     LOG_LEVEL = os.environ.get("LOG_LEVEL", "INFO")
     DINGTALK_WEBHOOK = os.environ.get("DINGTALK_WEBHOOK", "")
     FEISHU_WEBHOOK = os.environ.get("FEISHU_WEBHOOK", "")

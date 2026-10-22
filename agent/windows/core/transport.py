@@ -42,6 +42,12 @@ class Transport:
             logger.error("请求异常: %s", e)
         return None
 
+    def ping(self) -> bool:
+        """健康检查：GET /health，验证服务端地址可达"""
+        r = self._request(f"{self.server_url}/health", method="GET",
+                          headers=self._headers())
+        return bool(r and r.get("status") == "ok")
+
     def register(self, payload: Dict[str, Any]) -> Optional[Dict]:
         url = f"{self.server_url}/api/register"
         return self._request(url, data=json.dumps(payload).encode(),

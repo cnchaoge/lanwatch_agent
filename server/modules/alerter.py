@@ -3,6 +3,7 @@ import os
 import logging
 import time
 import json
+from datetime import datetime
 import httpx
 logger = logging.getLogger("alerter")
 from typing import Dict, List, Optional, Any
@@ -94,10 +95,15 @@ class AlertEngine:
         if self.cooldown.is_in_cooldown(agent_id, alert_type):
             return
 
+        # created_at 显式写本地时间：不写则落到 SQLite CURRENT_TIMESTAMP，
+        # 那是 UTC，会与本项目其他表（用 datetime.now()）差一个时区，
+        # 导致「最近是否告过警」这类时间比较全部失真
         with get_db() as conn:
             conn.execute(
-                "INSERT INTO alert_log (agent_id, alert_type, message, level) VALUES (?, ?, ?, ?)",
-                (agent_id, alert_type, message, level),
+                "INSERT INTO alert_log (agent_id, alert_type, message, level, created_at) "
+                "VALUES (?, ?, ?, ?, ?)",
+                (agent_id, alert_type, message, level,
+                 datetime.now().strftime("%Y-%m-%d %H:%M:%S")),
             )
 
         title = f"[Lanwatch] {alert_type} - {agent_id}"

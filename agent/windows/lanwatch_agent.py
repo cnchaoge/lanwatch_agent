@@ -374,7 +374,7 @@ def _show_setup_window():
 
     win = tk.Toplevel()
     win.title("Lanwatch 网络监控 - 初始化设置")
-    win.geometry("420x400")
+    win.geometry("420x540")
     win.resizable(False, False)
     win.attributes("-topmost", True)
 
@@ -400,9 +400,24 @@ def _show_setup_window():
     card = tk.Frame(win, bg=card_bg, relief="solid", bd=1, highlightbackground=border)
     card.pack(fill="x", padx=32, pady=(20, 0), ipady=16)
 
+    # ── 服务端地址 ──
+    tk.Label(card, text="服务端地址", font=("微软雅黑", 9), bg=card_bg,
+             fg=muted).pack(anchor="w", padx=24, pady=(16, 0))
+    server_var = tk.StringVar(value=DEFAULT_SERVER_URL)
+    server_entry = tk.Entry(card, textvariable=server_var,
+                            font=("微软雅黑", 11), bg=card_bg, fg=dark,
+                            relief="solid", bd=1, insertbackground=accent,
+                            highlightthickness=1, highlightcolor=border,
+                            highlightbackground=border)
+    server_entry.pack(fill="x", padx=24, pady=(4, 0))
+    test_btn = tk.Button(card, text="测试连接", font=("微软雅黑", 9),
+                         bg="#F3F4F6", fg=accent, relief="flat",
+                         command=lambda: _test_connection())
+    test_btn.pack(anchor="e", padx=24, pady=(6, 0))
+
     # ── 企业名称 ──
     tk.Label(card, text="企业名称", font=("微软雅黑", 9), bg=card_bg,
-             fg=muted).pack(anchor="w", padx=24, pady=(16, 0))
+             fg=muted).pack(anchor="w", padx=24, pady=(12, 0))
     name_var = tk.StringVar()
     name_entry = tk.Entry(card, textvariable=name_var,
                           font=("微软雅黑", 11), bg=card_bg, fg=dark,
@@ -435,18 +450,50 @@ def _show_setup_window():
     is_registering = [False]
     _confirming_exit = [False]  # 防止重复弹窗
 
+    def _normalize_url(raw: str) -> str:
+        """补全协议头与末尾斜杠"""
+        url = (raw or "").strip().rstrip("/")
+        if not url:
+            return ""
+        if not url.startswith("http://") and not url.startswith("https://"):
+            url = "http://" + url
+        return url
+
+    def _test_connection():
+        url = _normalize_url(server_var.get())
+        if not url:
+            status_lbl.config(text="请先填写服务端地址", fg=red)
+            return
+        test_btn.config(text="测试中...", state="disabled")
+        win.update()
+        try:
+            from core.transport import Transport
+            t = Transport(url, "", "", timeout=8)
+            alive = t.ping()
+            t.close()
+            if alive:
+                status_lbl.config(text="✓ 连接成功", fg=green)
+            else:
+                status_lbl.config(text="✗ 连不上，请检查地址和网络", fg=red)
+        except Exception as e:
+            status_lbl.config(text=f"✗ 测试失败：{e}", fg=red)
+        finally:
+            test_btn.config(text="测试连接", state="normal")
+
     def _do_submit():
         global _tray_icon_ref
         name = name_var.get().strip()
         phone = phone_var.get().strip()
+        server_url = _normalize_url(server_var.get())
 
+        if not server_url:
+            status_lbl.config(text="请填写服务端地址", fg=red)
+            return
         if not name:
             status_lbl.config(text="请填写企业名称", fg=red)
             return
 
-        # 首次注册强制使用默认服务端地址
         cfg = load_config()
-        server_url = DEFAULT_SERVER_URL
 
         if is_registering[0]:
             return
@@ -495,6 +542,14 @@ def _show_setup_window():
     tk.Button(btn_frame, text="确认", font=("微软雅黑", 10, "bold"), width=10,
               bg=accent, fg="white", relief="flat", pady=6,
               command=_do_submit).pack(side="right")
+
+    # 预填：若本地已存过服务端地址，带出来省一次输入
+    try:
+        _existing = load_config().get("server_url", "")
+        if _existing and not DEFAULT_SERVER_URL:
+            server_var.set(_existing)
+    except Exception:
+        pass
 
     name_entry.focus()
 

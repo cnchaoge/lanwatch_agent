@@ -23,6 +23,7 @@ from api.targets import router as targets_router
 from web import register_web
 from modules.scheduler import scheduler
 from modules.dataretention import run_cleanup, get_retention_info, start_cleanup_scheduler, stop_cleanup_scheduler
+from modules.watchdog import start_watchdog, stop_watchdog
 
 logger = logging.getLogger("lanwatch")
 
@@ -36,7 +37,9 @@ async def lifespan(app: FastAPI):
     scheduler.start()
     logger.info("探测调度器已启动")
     start_cleanup_scheduler()
+    start_watchdog()
     yield
+    stop_watchdog()
     stop_cleanup_scheduler()
     scheduler.shutdown()
     logger.info("探测调度器已停止")
