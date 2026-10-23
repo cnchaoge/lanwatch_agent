@@ -203,7 +203,7 @@ async def upload_events(agent_id: str, body: Any = Body(...), authorization: Opt
                    (agent_id, local_id, event_type, start_time, end_time,
                     duration_seconds, gateway, error_message, hop_count,
                     diag_conclusion, root_cause_hint, synced_at)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                    ON CONFLICT(agent_id, local_id) DO UPDATE SET
                        event_type       = excluded.event_type,
                        end_time         = COALESCE(excluded.end_time, network_events.end_time),
@@ -213,7 +213,7 @@ async def upload_events(agent_id: str, body: Any = Body(...), authorization: Opt
                        hop_count        = COALESCE(excluded.hop_count, network_events.hop_count),
                        diag_conclusion  = COALESCE(excluded.diag_conclusion, network_events.diag_conclusion),
                        root_cause_hint  = COALESCE(excluded.root_cause_hint, network_events.root_cause_hint),
-                       synced_at        = CURRENT_TIMESTAMP""",
+                       synced_at        = excluded.synced_at""",
                 (
                     agent_id,
                     local_id,
@@ -226,6 +226,10 @@ async def upload_events(agent_id: str, body: Any = Body(...), authorization: Opt
                     ev.get("hop_count"),
                     ev.get("diag_conclusion"),
                     ev.get("root_cause_hint"),
+                    # 显式写本地时间：不用 CURRENT_TIMESTAMP（那是 UTC），
+                    # 会与客户端上报的 start_time（本地时间）差一个时区，
+                    # 同一张表两种时区，排查时会看糊涂
+                    datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
                 ),
             )
             accepted += 1

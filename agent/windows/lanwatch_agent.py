@@ -272,10 +272,31 @@ def setup_tray(company_name: str):
         return None
 
 
+# 托盘三态：绿=正常 / 红=故障 / 灰=未配置监控目标
+# 「没配目标」不是故障，不该显示红色——否则用户永远看到红灯，
+# 会误以为网络有问题，久而久之就不再信任这个指示灯。
+TRAY_COLOR_ONLINE = "#34c759"
+TRAY_COLOR_OFFLINE = "#ff3b30"
+TRAY_COLOR_UNCONFIGURED = "#8e8e93"
+TRAY_TEXT = {
+    TRAY_COLOR_ONLINE: "在线",
+    TRAY_COLOR_OFFLINE: "离线",
+    TRAY_COLOR_UNCONFIGURED: "未配置监控目标",
+}
+
+
 def update_tray_status(is_online: bool):
-    """线程安全地更新托盘状态"""
+    """线程安全地更新托盘状态。传 True=在线 / False=离线"""
     try:
         _status_queue.put_nowait(("status", is_online))
+    except Exception:
+        pass
+
+
+def update_tray_unconfigured():
+    """没有可探的监控目标时调用：显示灰色中性态，不报故障"""
+    try:
+        _status_queue.put_nowait(("color", TRAY_COLOR_UNCONFIGURED))
     except Exception:
         pass
 
@@ -288,9 +309,12 @@ def _poll_status_queue():
         try:
             op, data = _status_queue.get(timeout=1)
             if op == "status":
-                color = "#34c759" if data else "#ff3b30"
+                color = TRAY_COLOR_ONLINE if data else TRAY_COLOR_OFFLINE
                 current_color = color
                 _do_update_tray_icon(color)
+            elif op == "color":
+                current_color = data
+                _do_update_tray_icon(data)
         except queue.Empty:
             continue
         except Exception as e:
@@ -350,7 +374,7 @@ def _do_update_tray_icon(color: str):
         if _tray_icon_ref is None:
             return
         _tray_icon_ref.icon = _create_tray_image(color)
-        status_text = "在线" if color == "#34c759" else "离线"
+        status_text = TRAY_TEXT.get(color, "未知")
         title = f"lanwatch ({_company_name}) - {status_text}"
         # pystray title setter（部分 Windows 版本可能不生效，作为补充调用 Win32 API）
         _tray_icon_ref.title = title
@@ -635,9 +659,12 @@ def run_monitoring(agent_id: str, company_name: str):
 
             targets = runner.fetch_targets(use_cache=True)
             if not targets:
-                log.warning("[探测] 未拉到监控目标，%d 秒后重试...", PROBE_INTERVAL)
+                # 没配监控目标 ≠ 网络故障。显示灰色中性态，
+                # 否则用户永远看到红灯，会误以为网络有问题。
+                log.warning("[探测] 未拉到监控目标（属正常情况，非故障），%d 秒后重试...",
+                            PROBE_INTERVAL)
                 runner.close()
-                update_tray_status(False)
+                update_tray_unconfigured()
                 sleep(PROBE_INTERVAL)
                 continue
 
