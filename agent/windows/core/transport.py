@@ -70,6 +70,13 @@ class Transport:
         r = self._request(url, headers=self._headers())
         return r is not None
 
+    def report_uninstall(self) -> bool:
+        """通知服务端「本机已主动卸载」。服务端据此软删除（标记 deleted_at），
+        不再把这台设备当成失联反复告警；后台仍可见记录，需要时可彻底清理。"""
+        url = f"{self.server_url}/api/{self.agent_id}/uninstall"
+        r = self._request(url, data=b"", headers=self._headers())
+        return bool(r and r.get("success"))
+
     def report_diag(self, report_data: Dict) -> bool:
         url = f"{self.server_url}/api/{self.agent_id}/diag"
         r = self._request(url, data=json.dumps(report_data).encode(),

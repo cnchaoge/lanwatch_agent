@@ -149,16 +149,21 @@ async def report_offline(agent_id: str, authorization: Optional[str] = Header(No
 
 @router.post("/{agent_id}/uninstall")
 async def report_uninstall(agent_id: str, authorization: Optional[str] = Header(None)):
-    """客户端卸载通知（删除 agent 及关联数据）"""
+    """客户端卸载通知（软删除：标记 deleted_at，后台可见可清理）"""
     verified_id = verify_agent_token(authorization)
     if verified_id != agent_id:
         raise HTTPException(status_code=403, detail="token 与 agent_id 不匹配")
     with get_db() as conn:
         cursor = conn.cursor()
-        cursor.execute("DELETE FROM agents WHERE agent_id = ?", (agent_id,))
+        # 软删除：不物理删除。断线历史/诊断报告是留证材料，删了找不回来。
+        # 标记后不再出现在监控总览，也不再触发失联告警；后台仍可查看并彻底清理。
+        cursor.execute(
+            "UPDATE agents SET deleted_at = COALESCE(deleted_at, ?) WHERE agent_id = ?",
+            (local_now(), agent_id),
+        )
         if cursor.rowcount == 0:
             raise HTTPException(status_code=404, detail="设备不存在")
-    return {"success": True, "message": f"Agent {agent_id} 已卸载"}
+    return {"success": True, "message": f"Agent {agent_id} 已标记卸载"}
 
 
 @router.post("/{agent_id}/diag")

@@ -204,7 +204,12 @@ def _do_uninstall():
         agent_token = cfg.agent_token
         if agent_id:
             transport = Transport(cfg.server_url, agent_id, agent_token)
-            transport.report_offline()
+            # 必须调 uninstall：服务端靠它区分「主动卸载」和「机器故障」，
+            # 否则卸载后仍会被失联看门狗反复告警
+            ok = transport.report_uninstall()
+            if not ok:
+                log.warning("[卸载] 服务端未确认卸载，降级为仅通知下线")
+                transport.report_offline()
             transport.close()
             log.info("[卸载] 已通知服务端")
     except Exception as e:

@@ -36,7 +36,7 @@ async def admin_get_users():
     with get_db() as conn:
         cursor = conn.cursor()
         # 先从 agents 表拿企业基础信息
-        cursor.execute("SELECT agent_id, name, ip, token, phone, last_seen FROM agents ORDER BY name")
+        cursor.execute("SELECT agent_id, name, ip, token, phone, last_seen, deleted_at FROM agents ORDER BY name")
         agent_rows = {r["agent_id"]: r for r in map(dict, cursor.fetchall())}
         # scheduler_jobs 里拿 ping 任务状态（设备在线状态）
         cursor.execute(

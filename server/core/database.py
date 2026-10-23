@@ -50,7 +50,7 @@ def init_db():
     try:
         cursor = conn.cursor()
         sql = """
-        CREATE TABLE IF NOT EXISTS agents (id INTEGER PRIMARY KEY AUTOINCREMENT, agent_id TEXT UNIQUE NOT NULL, name TEXT DEFAULT '', ip TEXT DEFAULT '', os_type TEXT DEFAULT '', token TEXT DEFAULT '', secret_key TEXT, interval INTEGER DEFAULT 60, created_at TIMESTAMP DEFAULT (datetime('now','localtime')), last_seen TIMESTAMP);
+        CREATE TABLE IF NOT EXISTS agents (id INTEGER PRIMARY KEY AUTOINCREMENT, agent_id TEXT UNIQUE NOT NULL, name TEXT DEFAULT '', ip TEXT DEFAULT '', os_type TEXT DEFAULT '', token TEXT DEFAULT '', secret_key TEXT, interval INTEGER DEFAULT 60, created_at TIMESTAMP DEFAULT (datetime('now','localtime')), last_seen TIMESTAMP, deleted_at TIMESTAMP);
         CREATE TABLE IF NOT EXISTS probe_results (id INTEGER PRIMARY KEY AUTOINCREMENT, agent_id TEXT NOT NULL, probe_type TEXT NOT NULL, target TEXT NOT NULL, status TEXT, rtt_ms REAL, raw_output TEXT, created_at TIMESTAMP DEFAULT (datetime('now','localtime')));
         CREATE TABLE IF NOT EXISTS topology_nodes (id INTEGER PRIMARY KEY AUTOINCREMENT, agent_id TEXT, ip TEXT UNIQUE NOT NULL, mac TEXT, hostname TEXT, device_type TEXT, vendor TEXT, raw_data TEXT, last_seen TIMESTAMP DEFAULT (datetime('now','localtime')));
         CREATE TABLE IF NOT EXISTS topology_links (id INTEGER PRIMARY KEY AUTOINCREMENT, node_a_ip TEXT NOT NULL, node_a_port TEXT, node_b_ip TEXT NOT NULL, node_b_port TEXT, link_type TEXT, last_confirmed TIMESTAMP DEFAULT (datetime('now','localtime')));
@@ -70,6 +70,12 @@ def init_db():
         """
         cursor.executescript(sql)
         conn.commit()
+        # 软删除标记：客户端卸载时不物理删除，标记 deleted_at 后台可查可清
+        cursor.execute("PRAGMA table_info(agents)")
+        _acols = [row[1] for row in cursor.fetchall()]
+        if "deleted_at" not in _acols:
+            cursor.execute("ALTER TABLE agents ADD COLUMN deleted_at TIMESTAMP")
+            conn.commit()
         # 检查并添加 token 列（迁移兼容）
         cursor.execute("PRAGMA table_info(agents)")
         cols = [row[1] for row in cursor.fetchall()]

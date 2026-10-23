@@ -87,8 +87,10 @@ def _recently_alerted(agent_id: str, alert_type: str, within_seconds: int) -> bo
 def check_agent_silence():
     cutoff = datetime.now() - timedelta(seconds=config.AGENT_SILENCE_SECONDS)
     with get_db() as conn:
+        # 已软删除（客户端主动卸载）的设备不再参与失联告警，
+        # 否则每卸载一台，服务端就会永远把它当成掉线设备反复报警
         rows = conn.execute(
-            "SELECT agent_id, name, last_seen FROM agents"
+            "SELECT agent_id, name, last_seen FROM agents WHERE deleted_at IS NULL"
         ).fetchall()
 
     fired = 0

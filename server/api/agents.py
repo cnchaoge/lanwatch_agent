@@ -48,7 +48,7 @@ async def register_agent(payload: dict):
 async def get_agents():
     with get_db() as conn:
         cursor = conn.cursor()
-        cursor.execute("SELECT agent_id, name, ip, os_type, interval, last_seen FROM agents ORDER BY created_at DESC")
+        cursor.execute("SELECT agent_id, name, ip, os_type, interval, last_seen FROM agents WHERE deleted_at IS NULL ORDER BY created_at DESC")
         rows = cursor.fetchall()
         return [{"id": r["agent_id"], "agent_id": r["agent_id"], "name": r["name"] or "", "ip": r["ip"] or "", "os_type": r["os_type"] or "", "interval": r["interval"] or config.AGENT_DEFAULT_INTERVAL, "last_seen": r["last_seen"], "online": _is_recent(r["last_seen"])} for r in rows]
 
@@ -58,7 +58,7 @@ async def get_enterprises():
     """返回所有企业列表（含设备数、告警数、连通性监控状态）"""
     with get_db() as conn:
         cursor = conn.cursor()
-        cursor.execute("SELECT agent_id, name, ip, os_type, interval, last_seen, created_at FROM agents ORDER BY created_at DESC")
+        cursor.execute("SELECT agent_id, name, ip, os_type, interval, last_seen, created_at FROM agents WHERE deleted_at IS NULL agents ORDER BY created_at DESC")
         rows = cursor.fetchall()
         result = []
         for r in rows:

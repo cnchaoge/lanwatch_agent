@@ -12,7 +12,8 @@ def verify_agent_token(authorization: Optional[str] = Header(None)) -> str:
     token = parts[1]
     with get_db() as conn:
         cursor = conn.cursor()
-        cursor.execute("SELECT agent_id FROM agents WHERE token = ?", (token,))
+        cursor.execute(
+        "SELECT agent_id FROM agents WHERE token = ? AND deleted_at IS NULL", (token,))
         row = cursor.fetchone()
         if not row:
             raise HTTPException(status_code=401, detail="无效的 token")
