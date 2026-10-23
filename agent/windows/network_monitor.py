@@ -478,6 +478,7 @@ class NetworkMonitor:
         self._last_gateway: str = ""
         self._last_hop_count: int = 0
         self._offline_triggered = False  # 是否已写入 offline 事件（防止重复写）
+        self._wan_reachable = True      # 外网探测结果（仅记录，不参与断线判定）
 
         # 确保数据库就绪
         get_db().close()
@@ -535,20 +536,28 @@ class NetworkMonitor:
                 self._on_failure(hop, gw, err)
                 return
 
-        # 第三步：DNS / 公网
-        all_ok = True
-        fail_reason = ""
+        # 第三步：DNS / 公网 —— 仅作为「上游异常」信号，不判定断线
+        #
+        # 2026-10-23 实测修正：
+        #   公司网络封外网 ICMP（ping 114.114.114.114 不通，但网关正常、
+        #   baidu 正常）→ 老逻辑每 10 秒判一次断线，持续误报轰炸。
+        #
+        # 判定「这家网络断了」只能靠局域网内信号：
+        #   - 网关不通 = 客户现场真断网（断电/断线/路由器挂）
+        #   - 网关通但外网不通 = 上游或探测手段问题，不是现场故障
+        # 外网不通只记录，不再触发断线事件。
+        wan_ok = True
+        wan_fail = []
         for target, name in CHECK_TARGETS:
             if not _ping(target, timeout=3):
-                all_ok = False
-                fail_reason = "%s 不可达: %s" % (name, target)
-                break
+                wan_ok = False
+                wan_fail.append("%s 不可达: %s" % (name, target))
 
-        if all_ok:
-            self._on_success()
-        else:
-            hop = 2 if gw else 1
-            self._on_failure(hop, gw, fail_reason)
+        self._wan_reachable = wan_ok
+        if not wan_ok:
+            log.info("[上游] 外网探测未通过（不影响断线判定）: %s", "; ".join(wan_fail))
+
+        self._on_success()
 
     # ── 状态处理 ──────────────────────────────────────────────
 
