@@ -277,17 +277,41 @@ def setup_tray(company_name: str):
         return None
 
 
-# 托盘三态：绿=正常 / 红=故障 / 灰=未配置监控目标
-# 「没配目标」不是故障，不该显示红色——否则用户永远看到红灯，
-# 会误以为网络有问题，久而久之就不再信任这个指示灯。
+# 托盘四态：
+#   绿 正常      —— 全部目标探测通过
+#   黄 疑似故障  —— 刚失败 1 次，尚不能确认
+#   红 确认故障  —— 连续失败 >= TRAY_FAIL_THRESHOLD 次
+#   灰 未配置    —— 服务端没下发任何监控目标（不是故障）
+#
+# 为什么要「疑似」这一档：2026-10-23 真机实测，单次丢包就变红，
+# 而下一秒探测又是 ok。指示灯骗人一次，用户就不信它了；
+# 真出事时也就不会当真。宁可漏报不可假报。
 TRAY_COLOR_ONLINE = "#34c759"
+TRAY_COLOR_DEGRADED = "#ffcc00"
 TRAY_COLOR_OFFLINE = "#ff3b30"
 TRAY_COLOR_UNCONFIGURED = "#8e8e93"
 TRAY_TEXT = {
     TRAY_COLOR_ONLINE: "在线",
+    TRAY_COLOR_DEGRADED: "疑似故障",
     TRAY_COLOR_OFFLINE: "离线",
     TRAY_COLOR_UNCONFIGURED: "未配置监控目标",
 }
+# 连续失败多少次才确认故障（与 NetworkMonitor 的 OFFLINE_THRESHOLD=3 一致）
+TRAY_FAIL_THRESHOLD = 3
+
+# 连续失败计数。探测成功时立即归零 -> 绿；失败累加 -> 黄 -> 红
+_consecutive_failures = [0]
+
+
+def _resolve_probe_state(all_ok: bool) -> str:
+    """把本轮探测结果映射成托盘颜色（含防抖）"""
+    if all_ok:
+        _consecutive_failures[0] = 0
+        return TRAY_COLOR_ONLINE
+    _consecutive_failures[0] += 1
+    if _consecutive_failures[0] >= TRAY_FAIL_THRESHOLD:
+        return TRAY_COLOR_OFFLINE
+    return TRAY_COLOR_DEGRADED
 
 
 def update_tray_status(is_online: bool):
@@ -314,7 +338,7 @@ def _poll_status_queue():
         try:
             op, data = _status_queue.get(timeout=1)
             if op == "status":
-                color = TRAY_COLOR_ONLINE if data else TRAY_COLOR_OFFLINE
+                color = _resolve_probe_state(data)
                 current_color = color
                 _do_update_tray_icon(color)
             elif op == "color":
