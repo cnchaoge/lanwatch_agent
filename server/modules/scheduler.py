@@ -4,7 +4,7 @@ from typing import Optional, Dict, List, Any
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.interval import IntervalTrigger
 from apscheduler.jobstores.memory import MemoryJobStore
-from core.database import get_db
+from core.database import get_db, local_now
 from core.config import config
 import logging
 logger = logging.getLogger("scheduler")
@@ -165,10 +165,10 @@ class ProbeScheduler:
         with get_db() as conn:
             conn.execute(
                 "INSERT INTO probe_results "
-                "(agent_id, probe_type, target, status, rtt_ms, raw_output) "
-                "VALUES (?, ?, ?, ?, ?, ?)",
+                "(agent_id, probe_type, target, status, rtt_ms, raw_output, created_at) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?)",
                 (agent_id, probe_type, target, status, rtt,
-                 json.dumps(result)),
+                 json.dumps(result), local_now()),
             )
 
         # 告警评估

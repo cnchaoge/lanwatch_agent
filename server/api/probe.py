@@ -5,7 +5,7 @@ from typing import Optional, List, Dict, Any
 logger = logging.getLogger("probe")
 from datetime import datetime, timedelta
 import json
-from core.database import get_db
+from core.database import get_db, local_now
 from core.auth import verify_agent_token
 from modules.ping import ping_host
 
@@ -89,13 +89,13 @@ async def report(agent_id: str, body: Any = Body(...), authorization: Optional[s
             last_item = r
             # 兼容 Windows 客户端发送的扁平 metrics dict（不含 probe_type）
             if isinstance(r, dict) and "probe_type" not in r and "target" not in r:
-                cursor.execute("INSERT INTO probe_results (agent_id, probe_type, target, status, rtt_ms, raw_output) VALUES (?, ?, ?, ?, ?, ?)",
-                    (agent_id, "metrics", "all", "ok", r.get("ping_rtt_ms"), json.dumps(r, ensure_ascii=False)))
+                cursor.execute("INSERT INTO probe_results (agent_id, probe_type, target, status, rtt_ms, raw_output, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                    (agent_id, "metrics", "all", "ok", r.get("ping_rtt_ms"), json.dumps(r, ensure_ascii=False), local_now()))
                 # 同时写入 agent_metrics 键值表，支持趋势查询
                 _write_agent_metrics(cursor, agent_id, r)
             else:
-                cursor.execute("INSERT INTO probe_results (agent_id, probe_type, target, status, rtt_ms, raw_output) VALUES (?, ?, ?, ?, ?, ?)",
-                    (agent_id, r.get("probe_type"), r.get("target"), r.get("status"), r.get("rtt_ms"), json.dumps(r, ensure_ascii=False) if r else None))
+                cursor.execute("INSERT INTO probe_results (agent_id, probe_type, target, status, rtt_ms, raw_output, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                    (agent_id, r.get("probe_type"), r.get("target"), r.get("status"), r.get("rtt_ms"), json.dumps(r, ensure_ascii=False) if r else None, local_now()))
         # 客户端 IP：优先使用客户端上报的 client_ip，其次取私有 IP 头
         client_ip = _get_client_ip(request, last_item)
         if client_ip:
@@ -169,7 +169,7 @@ async def receive_diag(agent_id: str, report_data: Dict[str, Any] = Body(...), a
     import json
     with get_db() as conn:
         cursor = conn.cursor()
-        cursor.execute("INSERT INTO diag_reports (agent_id, report_json) VALUES (?, ?)", (agent_id, json.dumps(report_data, ensure_ascii=False)))
+        cursor.execute("INSERT INTO diag_reports (agent_id, report_json, created_at) VALUES (?, ?, ?)", (agent_id, json.dumps(report_data, ensure_ascii=False), local_now()))
     return {"success": True}
 
 
@@ -202,8 +202,8 @@ async def upload_events(agent_id: str, body: Any = Body(...), authorization: Opt
                 """INSERT INTO network_events
                    (agent_id, local_id, event_type, start_time, end_time,
                     duration_seconds, gateway, error_message, hop_count,
-                    diag_conclusion, root_cause_hint, synced_at)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    diag_conclusion, root_cause_hint, synced_at, created_at)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                    ON CONFLICT(agent_id, local_id) DO UPDATE SET
                        event_type       = excluded.event_type,
                        end_time         = COALESCE(excluded.end_time, network_events.end_time),
@@ -229,7 +229,8 @@ async def upload_events(agent_id: str, body: Any = Body(...), authorization: Opt
                     # 显式写本地时间：不用 CURRENT_TIMESTAMP（那是 UTC），
                     # 会与客户端上报的 start_time（本地时间）差一个时区，
                     # 同一张表两种时区，排查时会看糊涂
-                    datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                    local_now(),
+                    local_now(),
                 ),
             )
             accepted += 1

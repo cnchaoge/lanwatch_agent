@@ -8,7 +8,7 @@ from datetime import datetime, timezone
 from fastapi import APIRouter, HTTPException, Header, Query
 from fastapi.responses import Response
 from typing import Optional, List
-from core.database import get_db
+from core.database import get_db, local_now
 from core.config import config
 from core.auth import verify_admin_password
 
@@ -159,8 +159,8 @@ async def report_diag(agent_id: str, payload: dict):
         if not cursor.fetchone():
             raise HTTPException(status_code=404, detail="设备不存在")
         cursor.execute(
-            "INSERT INTO diag_reports (agent_id, report_json) VALUES (?, ?)",
-            (agent_id, json.dumps(payload)))
+            "INSERT INTO diag_reports (agent_id, report_json, created_at) VALUES (?, ?, ?)",
+            (agent_id, json.dumps(payload), local_now()))
     return {"success": True}
 
 

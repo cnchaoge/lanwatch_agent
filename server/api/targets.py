@@ -120,9 +120,13 @@ async def get_targets(
 async def create_target(payload: TargetCreate):
     """新增监控目标（同时写入 targets 表和 scheduler_jobs 探测任务）"""
     from modules.scheduler import scheduler
-    with get_db() as conn:
-        cursor = conn.cursor()
-        try:
+    try:
+        # 注意：先提交 targets 的事务，再动调度器。
+        # scheduler.add_job() 内部自己 with get_db() 开新连接写 scheduler_jobs，
+        # 若嵌套在本事务里，自己未提交的写锁会挡住自己那条连接，
+        # 结果是新增目标必然卡到 busy_timeout 超时（2026-10-23 实测）。
+        with get_db() as conn:
+            cursor = conn.cursor()
             cursor.execute(
                 "INSERT INTO targets (agent_id, name, target, probe_type, port, timeout, interval, enabled) "
                 "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
@@ -138,22 +142,22 @@ async def create_target(payload: TargetCreate):
                 ),
             )
             target_id = cursor.lastrowid
-            # 同时创建 scheduler_jobs 探测任务
-            job_id = f"{payload.agent_id}:{payload.probe_type}:{payload.target}"
-            scheduler.add_job(
-                job_id=job_id,
-                agent_id=payload.agent_id,
-                probe_type=payload.probe_type,
-                target=payload.target,
-                interval_seconds=payload.interval,
-                enabled=payload.enabled,
-                name=payload.name or payload.target,
-            )
-            return {"success": True, "id": target_id}
-        except Exception as e:
-            if "UNIQUE constraint" in str(e):
-                raise HTTPException(status_code=409, detail="该目标已存在")
-            raise HTTPException(status_code=500, detail=str(e))
+        # 事务已提交，此刻再注册调度任务
+        job_id = f"{payload.agent_id}:{payload.probe_type}:{payload.target}"
+        scheduler.add_job(
+            job_id=job_id,
+            agent_id=payload.agent_id,
+            probe_type=payload.probe_type,
+            target=payload.target,
+            interval_seconds=payload.interval,
+            enabled=payload.enabled,
+            name=payload.name or payload.target,
+        )
+        return {"success": True, "id": target_id}
+    except Exception as e:
+        if "UNIQUE constraint" in str(e):
+            raise HTTPException(status_code=409, detail="该目标已存在")
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.get("/targets/{target_id}")
@@ -249,7 +253,7 @@ async def delete_target(target_id: int):
         agent_id, probe_type, target = row["agent_id"], row["probe_type"], row["target"]
         # 删除 targets
         cursor.execute("DELETE FROM targets WHERE id = ?", (target_id,))
-        # 删除 scheduler_jobs
-        job_id = f"{agent_id}:{probe_type}:{target}"
-        scheduler.remove_job(job_id)
-        return {"success": True}
+    # 事务提交后再动调度器：scheduler.remove_job() 自带连接写 scheduler_jobs，
+    # 嵌在本事务里会自己挡自己（同 create_target）
+    scheduler.remove_job(f"{agent_id}:{probe_type}:{target}")
+    return {"success": True}
