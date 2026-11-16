@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """
-lanwatch_agent - 企业网络监控客户端（Linux / Ubuntu 专用版）v0.5
+lanwatch_agent - 企业网络监控客户端（Linux / Ubuntu 专用版）v1.3.0
 支持 Ubuntu / Debian 系统
 
 依赖安装：
-  pip install pystray pillow pyyaml
+  pip install pystray pillow
 
 运行方式：
   python3 lanwatch_agent_linux.py
@@ -12,7 +12,7 @@ lanwatch_agent - 企业网络监控客户端（Linux / Ubuntu 专用版）v0.5
 Linux 打包：
   pyinstaller --onefile --name lanwatch_agent lanwatch_agent_linux.py
 """
-__version__ = "1.2.0"
+__version__ = "1.3.0"
 
 import os
 import sys

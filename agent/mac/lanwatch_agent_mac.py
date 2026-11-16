@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-lanwatch_agent - 企业网络监控客户端（macOS 版）v1.2.0
+lanwatch_agent - 企业网络监控客户端（macOS 版）v1.3.0
 支持 macOS 12+
 
 依赖安装：
@@ -9,10 +9,10 @@ lanwatch_agent - 企业网络监控客户端（macOS 版）v1.2.0
 运行方式：
   python3 lanwatch_agent_mac.py
 
-macOS 打包：
-  pyinstaller --onefile --name lanwatch_agent lanwatch_agent_mac.py
+macOS 打包（在 agent/mac 目录下执行，尚无安装包）：
+  pyinstaller --noconfirm --clean lanwatch_agent_mac.spec
 """
-__version__ = "1.2.0"
+__version__ = "1.3.0"
 
 import os
 import sys

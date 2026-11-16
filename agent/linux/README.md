@@ -1,47 +1,31 @@
 # Linux Agent
 
-Lanwatch Agent for Linux，支持注册为 systemd 服务。
+Lanwatch Agent for Linux / Ubuntu。源码版本声明为 **1.3.0**（`lanwatch_agent_linux.py` 里的 `__version__`）。这只是源码声明，不是已发布安装包。
 
-## 安装
+仓库里没有 Linux 安装包，也没有 `requirements.txt`、systemd unit 或 `lanwatch_agent_linux.sh`。安装包仍是「即将上线」，不要把它当成可下载的 v1.3.0。
+
+## 从源码运行
 
 ```bash
 cd agent/linux
-pip install -r requirements.txt
+pip install pystray pillow   # 托盘可选；未安装时程序会跳过托盘
+python3 lanwatch_agent_linux.py
 ```
 
-### 注册 systemd 服务
+首次运行会走设置向导，配置写到 `~/.config/lanwatch/agent.json`。
+
+## 打包
+
+在 `agent/linux` 目录执行（脚本文件名是 `build.sh`）：
 
 ```bash
-sudo cp lanwatch_agent.service /etc/systemd/system/
-sudo systemctl daemon-reload
-sudo systemctl enable lanwatch_agent
-sudo systemctl start lanwatch_agent
+bash build.sh
 ```
 
-### 查看状态
+等价命令：
 
 ```bash
-sudo systemctl status lanwatch_agent
+pyinstaller --onefile --name lanwatch_agent lanwatch_agent_linux.py
 ```
 
-## 配置
-
-编辑 `/etc/lanwatch/agent.json`：
-
-```json
-{
-  "api_base": "http://your-server:8000",
-  "agent_id": "linux-server-001",
-  "interval": 60,
-  "token": ""
-}
-```
-
-## 卸载
-
-```bash
-sudo systemctl stop lanwatch_agent
-sudo systemctl disable lanwatch_agent
-sudo rm /etc/systemd/system/lanwatch_agent.service
-sudo rm -rf /etc/lanwatch
-```
+输出：`dist/lanwatch_agent`。该二进制不在 GitHub Releases 上。

@@ -43,8 +43,13 @@ jobs:
           Write-Host "=== PyInstaller version ==="
           pyinstaller --version
           Write-Host "=== Building ==="
-          pyinstaller --clean lanwatch_agent.spec 2>&1
+          # 工作目录必须是 agent/windows：build_spec.spec 用 os.getcwd() 找
+          # lanwatch_agent.py、core/、probes/。PyInstaller 6 默认把产物写到
+          # <cwd>/dist，onefile 名称为 dist/LanwatchAgent.exe。
+          # 仓库里已没有 lanwatch_agent.spec。
+          pyinstaller --noconfirm --clean --distpath dist --workpath build setup/build_spec.spec 2>&1
           Write-Host "=== Exit code: $LASTEXITCODE ==="
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           ls dist/ 2>&1
 
       - name: Upload artifact

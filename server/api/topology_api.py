@@ -1,4 +1,7 @@
-"""拓扑管理 API：触发发现、查询拓扑、节点/链路管理"""
+"""拓扑管理 API：查询已上报的拓扑、节点/链路管理。
+
+服务端不再提供 LLDP / CDP / SNMP 自动发现。
+"""
 import logging
 from fastapi import APIRouter, Query, HTTPException
 from typing import Optional

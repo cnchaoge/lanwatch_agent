@@ -65,31 +65,69 @@ python main.py
 
 ## 部署 Agent
 
+最新已发布的安装包是 Windows **v1.2.0**（[Release](https://github.com/cnchaoge/lanwatch_agent/releases/tag/v1.2.0) 的 `lanwatch_agent.exe`）。源码版本 1.3.0 在 `master`，尚未打 tag、尚未发版。Linux、macOS、OpenWrt 都没有现成安装包。
+
 ### Windows Agent
+
+仓库里没有 `setup.py`，也没有 `lanwatch_agent.spec`。
 
 ```powershell
 cd agent/windows
 pip install -r requirements.txt
-python main.py             # 前台运行
-# 或
-python setup.py install    # 注册 Service
+python main.py                 # 前台运行
+python lanwatch_agent.py       # 托盘客户端
+python main.py install         # 注册 Windows Service（需管理员和 pywin32）
+net start LanwatchAgent
 ```
+
+打包（工作目录必须是 `agent/windows`，产物 `dist/LanwatchAgent.exe`）：
+
+```powershell
+pyinstaller --noconfirm --clean --distpath dist --workpath build setup/build_spec.spec
+```
+
+也可以运行 `agent/windows/build.bat`。
 
 ### Linux Agent
 
+没有 `requirements.txt`，也没有 systemd 单元。安装包即将上线。
+
 ```bash
 cd agent/linux
-pip install -r requirements.txt
-./lanwatch_agent_linux.sh start
+pip install pystray pillow
+python3 lanwatch_agent_linux.py
+```
+
+本地打包：`bash build.sh`，输出 `dist/lanwatch_agent`。
+
+### macOS Agent
+
+源码在 `agent/mac/lanwatch_agent_mac.py`，版本声明 1.3.0。尚未提供安装包。
+
+```bash
+cd agent/mac
+pip install pystray pillow
+python3 lanwatch_agent_mac.py
+```
+
+本地打包（工作目录为 `agent/mac`）：
+
+```bash
+pyinstaller --noconfirm --clean lanwatch_agent_mac.spec
 ```
 
 ### OpenWrt 路由器
 
+安装包即将上线。源码安装入口是 `agent/router/install.sh`，不是 `router_agent.sh install`（主脚本没有 `install` 子命令）。
+
 ```bash
-上传 router_agent.sh 到 /root/
-chmod +x /root/router_agent.sh
-/root/router_agent.sh install
+scp -r agent/router root@192.168.1.1:/tmp/lanwatch
+ssh root@192.168.1.1
+cd /tmp/lanwatch
+sh install.sh
 ```
+
+详见 `agent/router/README.md`。
 
 ## 生产环境配置
 

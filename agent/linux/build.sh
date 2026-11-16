@@ -1,6 +1,6 @@
 #!/bin/bash
 # lanwatch_agent Linux 打包脚本
-# 用法: bash build_linux.sh
+# 用法: 在 agent/linux 目录执行 bash build.sh
 
 set -e
 

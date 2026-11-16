@@ -64,29 +64,40 @@ docker-compose up -d
 
 ### Agent 部署
 
+源码版本 1.3.0 尚未发版。已发布的 Windows 安装包是 v1.2.0。Linux / macOS / OpenWrt 没有安装包。仓库里没有 `setup.py`。
+
 **Windows Agent**
 
 ```powershell
 cd agent/windows
 pip install -r requirements.txt
-python setup.py install   # 安装为 Windows Service
+python main.py            # 前台
+python main.py install    # 注册 Windows Service（需管理员）
 ```
+
+打包：在 `agent/windows` 下执行 `pyinstaller --noconfirm --clean setup/build_spec.spec`，产物 `dist/LanwatchAgent.exe`。
 
 **Linux Agent**
 
 ```bash
 cd agent/linux
-pip install -r requirements.txt
-chmod +x lanwatch_agent_linux.sh
-./lanwatch_agent_linux.sh start
+pip install pystray pillow
+python3 lanwatch_agent_linux.py
+```
+
+**macOS Agent**
+
+```bash
+cd agent/mac
+pip install pystray pillow
+python3 lanwatch_agent_mac.py
 ```
 
 **OpenWrt 路由器**
 
 ```bash
-上传 router_agent.sh 到路由器
-chmod +x router_agent.sh
-./router_agent.sh install
+# 在 agent/router 目录的路由器副本里
+sh install.sh
 ```
 
 ## API 参考
@@ -115,10 +126,11 @@ GET  /api/probe/dns?domain=example.com
 GET  /api/probe/http?url=https://example.com
 ```
 
-### 拓扑发现
+### 拓扑查询
+
+服务端不再提供 LLDP / CDP / SNMP 自动发现。下面是已上报拓扑的查询接口。
 
 ```
-POST /api/topology/discover
 GET  /api/topology
 GET  /api/topology/nodes
 GET  /api/topology/stats
@@ -198,9 +210,10 @@ lanwatch_agent/
 │   ├── templates/         # Web 前端
 │   └── tests/             # pytest 测试
 ├── agent/
-│   ├── windows/           # Windows Agent (PyInstaller)
-│   ├── linux/             # Linux Agent (systemd)
-│   └── router/            # OpenWrt 路由器 Agent
+│   ├── windows/           # Windows Agent（打包入口 setup/build_spec.spec）
+│   ├── linux/             # Linux Agent 源码（尚无安装包）
+│   ├── mac/               # macOS Agent 源码（尚无安装包）
+│   └── router/            # OpenWrt 路由器 Agent 源码（尚无安装包）
 ├── docker-compose.yml     # Docker 部署
 ├── Dockerfile
 └── README.md

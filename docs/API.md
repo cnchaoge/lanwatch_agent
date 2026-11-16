@@ -42,7 +42,6 @@ POST /api/scheduler/reload
 ## 拓扑管理
 
 ```
-POST /api/topology/discover
 GET  /api/topology
 GET  /api/topology/nodes
 GET  /api/topology/links
