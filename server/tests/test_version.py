@@ -9,6 +9,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from fastapi.testclient import TestClient
 from main import app
 from core.database import init_db, config
+from version import get_version
 
 init_db()
 
@@ -27,7 +28,9 @@ def test_version_endpoint():
     assert r.status_code == 200
     data = r.json()
     assert "version" in data
-    assert data["version"] == "1.0.0"
+    assert data["version"] == get_version()
+    assert get_version() == "1.3.0"
+    assert app.version == get_version()
     assert "author" in data
     assert "license" in data
 

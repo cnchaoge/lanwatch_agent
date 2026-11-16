@@ -21,6 +21,7 @@ from api.propagation_api import router as propagation_router
 from api.admin_api import router as admin_router
 from api.targets import router as targets_router
 from web import register_web
+from version import version as APP_VERSION
 from modules.scheduler import scheduler
 from modules.dataretention import run_cleanup, get_retention_info, start_cleanup_scheduler, stop_cleanup_scheduler
 from modules.watchdog import start_watchdog, stop_watchdog
@@ -45,7 +46,7 @@ async def lifespan(app: FastAPI):
     logger.info("探测调度器已停止")
 
 
-app = FastAPI(title="Lanwatch", version="1.0.0", description="企业网络监控平台 - 服务端 API", lifespan=lifespan)
+app = FastAPI(title="Lanwatch", version=APP_VERSION, description="企业网络监控平台 - 服务端 API", lifespan=lifespan)
 
 import time
 
@@ -107,13 +108,14 @@ app.include_router(wizard_router, prefix="/api")
 app.include_router(propagation_router, prefix="/api")
 app.include_router(admin_router, prefix="/api")
 app.include_router(targets_router, prefix="/api")   # 必须在 admin_router 之后，避免 /api/admin/targets 被 /{agent_id}/targets 拦截
-app.include_router(probe_router, prefix="/api")    # /report /offline /diag 等 Agent 上报端点
-
 
 @app.get("/api/version")
 async def api_version():
+    # 必须写在 probe_router 的 /{agent_id} 之前，否则 /api/version 会被当成设备 ID。
     from version import get_version_info
     return get_version_info()
+
+app.include_router(probe_router, prefix="/api")    # /report /offline /diag 等 Agent 上报端点
 
 register_web(app)
 

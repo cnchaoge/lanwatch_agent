@@ -28,15 +28,14 @@
 
 ### 🗺️ 故障快速定位 — 减少排障时间
 
-- 自动发现网络拓扑：路由器、交换机、服务器都在哪里，谁连着谁
 - 内置 12 条诊断规则 + 引导式排查向导，出问题按图索骥
 - 故障传播链分析：告诉你这个问题正在影响哪些设备
 
 ### 🚀 部署三分钟 — 不用写文档
 
-- Windows 机器下载 exe，双击运行，填写企业名称，完成
+- Windows 已发布安装包下载 exe，双击运行，填写企业名称，完成
 - 自动隐藏到系统托盘，开机自启，真正"托管"
-- 支持 Windows / Linux / OpenWrt 路由器
+- 客户端源码覆盖 Windows / Linux / macOS / OpenWrt。已发布的安装包只有 Windows；Linux、macOS、OpenWrt 尚未提供安装包
 
 ### 📱 随时随地看 — 手机扫码就查看
 
@@ -49,9 +48,8 @@
 
 | 功能 | 说明 |
 |------|------|
-| 🔍 多维度探测 | ICMP Ping / HTTP 健康检查 / 端口扫描 / DNS 解析 / SNMP 轮询 |
+| 🔍 多维度探测 | ICMP Ping / HTTP 健康检查 / 端口扫描 / DNS 解析 |
 | 🔔 微信报警 | Server酱 / 钉钉机器人 / 飞书机器人，网络异常第一时间知道 |
-| 🗺️ 自动拓扑 | LLDP / CDP / ARP 自动发现网络设备，生成拓扑图 |
 | 🩺 故障诊断 | 12 条规则 + 引导式排查 + 故障传播链 |
 | 📊 趋势图表 | 延迟/丢包率历史趋势，有据可查 |
 | 📱 手机端 | 扫码查看，手机也能管网络 |
@@ -65,10 +63,15 @@
 
 ### 第一步：下载 Agent
 
-**Windows 安装包（v1.3.0）**  
-👉 [点击下载 LanwatchAgent.exe](https://github.com/cnchaoge/lanwatch_agent/releases/latest)
+**最新正式版是 Windows v1.2.0**，不是 v1.3.0。  
+👉 [下载 v1.2.0 的 lanwatch_agent.exe](https://github.com/cnchaoge/lanwatch_agent/releases/download/v1.2.0/lanwatch_agent.exe)  
+发布页：[v1.2.0](https://github.com/cnchaoge/lanwatch_agent/releases/tag/v1.2.0)
+
+`releases/latest` 目前仍指向这次 v1.2.0 的 exe。源码版本 1.3.0 已经在默认分支 `master` 上，**尚未打 tag、尚未创建 GitHub Release**，不能从 Releases 下载 1.3.0。
 
 双击运行 → 填写企业名称 → 完成注册
+
+Linux（`agent/linux/`）、macOS（`agent/mac/`）、OpenWrt（`agent/router/`）只有源码，没有安装包。Linux / OpenWrt 安装包仍是即将上线。
 
 ### 第二步：登录管理后台
 
@@ -90,6 +93,8 @@ cd lanwatch_agent/diagnostic
 python lan_scanner.py
 
 # 主动检测：需路由器 admin 凭证（通过环境变量提供，不进日志）
+# 可选：本机装了 snmpwalk 时，active_diag.py 会把它当作一种探测手段；没装就跳过。
+# 这是上门诊断工具，不是服务端 SNMP 轮询。
 ROUTER_ADMIN_USER=admin ROUTER_ADMIN_PASS=xxx python active_diag.py
 
 # 被动观察：只读模式，不发包，隐私友好
@@ -106,8 +111,8 @@ python passive_diag.py
 ┌─────────────────────────────────────────┐
 │         企业内网                         │
 │  ┌──────────┐   ┌──────────┐          │
-│  │ Windows  │   │  Linux   │  OpenWrt  │
-│  │   PC     │   │  Server  │  路由器   │
+│  │Windows / │   │Linux /   │  OpenWrt  │
+│  │  macOS   │   │  服务器   │  路由器   │
 │  └────┬─────┘   └────┬─────┘  └────┬───┘ │
 │       │              │              │     │
 └───────┼──────────────┼──────────────┼─────┘
@@ -146,7 +151,7 @@ Agent 每分钟自动探测配置的目标，结果上报云端；云端判断�
 
 - 🏢 **中小企业办公室**：多台路由器/交换机，担心网络频繁故障
 - 🔧 **弱电工程商**：为客户做网络托管服务，用 Lanwatch 集中监控多客户网络
-- 🖥️ **机房运维**：多台服务器，SNMP 监控设备状态，收到报警再出动
+- 🖥️ **机房运维**：多台服务器，探针上报状态，收到报警再出动
 - 🏠 **连锁门店**：各门店网络统一管理，出现问题先于门店知道
 
 ---
@@ -156,8 +161,8 @@ Agent 每分钟自动探测配置的目标，结果上报云端；云端判断�
 | 项目 | 说明 |
 |------|------|
 | 服务端 | Python 3.9+ / FastAPI / SQLite |
-| Agent | Windows (exe) / Linux / OpenWrt 路由器 |
-| 探测协议 | ICMP / TCP / SNMP / DNS / HTTP |
+| Agent | Windows（已发布 exe 为 v1.2.0）/ Linux、macOS、OpenWrt 源码（尚无安装包） |
+| 探测协议 | ICMP / TCP / DNS / HTTP。上门诊断可选本机 snmpwalk；服务端不做 SNMP 轮询 |
 | 报警渠道 | Server酱 / 钉钉 / 飞书 |
 | 部署方式 | Docker 一键部署 / 手动安装 |
 | License | MIT |
@@ -167,5 +172,5 @@ Agent 每分钟自动探测配置的目标，结果上报云端；云端判断�
 ## 相关链接
 
 - 🐛 问题反馈：[GitHub Issues](https://github.com/cnchaoge/lanwatch_agent/issues)
-- 📦 最新版本：[Releases](https://github.com/cnchaoge/lanwatch_agent/releases)
+- 📦 最新正式版：[v1.2.0](https://github.com/cnchaoge/lanwatch_agent/releases/tag/v1.2.0)（1.3.0 在 master，尚未发版）
 - 📖 完整文档：[docs/](docs/)

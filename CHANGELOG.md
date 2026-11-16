@@ -4,27 +4,92 @@
 
 ---
 
-## v1.3.0 上门成交加速器 & 部署文档
+## v1.3.0（源码版本，尚未打 tag / 尚未正式发布）
 
-**发布日期：** 2026-10-04
+GitHub Releases 的最新正式版仍是 [v1.2.0](https://github.com/cnchaoge/lanwatch_agent/releases/tag/v1.2.0)（2026-05-02）。下面是已经在默认分支 `master` 上、但还没有打 tag、也还没有 GitHub Release 的变更。版本号保持 1.3.0，不升到 1.4.0。
+
+### 2026-10-04 上门诊断与部署文档
+
+依据当时的提交（`43ac00a`…`e083e27`）与原先写在本节的说明：
+
+- **diagnostic 模块首发**：4 类检查（私接小路由 / 病毒恶意软件 / 网络环路 / 组网结构）的参考实现
+- `lan_scanner.py`：纯标准库 LAN 扫描器（scapy-free）
+- `active_diag.py`：登录路由器 HTTP 后台抓 ARP/DHCP/流量数据（锐捷 EG105G-V2 实测）。本机若装有 `snmpwalk`，可作为可选探测手段；未安装则跳过。这不是服务端 SNMP 轮询
+- `passive_diag.py`：被动观察 MVP（不发包）
+- **部署运维文档 `docs/DEPLOY.md`**：腾讯云 Lighthouse + Docker + Nginx + Let's Encrypt
+- **MIT LICENSE**
+- 隐私脱敏：手机号 / 服务器 IP / 域名 / 微信二维码改为环境变量；Agent 默认 `SERVER_URL` 留空
+- `diagnostic/.gitignore` 排除 `local_runs/` 与 `*.html`
+- diagnostic 模块 SPEC（`diagnostic/SPEC.md`）
+
+2026-10-09（`6f8e1bd`）删除了 `checks/_pseudo/` 与 `docs/checks/` 这些 stub。算法说明文档不再随仓库提供。
+
+### 2026-10-10 / 2026-10-22 服务端 SNMP 按方案 A 移除
+
+依据 `e3d2f69`、`fe9e386`：
+
+- 删除服务端 SNMP 轮询栈（`snmp_api`、`snmp_manager`、`snmp`、`trap`）和聊天栈（`chat_api` 及对应管理页）
+- `fe9e386` 清掉残留引用，修复因此导致的启动阻塞（`ModuleNotFoundError: No module named 'modules.snmp'`）
+- 移除 LLDP / CDP / SNMP 自动发现（`TopologyDiscoverer` 已不存在）。拓扑模块只保留节点/链路的保存和查询
+- 新库不再创建 `snmp_devices` / `snmp_metrics`。已有库里的这两张表**没有**执行 `DROP TABLE`
+- 聊天接口和管理页已删除。`chat_logs` 的建表代码仍在，本次也不删除这张表
+- 依赖里去掉 `pysnmp` / `pyasn1`
+
+### 2026-10-22 告警看门狗与网络事件
+
+依据 `992c9b7`、`d139968`：
+
+- 恢复客户端网络故障事件模型，并上报到服务端 `network_events`（断线期间先落本地，恢复后补传）
+- 新增告警看门狗：客户端失联、网络断线、恢复；断线/恢复按事件去重
+- `alert_log` 改为写入本地时间，避免和 UTC 默认值比较导致去重失效
+- 修复注册向导没有服务端地址输入框、GUI 注册必然失败的问题
+
+### 2026-10-23 可靠性修复
+
+依据 `f8d8467`、`9efb486`、`220f686`、`9e9a66c`、`7cc55e2`、`5e69791`：
+
+- 外网探测失败不再判定断线，修复 ICMP 被封时的持续误报（断线只认本机或网关）
+- 修复「网络彻底断开反而检测不到」的回归
+- 托盘增加「疑似故障」中间态和防抖：单次丢包不再报假红；未配置监控目标时不报红
+- 时间戳默认值改为本地时间；SQLite 开启 WAL 并加长锁等待；修复目标增删时的事务死锁
+- 客户端卸载改为软删除（`agents.deleted_at`），避免已卸载设备被看门狗当成掉线一直告警。不物理删除历史记录
+
+---
+
+## v1.2.0 首页稳定性修复
+
+**发布日期：** 2026-05-02  
+**来源：** [GitHub Release v1.2.0](https://github.com/cnchaoge/lanwatch_agent/releases/tag/v1.2.0)
+
+### 修复
+- 首页 JS 语法错误：修复导致「加载中」状态永不消失的脚本异常
+- 引号转义：改用 `data-agent-id` + 事件委托替代 `onclick` 内联属性
+
+### 发布物
+- 资产文件：`lanwatch_agent.exe`
+- 该 Release 说明写明所附 Windows Agent 为 v1.1.0（离线检测重构）；这是当时发布说明的原文，不是 1.3.0
+
+---
+
+## v1.1.0 客户端离线检测重构 + SNMP 管理
+
+**发布日期：** 2026-05-02  
+**来源：** [GitHub Release v1.1.0](https://github.com/cnchaoge/lanwatch_agent/releases/tag/v1.1.0)
+
+以下是该次发布说明里的内容。其中服务端 SNMP 管理已在尚未发布的 v1.3.0 里按方案 A 移除，当前 master 不再提供。
 
 ### 新增
-- **diagnostic 模块首发**：4 类检查（私接小路由 / 病毒恶意软件 / 网络环路 / 组网结构）配套参考实现与算法说明文档
-- `lan_scanner.py`：纯标准库 LAN 扫描器（5 类主检测，scapy-free），零依赖即可使用
-- `active_diag.py`：登录路由器 HTTP 后台抓 ARP/DHCP/流量数据（1663 行，锐捷 EG105G-V2 实测）
-- `passive_diag.py`：被动观察 MVP（不发包，隐私友好场景）
-- **完整部署运维文档 `docs/DEPLOY.md`**（925 行）：腾讯云 Lighthouse + Docker + Nginx + Let's Encrypt 全流程
-- **MIT LICENSE 文件**：补齐仓库协议声明
+- 客户端离线检测重构：网关不通立即存档，恢复联网后自动补传
+- 服务端 diag 接口：`/api/diag` 上报诊断信息
+- 当时的 admin SNMP 管理 API（SNMPv2c / v3）与企业详情页
+- `agent_metrics` 键值表
+- 管理后台空闲会话保护（5 分钟无操作自动注销）
+- Windows 客户端 v1.1.0 重新打包
 
-### 安全
-- **隐私脱敏**：替换硬编码手机号 / 服务器 IP / 域名 / 微信二维码为环境变量
-- Agent 默认 `SERVER_URL` 改为空，强制注册时由用户填写，避免误提交个人部署地址
-- 新增 `diagnostic/.gitignore` 排除 `local_runs/` 与 `*.html`，防止客户网络数据（IP/MAC/hostname）误提交
-
-### 文档
-- diagnostic 模块 SPEC v0.2（516 行）锁定 13 个核心决策
-- 4 类检查算法说明文档（`docs/checks/` × 4）
-- 销售定位明确：diagnostic 是「上门成交加速器」，不是技术诊断器
+### 修复
+- 路由注册顺序：`/api/alerts` 被 `/{agent_id}` 路径捕获
+- Windows 客户端关于窗口「检查更新」与「确定」按钮重叠
+- Windows agent 上报扁平 metrics dict 的解析异常
 
 ---
 

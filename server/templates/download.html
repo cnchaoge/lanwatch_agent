@@ -30,9 +30,7 @@
   font-size: 13px; color: var(--accent-blue); line-height: 1.7;
   margin-bottom: 28px;
 }
-.platform-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-bottom: 32px; }
-@media (max-width: 800px) { .platform-grid { grid-template-columns: repeat(2, 1fr); } }
-@media (max-width: 480px) { .platform-grid { grid-template-columns: 1fr; } }
+.platform-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 14px; margin-bottom: 32px; }
 .platform-card {
   background: var(--surface); border: 1px solid var(--border);
   border-radius: var(--radius-lg); padding: 20px;
@@ -43,8 +41,9 @@
 .platform-icon { font-size: 28px; margin-bottom: 4px; }
 .platform-name { font-size: 15px; font-weight: 700; }
 .platform-desc { font-size: 12px; color: var(--muted); flex: 1; line-height: 1.6; }
-.platform-version { font-size: 11px; color: var(--muted); }
+.platform-version { font-size: 11px; color: var(--muted); line-height: 1.5; }
 .platform-link { margin-top: 6px; }
+.platform-note { margin-top: 8px; font-size: 12px; color: var(--muted); line-height: 1.5; }
 .section { margin-top: 40px; }
 .section-title { font-size: 18px; font-weight: 700; margin-bottom: 16px; display: flex; align-items: center; gap: 8px; }
 .param-row { display: flex; gap: 10px; font-size: 13px; line-height: 1.9; margin-bottom: 4px; }
@@ -56,33 +55,43 @@
 <div class="container" style="padding-top:28px;">
   <div class="page-header">
     <h1>📥 下载中心</h1>
-    <p>选择对应平台安装包，下载后双击运行即可完成部署。</p>
+    <p>已发布的安装包只有 Windows v1.2.0。源码里的 1.3.0 还在 master，尚未发版。</p>
   </div>
   <div class="info-note">
-    💡 <strong>首次安装：</strong>下载对应平台的安装包，双击运行，填写企业名称完成注册。<br>
-    数据将自动上报至服务器，随时可通过管理后台查看网络状态。
+    💡 <strong>版本：</strong>GitHub Releases 的最新正式版是
+    <a href="https://github.com/cnchaoge/lanwatch_agent/releases/tag/v1.2.0" target="_blank" rel="noopener">v1.2.0</a>
+    （2026-05-02，<code>lanwatch_agent.exe</code>）。<code>releases/latest</code> 目前仍是这个包。<br>
+    默认分支 <code>master</code> 的源码版本是 1.3.0，尚未打 tag，也还没有 GitHub Release，不能从 Releases 下载 1.3.0。<br>
+    Linux、macOS、OpenWrt 只有仓库里的源码，没有安装包。Linux / OpenWrt 安装包仍是即将上线。
   </div>
   <div class="platform-grid">
     <div class="platform-card">
       <div class="platform-icon">🪟</div>
       <div class="platform-name">Windows 客户端</div>
-      <div class="platform-desc">适用于 Windows 10/11 系统，桌面后台运行，开机自启</div>
-      <div class="platform-version">v1.3.0 · 2026-05-04</div>
-      <a class="btn btn-primary platform-link" href="/client.exe" style="display:block;text-align:center">立即下载 (.exe)</a>
+      <div class="platform-desc">适用于 Windows 10/11。已发布安装包为 v1.2.0，桌面后台运行，开机自启</div>
+      <div class="platform-version">已发布 v1.2.0 · 2026-05-02<br>源码 1.3.0 尚未发版</div>
+      <a class="btn btn-primary platform-link" href="https://github.com/cnchaoge/lanwatch_agent/releases/download/v1.2.0/lanwatch_agent.exe" style="display:block;text-align:center" target="_blank" rel="noopener">下载 v1.2.0 (.exe)</a>
     </div>
     <div class="platform-card">
       <div class="platform-icon">🐧</div>
       <div class="platform-name">Linux 客户端</div>
-      <div class="platform-desc">适用于 Debian/Ubuntu/CentOS 系统，命令行运行</div>
-      <div class="platform-version">v1.3.0 · 2026-05-04</div>
-      <a class="btn btn-primary platform-link" href="https://github.com/cnchaoge/lanwatch_agent/releases" style="display:block;text-align:center" target="_blank">即将上线</a>
+      <div class="platform-desc">源码在 agent/linux/，适用于 Debian/Ubuntu。安装包即将上线</div>
+      <div class="platform-version">源码声明 1.3.0，尚无安装包</div>
+      <div class="platform-note">即将上线，暂不提供下载</div>
+    </div>
+    <div class="platform-card">
+      <div class="platform-icon">🍎</div>
+      <div class="platform-name">macOS 客户端</div>
+      <div class="platform-desc">源码在 agent/mac/，支持 macOS 12+。仓库里没有安装包</div>
+      <div class="platform-version">源码声明 1.3.0，尚无安装包</div>
+      <div class="platform-note">尚未提供安装包</div>
     </div>
     <div class="platform-card">
       <div class="platform-icon">📡</div>
       <div class="platform-name">OpenWRT 路由器</div>
-      <div class="platform-desc">适用于 OpenWRT 系统路由器</div>
-      <div class="platform-version">v1.3.0 · 2026-05-04</div>
-      <a class="btn btn-primary platform-link" href="https://github.com/cnchaoge/lanwatch_agent/releases" style="display:block;text-align:center" target="_blank">即将上线</a>
+      <div class="platform-desc">源码在 agent/router/。安装包即将上线</div>
+      <div class="platform-version">源码在仓库中，安装包即将上线</div>
+      <div class="platform-note">即将上线，暂不提供下载</div>
     </div>
     <div class="platform-card">
       <div class="platform-icon">📱</div>
